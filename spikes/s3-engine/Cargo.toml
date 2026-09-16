@@ -1,0 +1,12 @@
+[package]
+name = "s3-engine"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "M0 spike S3: is Apple SpeechAnalyzer available, and how fast is it on a 6 s utterance"
+build = "build.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"

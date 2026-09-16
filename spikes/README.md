@@ -15,6 +15,7 @@ cd spikes && cargo run --release -p <spike> -- [args]
 | Spike | Binary | Needs | What to paste back |
 | --- | --- | --- | --- |
 | S1 hotkey | `s1-hotkey [seconds]` | Input Monitoring for the terminal you run it from | the whole output, especially the summary block |
+| S3 engine | `s3-engine [--locale en-US] [--runs 3] [--download] [AUDIO]` | network once, for the model assets | the whole output; also say what the audio actually said |
 | S2 inject | `s2-inject [--delay N] [--method auto\|ax\|paste\|both] [--no-restore] [TEXT]` | Accessibility for the terminal | the whole output per app, plus what you saw appear in the field |
 
 ## Permissions
@@ -25,6 +26,16 @@ desktop app), not the binary. Grant it once to the terminal and every spike bina
 that terminal inherits it, debug or release, across rebuilds.
 
 System Settings → Privacy & Security → Input Monitoring (S1) / Accessibility (S2).
+
+## S3 notes
+
+- SpeechAnalyzer is Swift-only. `s3-engine/build.rs` compiles `bridge/S3Bridge.swift` with
+  `swiftc` into a static library and links it; the product will need the same shape because
+  `objc2-speech` only wraps the old `SFSpeechRecognizer` API.
+- The default fixture is `fixtures/audio/clean-6s.wav`, generated with `say` (synthetic
+  voice, 6.06 s). For an accuracy judgement record yourself in QuickTime (File → New Audio
+  Recording, ~6 s, save as .m4a) and pass that path; AVAudioFile reads it directly.
+- The first run needs `--download` to fetch the on-device model for the locale.
 
 ## S2 notes
 
