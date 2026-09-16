@@ -13,7 +13,7 @@
 //!   its own it cannot say how long the OS took to deliver the event. The second tap reads
 //!   the kernel's HID timestamp (`CGEventGetTimestamp`) and the two streams are paired by
 //!   callback time, which lands within microseconds for the same HID event.
-//! - `hid→tap`   kernel HID timestamp → keytap's callback ran.
+//! - `hid→tap`   kernel HID timestamp → keytap's callback stamped the event.
 //! - `tap→recv`  keytap's callback → this program's main loop received it (channel hop).
 //! - `hid→recv`  the sum: what the pipeline would actually see.
 //!
@@ -415,7 +415,8 @@ fn main() {
 
         match raw.as_mut().and_then(|r| r.take_nearest(ev_ticks)) {
             Some(r) => {
-                let os_ms = ticks_to_ms(i128::from(r.cb_ticks) - i128::from(r.hid_ticks));
+                // Measured against keytap's own callback stamp, so hid→tap + tap→recv == hid→recv.
+                let os_ms = ticks_to_ms(i128::from(ev_ticks) - i128::from(r.hid_ticks));
                 let tot_ms = ticks_to_ms(i128::from(recv_ticks) - i128::from(r.hid_ticks));
                 hid_to_tap.push(os_ms);
                 hid_to_recv.push(tot_ms);
