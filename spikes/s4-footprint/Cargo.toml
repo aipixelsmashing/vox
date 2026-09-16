@@ -1,0 +1,9 @@
+[package]
+name = "s4-footprint"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "M0 spike S4: idle and peak memory while the engine spike runs"
+
+[dependencies]
+libc = "0.2"

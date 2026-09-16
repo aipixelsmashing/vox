@@ -5,11 +5,13 @@
 //! because SpeechAnalyzer is Swift-only. This side parses the bridge's JSON and prints it.
 //!
 //! Usage:
-//!   s3-engine [--locale en-US] [--runs 3] [--download] [AUDIO]
+//!   s3-engine [--locale en-US] [--runs 3] [--download] [--idle-seconds N] [AUDIO]
 //!
 //! AUDIO defaults to fixtures/audio/clean-6s.wav. Anything AVAudioFile reads works: .wav,
 //! .m4a, .aiff, .caf. `--download` lets the bridge fetch the on-device model assets for the
-//! locale if they are not installed. Runs ≥ 2 give cold vs warm numbers.
+//! locale if they are not installed. Runs ≥ 2 give cold vs warm numbers. `--idle-seconds N`
+//! keeps the process alive after the runs, with the model retained for the process lifetime,
+//! so S4 can sample idle RSS with the engine resident.
 //!
 //! Paste the whole output back.
 
@@ -95,6 +97,7 @@ fn main() {
     let mut locale = "en-US".to_string();
     let mut runs: i32 = 3;
     let mut download = false;
+    let mut idle_seconds: u64 = 0;
     let mut audio: Option<String> = None;
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -102,8 +105,11 @@ fn main() {
             "--locale" => locale = it.next().unwrap_or(locale),
             "--runs" => runs = it.next().and_then(|v| v.parse().ok()).unwrap_or(runs),
             "--download" => download = true,
+            "--idle-seconds" => idle_seconds = it.next().and_then(|v| v.parse().ok()).unwrap_or(0),
             "-h" | "--help" => {
-                println!("s3-engine [--locale en-US] [--runs 3] [--download] [AUDIO]");
+                println!(
+                    "s3-engine [--locale en-US] [--runs 3] [--download] [--idle-seconds N] [AUDIO]"
+                );
                 return;
             }
             other => audio = Some(other.to_string()),
@@ -264,5 +270,10 @@ fn main() {
     );
     if rep.error.is_some() || ok.is_empty() {
         std::process::exit(1);
+    }
+    if idle_seconds > 0 {
+        println!("idling {idle_seconds}s with the engine resident (for S4)...");
+        std::thread::sleep(std::time::Duration::from_secs(idle_seconds));
+        println!("RSS after idle: {:.1} MB", rss_now_mb());
     }
 }
