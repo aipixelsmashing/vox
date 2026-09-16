@@ -5,8 +5,8 @@
 > [adr/0016](adr/0016-macos-first.md). Deferred: `parakeet-rs`, `whisper-rs`, the ONNX runtime,
 > the model registry and downloader, memory-mapped residency, `win-text-inject`, `enigo`,
 > `ashpd`, and the Wayland fallback chain. What v1 actually needs: Tauri, `keytap` (CGEventTap
-> backend), `cpal`, `rubato`, a VAD, `axuielement`, `core-graphics`, `rusqlite`, `arboard`, and
-> Apple's SpeechAnalyzer.
+> backend), `cpal`, `rubato`, a VAD, `axuielement`, `objc2-core-graphics`, `objc2-app-kit`,
+> `rusqlite`, and Apple's SpeechAnalyzer through a small Swift bridge of our own.
 
 Every dependency here was chosen against a specific requirement. Where a library was rejected
 the reason is recorded, because "why not X" comes up in every contributor conversation.
@@ -69,7 +69,21 @@ trim-and-reject (we are not doing endpointing).
 
 ## Speech recognition
 
-Two engines behind one trait. See [MODELS.md](MODELS.md) for the model registry and licences.
+**v1: Apple SpeechAnalyzer, through a Swift bridge we compile ourselves.** SpeechAnalyzer
+has no C or Objective-C surface — `objc2-speech` wraps only the older `SFSpeechRecognizer`
+API and cannot reach it. The engine is therefore ~150 lines of Swift (`SpeechTranscriber`,
+`SpeechAnalyzer`, `AssetInventory`) exposed through `@_cdecl` functions, compiled by
+`build.rs` with `swiftc` into a static library and linked into the binary, the same shape
+`axuielement` uses for its own bridge. Deployment target stays macOS 15 so the binary loads on
+an older OS and reports the engine unavailable rather than failing to launch.
+
+Measured ([S3](spikes/s3-engine.md), M1 Pro): a 6 s utterance in ~165 ms warm, ~250 ms cold,
+word-perfect on the fixture; the first use of a locale fetches Apple's model assets (under a
+second here). The model runs in Apple's `localspeechrecognition` XPC service, not in our
+process ([S4](spikes/s4-footprint.md)).
+
+Two further engines behind the same trait are designed for M8 and **not built in v1**. See
+[MODELS.md](MODELS.md) for the model registry and licences.
 
 **Default: `parakeet-rs`** — NVIDIA Parakeet TDT via ONNX Runtime (`ort`).
 
@@ -101,8 +115,14 @@ Per platform, and this is where the real engineering is. Full detail in
 [TEXT-INJECTION.md](TEXT-INJECTION.md).
 
 - **macOS** — `axuielement` (safe Rust bindings to Apple's Accessibility API) for direct
-  insertion via `kAXSelectedTextAttribute`, with `core-graphics` for the synthesised-paste and
-  Unicode-event fallbacks.
+  insertion via `kAXSelectedTextAttribute`, with `objc2-core-graphics` for the
+  synthesised-paste and Unicode-event fallbacks and `objc2-app-kit` for `NSPasteboard` and
+  `NSWorkspace`. Two things learned in [S2](spikes/s2-injection.md): `axuielement` 0.9
+  compiles a Swift bridge whose build script assumes Xcode.app, so with Command Line Tools
+  only the link needs `<xcode-select -p>/usr/lib/swift/macosx` on the search path (our
+  `build.rs` adds it); and the system-wide `AXUIElement` returned `CannotComplete` for
+  everything on macOS 26.5, so the focused element is found through the frontmost
+  application's element instead ([TEXT-INJECTION.md](TEXT-INJECTION.md#macos)).
 - **Windows** — **`win-text-inject`**, a crate that exists precisely because the naive
   approach is broken. Its documentation is worth reading in full; the summary is that
   clipboard-and-Ctrl+V leaks transcripts into Windows clipboard history and the cloud
@@ -117,8 +137,9 @@ Per platform, and this is where the real engineering is. Full detail in
   available (GNOME ≥ 46, KDE Plasma ≥ 6.1), then `wtype`, then `ydotool`, then clipboard-only.
   See ADR 0005 for why we don't pretend Wayland injection succeeded when we can't confirm it.
 
-**`arboard`** for cross-platform clipboard reads/writes, with platform-specific code layered
-on top for the private/concealed clipboard formats.
+**`arboard`** for cross-platform clipboard reads/writes on Windows and Linux (M8). On macOS
+the clipboard path uses `NSPasteboard` directly, because it needs the concealed type, the
+change count, and a full multi-item snapshot for restore — none of which `arboard` exposes.
 
 ## Storage
 

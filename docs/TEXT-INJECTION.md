@@ -88,26 +88,46 @@ setting says. Never any content rewriting.
    happening, because a stuck secure-input state is otherwise baffling.
 
 2. **Accessibility insertion.** Via `axuielement`:
-   - `AXUIElementCreateSystemWide()`
-   - read `kAXFocusedUIElementAttribute`
+   - find the focused element **through the frontmost application**:
+     `NSWorkspace.frontmostApplication` → `AXUIElementCreateApplication(pid)` → read
+     `kAXFocusedUIElementAttribute`. The textbook route, `AXUIElementCreateSystemWide()` →
+     `kAXFocusedUIElementAttribute`, returned `kAXErrorCannotComplete` for every attribute
+     from a trusted process on macOS 26.5 ([S2](spikes/s2-injection.md)); the per-app route
+     worked in every app tested. Try system-wide first, fall through to per-app, never treat
+     a system-wide failure as "no target".
    - check `kAXRole` is one of `AXTextField`, `AXTextArea`, or a `AXComboBox` that reports a
-     settable `kAXSelectedTextAttribute`
+     settable `kAXSelectedTextAttribute`; refuse `AXSecureTextField`
+   - snapshot `kAXSelectedTextRange`, `kAXNumberOfCharacters` and `kAXValue`
    - set `kAXSelectedTextAttribute` to the transcript — this replaces the selection, or
      inserts at the caret when the selection is empty
-   - verify by re-reading `kAXSelectedTextRange` and confirming the caret advanced by the
-     inserted length
+   - **verify** by re-reading the same three attributes. Evidence is any of: the caret
+     advanced by the inserted length, the character count grew by it, or the value gained
+     exactly one new copy of the text. **Tolerate target-side normalisation**: the Chrome and
+     Brave omnibox trim trailing whitespace, so a strict length check reports failure on a
+     successful insert. Accept the `trim_end` form of the text as evidence and record that
+     it was normalised. Smart-quote and autocomplete substitutions are the likely next cases.
 
-   Requires the Accessibility permission. Chromium- and Electron-based apps often expose a
-   web area whose selected-text attribute is not settable; the failure is detected by the
-   verification step, not assumed.
+   Requires the Accessibility permission. Terminal accepts the set call with
+   `kAXErrorSuccess` and inserts nothing; Chromium- and Electron-based apps often expose a
+   web area whose selected-text attribute is not settable. Both are detected by the
+   verification step, not assumed — this is [ADR 0005](adr/0005-no-unverified-injection-success.md)
+   earning its keep on the first non-trivial app.
 
-3. **Clipboard paste.** Write the transcript to `NSPasteboard` with `org.nspasteboard.ConcealedType`
-   set so well-behaved clipboard managers skip it. Record `changeCount`. Synthesise Cmd+V with
-   `CGEventPost`, having first cleared any residual modifier flags on the synthetic events.
-   Restore the previous pasteboard contents once `changeCount` has moved again *or* after a
-   bounded 1500 ms, whichever comes first. If the timeout wins, leave the transcript on the
-   clipboard rather than restoring over it — losing the user's old clipboard is bad, losing
-   the transcript is worse.
+3. **Clipboard paste.** Snapshot **every** pasteboard item and type (not just the string —
+   rich HTML or file contents would otherwise be lost on restore). Write the transcript to
+   `NSPasteboard` with `org.nspasteboard.ConcealedType` set so well-behaved clipboard
+   managers skip it. Record `changeCount`. Synthesise Cmd+V with `CGEventPost`, with the
+   flags on the synthetic events set to exactly Command so nothing physically held (the
+   push-to-talk modifier, by construction) corrupts the chord.
+
+   **A paste does not move `changeCount`** — only writes do — so the change count cannot
+   tell us the target has read the clipboard. The evidence that the paste landed is the
+   field itself, read back through accessibility with the same checks as step 2, polled for
+   up to 1500 ms (37–81 ms observed). Restore the previous pasteboard contents when that
+   evidence appears. If the timeout wins, or no accessibility read-back is available, report
+   `ClipboardOnly` and leave the transcript on the clipboard rather than restoring over it —
+   losing the user's old clipboard is bad, losing the transcript is worse. If `changeCount`
+   moved in the meantime, something else wrote the pasteboard: do not restore at all.
 
 4. **Unicode key events.** `CGEventKeyboardSetUnicodeString` in chunks of ≤ 20 UTF-16 units,
    posted with zero inter-event delay. Layout-independent, handles emoji and non-Latin text,
@@ -210,6 +230,11 @@ safely on the clipboard.
 
 ## Compatibility matrix
 
+M0 results for three apps are in [spikes/s2-injection.md](spikes/s2-injection.md): Notes
+(accessibility and paste both verified), Terminal (accessibility silently no-ops, paste
+verified), Brave address bar (accessibility verified, paste verified with trailing-space
+trim). The rest is M2's job.
+
 Maintained as a living test artefact. Each release candidate is checked against this list on
 each platform, results recorded in `docs/compat/<version>.md`.
 
@@ -222,7 +247,9 @@ elevated/admin window.
 
 Two things depend on being able to re-read the target field after insertion: verification (did
 the text actually arrive?) and correction capture ([LEARNING.md](LEARNING.md)). They use the
-same mechanism, so spike S2 validates both at once.
+same mechanism, so spike S2 validated both at once: `kAXValue` read back the full field in
+Notes, Terminal (5 k characters of scrollback) and the Brave address bar
+([S2](spikes/s2-injection.md)).
 
 The read is best-effort. Where it is unavailable, verification falls back to the platform's own
 evidence — caret advance on macOS, `WM_RENDERFORMAT` on Windows — and correction capture simply

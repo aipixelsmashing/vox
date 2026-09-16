@@ -24,6 +24,11 @@ Push-to-talk needs the raw stream. That means a system-level tap:
 identity, so `Key::AltRight` is distinguishable from `Key::AltLeft`. See
 [TECH-STACK.md](TECH-STACK.md) for why the alternatives don't work.
 
+Confirmed on macOS 26.5 ([S1](spikes/s1-hotkey.md)): right and left Option arrive as
+distinct keys (keycodes 61 and 58) on every press, a 2.6 s hold produces one down and one up
+with no auto-repeat, and delivery is ~2 ms median. `keytap` does not prompt for Input
+Monitoring — the app calls `IOHIDRequestAccess` itself ([PERMISSIONS.md](PERMISSIONS.md)).
+
 ## Problem 2: right Alt is AltGr
 
 This is the one that will generate support tickets, so it is worth being precise.
