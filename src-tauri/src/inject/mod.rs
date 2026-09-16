@@ -25,6 +25,17 @@ pub enum Method {
     Type,
 }
 
+impl Method {
+    /// The value stored in the history row (docs/HISTORY.md: ax | paste | unicode).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Method::Accessibility => "ax",
+            Method::Paste => "paste",
+            Method::Type => "unicode",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FallbackReason {
     NoTextTarget,
@@ -36,9 +47,53 @@ pub enum FallbackReason {
     MethodFailed(Method),
 }
 
+impl FallbackReason {
+    /// The copy deck string for this situation (docs/UI-STATES.md#copy-deck). Used
+    /// identically in the notification and, later, the history row and pane.
+    pub fn user_message(&self) -> String {
+        match self {
+            FallbackReason::NoTextTarget => "Copied. No text field was focused.".into(),
+            FallbackReason::FocusChanged { from, to } => {
+                format!("Copied instead — you switched from {from} to {to} while speaking.")
+            }
+            FallbackReason::SecureInput | FallbackReason::PasswordField => {
+                "Not inserted — a password field is active. Nothing was saved.".into()
+            }
+            FallbackReason::ElevatedTarget => {
+                "Copied instead — the window is running as administrator. Press Ctrl+Shift+V to paste.".into()
+            }
+            FallbackReason::WaylandUnverifiable => {
+                "Copied — your compositor doesn't allow typing into other apps. Press Ctrl+V.".into()
+            }
+            FallbackReason::MethodFailed(_) => "Copied. Vox couldn't confirm the text arrived — press ⌘V to paste.".into(),
+        }
+    }
+
+    /// Password contexts never get the transcript on the clipboard, or in history.
+    pub fn is_secret_context(&self) -> bool {
+        matches!(
+            self,
+            FallbackReason::SecureInput | FallbackReason::PasswordField
+        )
+    }
+
+    /// Short form for the history row's outcome_note.
+    pub fn code(&self) -> String {
+        match self {
+            FallbackReason::NoTextTarget => "no_text_target".into(),
+            FallbackReason::FocusChanged { from, to } => format!("focus_changed:{from}->{to}"),
+            FallbackReason::SecureInput => "secure_input".into(),
+            FallbackReason::PasswordField => "password_field".into(),
+            FallbackReason::ElevatedTarget => "elevated_target".into(),
+            FallbackReason::WaylandUnverifiable => "wayland_unverifiable".into(),
+            FallbackReason::MethodFailed(m) => format!("method_failed:{}", m.as_str()),
+        }
+    }
+}
+
 /// Deliberately has no "probably worked" variant. See docs/adr/0005 — a method that cannot
 /// confirm delivery reports ClipboardOnly, so the user finds out immediately and the text is
-/// still recoverable. A test asserts this enum stays two-variant.
+/// still recoverable. tests/guards.rs asserts this enum stays two-variant.
 #[derive(Debug, Clone)]
 pub enum InjectionOutcome {
     Inserted { method: Method, elapsed_ms: u32 },
@@ -60,11 +115,16 @@ pub trait TextInjector: Send + Sync {
     /// Called after transcription. Implementations run the platform fallback chain and must
     /// verify delivery before returning `Inserted`.
     fn inject(&self, text: &str, target: &InjectionTarget) -> Result<InjectionOutcome, Error>;
+
+    /// The frontmost application right now, for revalidation: (pid, display name).
+    fn frontmost(&self) -> Option<(u32, String)>;
 }
 
-pub fn platform_injector() -> Box<dyn TextInjector> {
+pub fn platform_injector(
+    settings: std::sync::Arc<parking_lot::RwLock<crate::settings::Settings>>,
+) -> Box<dyn TextInjector> {
     #[cfg(target_os = "macos")]
-    return Box::new(macos::MacInjector::new());
+    return Box::new(macos::MacInjector::new(settings));
     #[cfg(target_os = "windows")]
     return Box::new(windows::WindowsInjector::new());
     #[cfg(target_os = "linux")]

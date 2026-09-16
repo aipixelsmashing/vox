@@ -14,11 +14,23 @@
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm tauri build --bundles app
+cp -R src-tauri/target/release/bundle/macos/Vox.app /Applications/
+open /Applications/Vox.app
 ```
 
-The first launch downloads no model. Use Settings → Model, or drop a model directory into
-`<app-data>/models/` and import it, to avoid re-downloading during development.
+`pnpm tauri dev` also works, but a tray app that needs three TCC grants keyed to its
+signature is easier to live with as a real bundle in /Applications: grant once, relaunch,
+done. The first launch shows the three permission prompts and opens System Settings on the
+first missing one; grant all three, quit Vox from the tray, and open it again.
+
+The first launch downloads no model of ours. Apple's speech model for your locale is
+installed by the OS on first use if it is not already present (under a second on a machine
+that has ever used dictation).
+
+The engine bridge needs `swiftc` (Xcode Command Line Tools are enough; Xcode.app is not
+required). The pinned Rust toolchain in `rust-toolchain.toml` is installed by rustup on the
+first build.
 
 ## Platform notes that will otherwise waste your afternoon
 
@@ -26,7 +38,13 @@ The first launch downloads no model. Use Settings → Model, or drop a model dir
 dev build's signature changes on every rebuild. You will re-grant permission repeatedly. Two
 mitigations: use an ad-hoc stable signing identity for local dev, and keep the System Settings
 pane open. After granting, the app must be restarted — `pnpm tauri dev` restarts do not always
-count, so quit fully.
+count, so quit fully. When re-granting, remove the stale Vox row from the pane with `−` and
+add the new bundle with `+`; toggling the old row off and on is not enough.
+
+The system-wide accessibility element does not work on macOS 26.5 even when trusted; the
+injector goes through the frontmost application's element instead
+([TEXT-INJECTION.md](TEXT-INJECTION.md#macos)). If insertion reports "no text field was
+focused" everywhere, check that the app you are dictating into is actually frontmost.
 
 **Windows.** Debuggers and the low-level keyboard hook interact badly: if the hook callback is
 paused at a breakpoint, Windows silently unhooks it after the timeout and your hotkey stops

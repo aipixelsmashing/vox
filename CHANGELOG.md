@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Hold right Option, speak, release: the words appear in the field you were typing in.
+  Transcription runs on this Mac with Apple's speech engine (macOS 26 or later).
+- A menu bar icon that shows when Vox is listening or working, with Pause and Quit.
+- When text can't be placed, it is put on the clipboard and a notification says why.
+- Every dictation is kept in a local history database, including ones that could not be
+  inserted, so nothing is lost. (The history panel itself comes later.)
+- Escape cancels a dictation in progress; nothing is transcribed or stored.
 - Project design documents, architecture, and repository scaffolding.
 
 <!--

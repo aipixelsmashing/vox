@@ -2,10 +2,10 @@
 name = "vox"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.98"
 description = "Local push-to-talk dictation that types into whatever field you're in"
 license = "Apache-2.0"
-repository = "https://github.com/OWNER/vox"
+repository = "https://github.com/aipixelsmashing/vox"
 
 [lib]
 name = "vox_lib"
@@ -38,36 +38,41 @@ tracing-appender = "0.2"
 # ---- hotkey ---------------------------------------------------------------
 # See docs/adr/0003. Raw key down/up with left/right modifier fidelity, which is
 # what "hold the RIGHT option key" requires and what global-hotkey cannot express.
+# keytap only checks Input Monitoring; permissions.rs requests it (docs/PERMISSIONS.md).
 keytap = "0.4"
 
 # ---- audio ----------------------------------------------------------------
 cpal = "0.15"
 ringbuf = "0.4"
 rubato = "0.16"
-voice_activity_detector = "0.2"
 hound = "3"                       # fixtures and debug capture only
+# Silero VAD (voice_activity_detector) needs the ONNX runtime, which v1 does not ship
+# (ROADMAP.md, "The one decision S3 gates"). v1 trims and rejects with an energy gate in
+# audio.rs; Silero returns with Parakeet in M8.
 
 # ---- speech ---------------------------------------------------------------
-parakeet-rs = { version = "0.3", optional = true }
-whisper-rs = { version = "0.14", optional = true }
+# v1: Apple SpeechAnalyzer through swift/SpeechAnalyzerBridge.swift, compiled by build.rs.
+# SpeechAnalyzer is Swift-only; objc2-speech cannot reach it (docs/spikes/s3-engine.md).
+# parakeet-rs and whisper-rs are M8 (docs/adr/0016) and deliberately absent.
 
 # ---- storage --------------------------------------------------------------
 rusqlite = { version = "0.32", features = ["bundled"] }
 directories = "5"
 
-# ---- clipboard and injection ----------------------------------------------
-arboard = "3"
-
 [target.'cfg(target_os = "macos")'.dependencies]
+# Accessibility insertion and read-back. Compiles its own Swift bridge; see build.rs for the
+# Command Line Tools link-path fix (docs/spikes/s2-injection.md).
 axuielement = "0.9"
-core-graphics = "0.24"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSPasteboard"] }
-# SpeechAnalyzer (macOS 26+). Loaded through a runtime availability check.
-objc2-speech = "0.3"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData", "NSEnumerator"] }
+# NSPasteboard direct (concealed type, changeCount, multi-item snapshot) and NSWorkspace.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSPasteboard", "NSPasteboardItem", "NSRunningApplication", "NSWorkspace"] }
+# Synthesised Cmd+V and Unicode key events.
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes", "CGEventSource", "CGRemoteOperation"] }
+libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# Delayed-render clipboard, private clipboard formats, modifier sanitisation and
+# M8. Delayed-render clipboard, private clipboard formats, modifier sanitisation and
 # UIPI detection. See docs/TEXT-INJECTION.md for why the naive path is unusable.
 win-text-inject = "0.1"
 windows = { version = "0.58", features = [
@@ -78,6 +83,7 @@ windows = { version = "0.58", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# M8.
 enigo = "0.3"
 ashpd = "0.9"                     # XDG portals: RemoteDesktop / libei path on Wayland
 
@@ -88,12 +94,14 @@ proptest = "1"
 tempfile = "3"
 
 [features]
-default = ["engine-parakeet", "engine-whisper", "engine-speechanalyzer"]
-engine-parakeet = ["dep:parakeet-rs"]
-engine-whisper = ["dep:whisper-rs"]
+default = ["engine-speechanalyzer"]
 # Apple SpeechAnalyzer, macOS 26+. No model download, no resident weights of ours.
 # Availability is checked at runtime, never assumed at compile time.
 engine-speechanalyzer = []
+# M8 engines. The modules exist as designed stubs; enabling these without their crates
+# does not build, on purpose (docs/adr/0016).
+engine-parakeet = []
+engine-whisper = []
 mock-audio = []                   # replace the microphone with WAV fixtures
 mock-inject = []                  # log injections instead of performing them
 

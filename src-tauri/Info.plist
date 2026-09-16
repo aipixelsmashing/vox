@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Tray app: no Dock icon, no app switcher entry. -->
+    <key>LSUIElement</key>
+    <true/>
+    <!-- Shown by macOS in the microphone permission prompt. docs/PERMISSIONS.md -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Vox records while you hold the dictation key. Audio is transcribed on this Mac and never leaves it.</string>
+    <!-- Shown when Vox first reads the focused text field. -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Vox needs Accessibility to place your words in the text field you were typing in.</string>
+</dict>
+</plist>

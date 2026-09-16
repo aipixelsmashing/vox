@@ -58,6 +58,27 @@ out and back in without loss ([adr/0015](adr/0015-exit-is-cheap.md)).
 Required per platform before any release. Automation cannot cover system-level key taps or
 insertion into third-party applications.
 
+### M1 loop (run before calling M1 done)
+
+Cannot be automated: every step involves a real key tap, a real microphone, or a real
+application's text field.
+
+1. Fresh launch with no permissions granted: three prompts appear (Input Monitoring,
+   Accessibility, microphone), each notification uses the deck wording, the tray shows the
+   attention badge, and after granting and relaunching the badge clears.
+2. Hold right Option in Notes, say a sentence, release: the tray goes recording → working →
+   idle and the text appears at the caret with a trailing space.
+3. Same in Terminal: text appears via paste (check the history row's `method`).
+4. Same in a Chromium browser's address bar and in a web textarea.
+5. Hold, say something, switch apps with ⌘Tab, release: nothing is typed into the new app,
+   the text is on the clipboard, and the notification names both apps.
+6. Hold, press Escape, release: nothing inserted, nothing in history.
+7. Tap right Option for under 120 ms: nothing happens.
+8. Hold in a password field: "Not inserted — a password field is active." and nothing on
+   the clipboard.
+9. Pause dictation from the tray: the hotkey does nothing; unpause: it works again.
+10. Quit from the tray: the process exits; nothing keeps running.
+
 ### Hotkey checklist
 
 1. Hold the binding in a text editor: recording starts, stops on release.
