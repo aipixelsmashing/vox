@@ -22,10 +22,10 @@ use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 use axuielement::ax_attribute::{
-    AX_COMBO_BOX_ROLE, AX_NUMBER_OF_CHARACTERS_ATTRIBUTE, AX_ROLE_ATTRIBUTE,
-    AX_SECURE_TEXT_FIELD_SUBROLE, AX_SELECTED_TEXT_ATTRIBUTE, AX_SELECTED_TEXT_RANGE_ATTRIBUTE,
-    AX_SUBROLE_ATTRIBUTE, AX_TEXT_AREA_ROLE, AX_TEXT_FIELD_ROLE, AX_TITLE_ATTRIBUTE,
-    AX_VALUE_ATTRIBUTE,
+    AX_COMBO_BOX_ROLE, AX_FOCUSED_UI_ELEMENT_ATTRIBUTE, AX_NUMBER_OF_CHARACTERS_ATTRIBUTE,
+    AX_ROLE_ATTRIBUTE, AX_SECURE_TEXT_FIELD_SUBROLE, AX_SELECTED_TEXT_ATTRIBUTE,
+    AX_SELECTED_TEXT_RANGE_ATTRIBUTE, AX_SUBROLE_ATTRIBUTE, AX_TEXT_AREA_ROLE, AX_TEXT_FIELD_ROLE,
+    AX_TITLE_ATTRIBUTE, AX_VALUE_ATTRIBUTE,
 };
 use axuielement::{is_process_trusted, is_process_trusted_with_prompt, system_wide, AXUIElement};
 use objc2_app_kit::{NSPasteboard, NSPasteboardTypeString, NSRunningApplication};
@@ -203,19 +203,46 @@ fn describe_app(pid: i32) -> String {
 }
 
 fn find_target() -> Result<Target, String> {
-    let sys = system_wide().ok_or("AXUIElementCreateSystemWide returned null")?;
-    match sys.focused_application() {
-        Ok(Some(app)) => match app.pid() {
-            Ok(pid) => println!("focused app:     {}", describe_app(pid)),
-            Err(e) => println!("focused app:     pid unavailable ({e:?})"),
-        },
-        Ok(None) => println!("focused app:     none"),
-        Err(e) => println!("focused app:     error {e:?}"),
+    // Designed path (TEXT-INJECTION.md): system-wide element → AXFocusedUIElement.
+    let mut focused: Option<AXUIElement> = None;
+    let mut via = "system-wide";
+    match system_wide() {
+        Some(sys) => {
+            match sys
+                .focused_application()
+                .and_then(|a| a.map(|a| a.pid()).transpose())
+            {
+                Ok(Some(pid)) => println!("focused app:     {} (system-wide)", describe_app(pid)),
+                Ok(None) => println!("focused app:     none (system-wide)"),
+                Err(e) => println!("focused app:     system-wide error {e:?}"),
+            }
+            match sys.focused_ui_element() {
+                Ok(Some(el)) => focused = Some(el),
+                Ok(None) => println!("focused element: none (system-wide)"),
+                Err(e) => println!("focused element: system-wide error {e:?}"),
+            }
+        }
+        None => println!("focused app:     AXUIElementCreateSystemWide returned null"),
     }
-    let el = sys
-        .focused_ui_element()
-        .map_err(|e| format!("AXFocusedUIElement: {e:?}"))?
-        .ok_or("no focused UI element")?;
+
+    // Fallback observed necessary on macOS 26.5: the system-wide element answers
+    // CannotComplete for everything while per-application elements work. Ask NSWorkspace for
+    // the frontmost app and read AXFocusedUIElement from its application element instead.
+    if focused.is_none() {
+        via = "per-app";
+        let front = objc2_app_kit::NSWorkspace::sharedWorkspace()
+            .frontmostApplication()
+            .ok_or("NSWorkspace has no frontmost application")?;
+        let pid = front.processIdentifier();
+        println!("focused app:     {} (NSWorkspace)", describe_app(pid));
+        let app = AXUIElement::from_pid(pid).ok_or("AXUIElementCreateApplication failed")?;
+        focused = app
+            .element_attribute(AX_FOCUSED_UI_ELEMENT_ATTRIBUTE)
+            .map_err(|e| format!("per-app AXFocusedUIElement: {e:?}"))?;
+    }
+
+    let el = focused.ok_or("no focused UI element by either route")?;
+    println!("target via:      {via}");
     let attr = |n: &str| {
         el.string_attribute(n)
             .ok()
