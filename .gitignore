@@ -9,3 +9,4 @@
 /fixtures/audio/*.wav
 !/fixtures/audio/README.md
 /docs/compat/*.local.md
+/spikes/target

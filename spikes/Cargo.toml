@@ -1,0 +1,9 @@
+# M0 spike harnesses. Throwaway code, deliberately outside the main crate
+# (src-tauri/) so nothing here can leak into the product. Findings go in
+# docs/spikes/. See spikes/README.md for how to run each one.
+[workspace]
+resolver = "2"
+members = ["s1-hotkey"]
+
+[profile.release]
+debug = 1
