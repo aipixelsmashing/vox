@@ -96,6 +96,12 @@ fn parse_args() -> Args {
     a
 }
 
+/// How many times `needle` occurs in a snapshot's value. Verification requires this to go up
+/// by one, not merely to be non-zero: with `--method both` the text is already in the field.
+fn occurrences(snap: &Snapshot, needle: &str) -> usize {
+    snap.value.as_ref().map_or(0, |v| v.matches(needle).count())
+}
+
 fn utf16_len(s: &str) -> isize {
     s.encode_utf16().count() as isize
 }
@@ -341,13 +347,14 @@ fn insert_ax(t: &Target, text: &str) -> Outcome {
     let mut readback = None;
     match &after.value {
         Some(v) => {
-            let found = v.contains(text);
+            let (n0, n1) = (occurrences(&before, text), occurrences(&after, text));
+            let found = n1 == n0 + 1;
             println!(
-                "[ax] read-back:  AXValue {} the inserted text",
+                "[ax] read-back:  AXValue occurrences of the text {n0} → {n1} → {}",
                 if found {
-                    "contains"
+                    "one new copy"
                 } else {
-                    "does NOT contain"
+                    "NOT one new copy"
                 }
             );
             if found {
@@ -440,7 +447,7 @@ fn insert_paste(t: Option<&Target>, text: &str, restore: bool) -> Outcome {
                 matches!((b.range, now.range), (Some((l0, _)), Some((l1, _))) if l1 - l0 == want);
             let by_count =
                 matches!((b.chars, now.chars), (Some(c0), Some(c1)) if c1 - c0 == want as i64);
-            let by_value = now.value.as_ref().is_some_and(|v| v.contains(text));
+            let by_value = occurrences(&now, text) == occurrences(b, text) + 1;
             if by_caret || by_count || by_value {
                 if by_caret {
                     evidence.push("caret");
