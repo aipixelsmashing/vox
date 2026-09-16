@@ -58,6 +58,7 @@ struct Args {
     delay: u64,
     method: Method,
     restore: bool,
+    probe: bool,
     text: String,
 }
 
@@ -66,6 +67,7 @@ fn parse_args() -> Args {
         delay: 5,
         method: Method::Auto,
         restore: true,
+        probe: false,
         text: DEFAULT_TEXT.to_string(),
     };
     let mut it = std::env::args().skip(1);
@@ -81,9 +83,10 @@ fn parse_args() -> Args {
                 }
             }
             "--no-restore" => a.restore = false,
+            "--probe" => a.probe = true,
             "-h" | "--help" => {
                 println!(
-                    "s2-inject [--delay N] [--method auto|ax|paste|both] [--no-restore] [TEXT]"
+                    "s2-inject [--delay N] [--method auto|ax|paste|both] [--no-restore] [--probe] [TEXT]"
                 );
                 std::process::exit(0);
             }
@@ -505,8 +508,138 @@ fn report(o: &Outcome) {
     );
 }
 
+// ---------------------------------------------------------------------------------------
+// --probe: read-only diagnosis of the AX read path. Compares the Swift bridge with the raw
+// C API and prints what kind of process we are, so a CannotComplete can be attributed.
+// ---------------------------------------------------------------------------------------
+
+extern "C" {
+    fn sandbox_check(pid: i32, operation: *const std::ffi::c_char, kind: i32, ...) -> i32;
+}
+
+fn ax_err_name(code: i32) -> &'static str {
+    match code {
+        0 => "Success",
+        -25200 => "Failure",
+        -25201 => "IllegalArgument",
+        -25202 => "InvalidUIElement",
+        -25204 => "CannotComplete",
+        -25205 => "AttributeUnsupported",
+        -25211 => "APIDisabled",
+        -25212 => "NoValue",
+        _ => "?",
+    }
+}
+
+fn probe() {
+    use axuielement::ffi::*;
+    use std::ptr;
+
+    let env = |k: &str| std::env::var(k).unwrap_or_else(|_| "-".into());
+    println!("== probe ==");
+    println!(
+        "pid {}  ppid {}  parent comm {}",
+        std::process::id(),
+        unsafe { libc_getppid() },
+        sh(
+            "ps",
+            &["-o", "comm=", "-p", &unsafe { libc_getppid() }.to_string()]
+        )
+    );
+    println!(
+        "TERM_PROGRAM={}  __CFBundleIdentifier={}",
+        env("TERM_PROGRAM"),
+        env("__CFBundleIdentifier")
+    );
+    // SAFETY: private but stable libsystem_sandbox call; NULL operation asks "is pid sandboxed".
+    let sb = unsafe { sandbox_check(std::process::id() as i32, ptr::null(), 0) };
+    println!("sandbox_check(self) = {sb}  (0 = not sandboxed)");
+    println!("AXIsProcessTrusted (raw) = {}", unsafe {
+        AXIsProcessTrusted()
+    });
+
+    // Raw system-wide → AXFocusedApplication.
+    let cf = |s: &str| unsafe {
+        CFStringCreateWithCString(
+            kCFAllocatorDefault,
+            format!("{s}\0").as_ptr().cast(),
+            0x0800_0100,
+        )
+    };
+    let sys = unsafe { AXUIElementCreateSystemWide() };
+    let mut out: CFTypeRef = ptr::null_mut();
+    let e = unsafe { AXUIElementCopyAttributeValue(sys, cf("AXFocusedApplication"), &mut out) };
+    println!(
+        "raw system-wide AXFocusedApplication → {e} {}",
+        ax_err_name(e)
+    );
+    let mut out2: CFTypeRef = ptr::null_mut();
+    let e = unsafe { AXUIElementCopyAttributeValue(sys, cf("AXFocusedUIElement"), &mut out2) };
+    println!(
+        "raw system-wide AXFocusedUIElement   → {e} {}",
+        ax_err_name(e)
+    );
+
+    // Raw per-application element for the frontmost app, bypassing the system-wide element.
+    // SAFETY: NSWorkspace shared instance is safe to read from any thread for this query.
+    let front = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication();
+    match front {
+        Some(app) => {
+            let pid = app.processIdentifier();
+            println!("NSWorkspace frontmost: {}", describe_app(pid));
+            let el = unsafe { AXUIElementCreateApplication(pid) };
+            let mut role: CFTypeRef = ptr::null_mut();
+            let e = unsafe { AXUIElementCopyAttributeValue(el, cf("AXRole"), &mut role) };
+            println!(
+                "raw app({pid}) AXRole               → {e} {}",
+                ax_err_name(e)
+            );
+            let mut fe: CFTypeRef = ptr::null_mut();
+            let e = unsafe { AXUIElementCopyAttributeValue(el, cf("AXFocusedUIElement"), &mut fe) };
+            println!(
+                "raw app({pid}) AXFocusedUIElement   → {e} {}",
+                ax_err_name(e)
+            );
+            if e == 0 && !fe.is_null() {
+                let mut r: CFTypeRef = ptr::null_mut();
+                let e =
+                    unsafe { AXUIElementCopyAttributeValue(fe.cast_mut(), cf("AXRole"), &mut r) };
+                println!(
+                    "raw focused element AXRole          → {e} {}",
+                    ax_err_name(e)
+                );
+            }
+        }
+        None => println!("NSWorkspace frontmost: none"),
+    }
+
+    // Bridge, for comparison.
+    match system_wide() {
+        Some(sw) => {
+            println!(
+                "bridge focused_application → {:?}",
+                sw.focused_application().map(|o| o.is_some())
+            );
+            println!(
+                "bridge focused_ui_element  → {:?}",
+                sw.focused_ui_element().map(|o| o.is_some())
+            );
+        }
+        None => println!("bridge system_wide() → None"),
+    }
+}
+
+extern "C" {
+    #[link_name = "getppid"]
+    fn libc_getppid() -> i32;
+}
+
 fn main() {
     let args = parse_args();
+    if args.probe {
+        probe();
+        return;
+    }
     println!("== S2 inject spike ==");
     println!(
         "macOS {} ({})  axuielement 0.9  text={:?} ({} UTF-16 units)",
