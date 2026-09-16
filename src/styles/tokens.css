@@ -1,0 +1,98 @@
+/*
+ * Design tokens. Rationale for every value: docs/UI-KIT.md.
+ * A hard-coded colour or size in a component fails review — use these.
+ */
+
+:root {
+  /* Colour ------------------------------------------------------------------
+     Amber is "listening" and nothing else. Red is failure and nothing else.
+     There is no success colour: success is the text appearing in the field.  */
+  --ink:        #16171A;
+  --ink-dim:    #5C5F66;
+  --panel:      #FFFFFF;
+  --rule:       #00000014;
+  --field:      #00000008;
+  --signal:     #E0A106;
+  --fail:       #C1382E;
+
+  /* Type --------------------------------------------------------------------
+     Chrome uses the system face so Vox sits beside native windows without
+     announcing itself. Transcripts use a serif because they are the user's
+     prose, not interface furniture. Bundled locally — no CDN.               */
+  --font-ui:     system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-text:   "Literata", Georgia, serif;
+
+  --t-transcript-size: 15px;  --t-transcript-lh: 1.55;
+  --t-body-size:       13px;  --t-body-lh:       1.45;
+  --t-meta-size:       11px;  --t-meta-lh:       1.3;
+  --t-title-size:      15px;  --t-title-lh:      1.3;
+
+  /* Space — 4px base. A tray utility is dense; 8px wastes panel height.      */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px;  --s-4: 16px;  --s-6: 24px;  --s-8: 32px;
+
+  /* Shape — radius signals "separate surface", so rows get none.            */
+  --radius-panel: 6px;
+  --radius-input: 6px;
+  --radius-row:   0;
+
+  --panel-width:  380px;
+  --row-height:   56px;
+
+  /* Motion — two moments only, both defined in UI-KIT.md.                   */
+  --motion-panel: 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink:     #E9E9EC;
+    --ink-dim: #9A9CA3;
+    --panel:   #1C1D20;
+    --rule:    #FFFFFF1A;
+    --field:   #FFFFFF0D;
+    --signal:  #F0B62E;
+    --fail:    #E06A5F;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-panel: 0ms; }
+  /* The level ring becomes a static three-step meter — see UI-KIT.md. */
+}
+
+/* Base --------------------------------------------------------------------- */
+
+body {
+  margin: 0;
+  background: transparent;         /* the window frame provides the surface */
+  color: var(--ink);
+  font: var(--t-body-size) / var(--t-body-lh) var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.transcript {
+  font-family: var(--font-text);
+  font-size: var(--t-transcript-size);
+  line-height: var(--t-transcript-lh);
+}
+
+.meta {
+  font-size: var(--t-meta-size);
+  line-height: var(--t-meta-lh);
+  color: var(--ink-dim);
+}
+
+.numeric { font-variant-numeric: tabular-nums; }
+
+/* Hairlines, never shadows, except on the panel itself — it is a real window
+   floating over other windows, and that is the one place depth is truthful.  */
+.row { border-bottom: 1px solid var(--rule); min-height: var(--row-height); }
+.panel {
+  width: var(--panel-width);
+  background: var(--panel);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 8px 32px #00000026;
+}
+
+/* Keyboard focus is always visible. Non-negotiable — the history panel is
+   fully operable without a mouse, and that is a requirement, not polish.     */
+:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }

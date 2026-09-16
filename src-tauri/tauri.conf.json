@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vox",
+  "version": "0.1.0",
+  "identifier": "com.pixelsmashing.dictation",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: data:; style-src 'self' 'unsafe-inline'",
+      "assetProtocol": { "enable": false }
+    },
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/tray-idle.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    },
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app", "nsis", "msi", "appimage", "deb", "rpm"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "Productivity",
+    "shortDescription": "Local push-to-talk dictation",
+    "longDescription": "Hold a key, speak, and your words appear in the field you were already typing in. Speech recognition runs entirely on your machine.",
+    "copyright": "Copyright 2026 The Vox Contributors",
+    "licenseFile": "../LICENSE",
+    "macOS": {
+      "minimumSystemVersion": "12.0",
+      "entitlements": "Entitlements.plist",
+      "hardenedRuntime": true,
+      "dmg": { "appPosition": { "x": 180, "y": 170 }, "applicationFolderPosition": { "x": 480, "y": 170 } }
+    },
+    "windows": {
+      "nsis": { "installMode": "currentUser" },
+      "webviewInstallMode": { "type": "downloadBootstrapper" }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libayatana-appindicator3-1", "libasound2"],
+        "desktopTemplate": "vox.desktop"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "pubkey": "REPLACE_WITH_MINISIGN_PUBLIC_KEY",
+      "_comment": "Endpoint is a domain we control that redirects to GitHub Releases. Installed clients keep updating through a repo rename, an org move, or a migration off GitHub entirely. Never point this straight at a GitHub URL.",
+      "endpoints": [
+        "https://vox.pixelsmashing.com/updates/latest.json"
+      ]
+    }
+  }
+}

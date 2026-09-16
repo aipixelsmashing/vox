@@ -1,0 +1,26 @@
+name: Bug report
+description: Something else went wrong
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes: { label: Vox version }
+    validations: { required: true }
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, "Linux (X11)", "Linux (Wayland)"]
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: What you expected, and what happened }
+    validations: { required: true }
+  - type: input
+    id: model
+    attributes: { label: Model in use, if relevant }

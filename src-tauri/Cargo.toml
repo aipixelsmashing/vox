@@ -1,0 +1,114 @@
+[package]
+name = "vox"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Local push-to-talk dictation that types into whatever field you're in"
+license = "Apache-2.0"
+repository = "https://github.com/OWNER/vox"
+
+[lib]
+name = "vox_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# ---- shell ----------------------------------------------------------------
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+
+# ---- core -----------------------------------------------------------------
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+# ---- hotkey ---------------------------------------------------------------
+# See docs/adr/0003. Raw key down/up with left/right modifier fidelity, which is
+# what "hold the RIGHT option key" requires and what global-hotkey cannot express.
+keytap = "0.4"
+
+# ---- audio ----------------------------------------------------------------
+cpal = "0.15"
+ringbuf = "0.4"
+rubato = "0.16"
+voice_activity_detector = "0.2"
+hound = "3"                       # fixtures and debug capture only
+
+# ---- speech ---------------------------------------------------------------
+parakeet-rs = { version = "0.3", optional = true }
+whisper-rs = { version = "0.14", optional = true }
+
+# ---- storage --------------------------------------------------------------
+rusqlite = { version = "0.32", features = ["bundled"] }
+directories = "5"
+
+# ---- clipboard and injection ----------------------------------------------
+arboard = "3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+axuielement = "0.9"
+core-graphics = "0.24"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSPasteboard"] }
+# SpeechAnalyzer (macOS 26+). Loaded through a runtime availability check.
+objc2-speech = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Delayed-render clipboard, private clipboard formats, modifier sanitisation and
+# UIPI detection. See docs/TEXT-INJECTION.md for why the naive path is unusable.
+win-text-inject = "0.1"
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_System_DataExchange",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+enigo = "0.3"
+ashpd = "0.9"                     # XDG portals: RemoteDesktop / libei path on Wayland
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+insta = { version = "1", features = ["json"] }
+proptest = "1"
+tempfile = "3"
+
+[features]
+default = ["engine-parakeet", "engine-whisper", "engine-speechanalyzer"]
+engine-parakeet = ["dep:parakeet-rs"]
+engine-whisper = ["dep:whisper-rs"]
+# Apple SpeechAnalyzer, macOS 26+. No model download, no resident weights of ours.
+# Availability is checked at runtime, never assumed at compile time.
+engine-speechanalyzer = []
+mock-audio = []                   # replace the microphone with WAV fixtures
+mock-inject = []                  # log injections instead of performing them
+
+[[bench]]
+name = "pipeline"
+harness = false
+
+# Idle RSS, peak RSS and idle CPU over a scripted five-minute run. A >15% idle-RSS regression
+# fails a PR exactly like a latency regression. See docs/FOOTPRINT.md.
+[[bench]]
+name = "footprint"
+harness = false
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

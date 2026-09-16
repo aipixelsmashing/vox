@@ -1,0 +1,43 @@
+Vox
+Copyright 2026 The Vox Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file
+except in compliance with the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+Speech recognition models
+--------------------------------------------------------------------------------
+
+Vox downloads speech recognition models that are licensed separately from the application.
+These models are not distributed with the application unless you obtained a bundled-model
+installer variant, in which case the applicable notice below travels with it.
+
+NVIDIA Parakeet TDT 0.6B v2 / v3
+  Copyright NVIDIA Corporation.
+  Licensed under CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Source: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
+  Attribution required on redistribution, including of quantised or format-converted
+  derivatives. Vox's model pipeline modifies these weights only by format conversion and
+  quantisation.
+
+OpenAI Whisper (GGML conversions, via whisper.cpp)
+  Copyright OpenAI.
+  Licensed under the MIT License.
+  Source: https://github.com/openai/whisper
+
+Silero VAD
+  Licensed under the MIT License.
+  Source: https://github.com/snakers4/silero-vad
+
+NVIDIA Nemotron Speech Streaming (optional, v1.1)
+  Copyright NVIDIA Corporation. Licensed under OpenMDW. Review the terms before enabling
+  distribution of this model.
+
+--------------------------------------------------------------------------------
+Third-party Rust and JavaScript dependencies
+--------------------------------------------------------------------------------
+
+A complete, generated inventory of dependency licences is produced by `cargo deny check
+licenses` and `pnpm licenses list`, and is published with each release as THIRD-PARTY.txt.

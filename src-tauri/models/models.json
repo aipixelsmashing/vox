@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "_note": "Apple SpeechAnalyzer (macOS 26+) is not listed here: it ships with the OS, downloads nothing, and is the default on that platform. See docs/adr/0013.",
+  "models": [
+    {
+      "id": "parakeet-tdt-0.6b-v3-int8",
+      "engine": "parakeet",
+      "displayName": "Parakeet v3 — 25 languages",
+      "sizeBytes": 712849408,
+      "languages": ["en","es","fr","de","it","pt","nl","pl","sv","da","fi","cs","sk","sl","hr","bg","el","et","lv","lt","hu","mt","ro","ru","uk"],
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "attribution": "NVIDIA Parakeet TDT 0.6B v3 — https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
+      },
+      "files": [
+        { "name": "encoder.int8.onnx", "sha256": "TODO", "urls": ["TODO"] },
+        { "name": "decoder.int8.onnx", "sha256": "TODO", "urls": ["TODO"] },
+        { "name": "tokenizer.json", "sha256": "TODO", "urls": ["TODO"] }
+      ],
+      "minRamMb": 2048,
+      "recommendedFor": ["default"]
+    },
+    {
+      "id": "whisper-large-v3-turbo-q5",
+      "engine": "whisper",
+      "displayName": "Whisper Turbo — 99 languages",
+      "sizeBytes": 996147200,
+      "languages": ["*"],
+      "license": { "spdx": "MIT", "attribution": "OpenAI Whisper — https://github.com/openai/whisper" },
+      "files": [{ "name": "ggml-large-v3-turbo-q5_0.bin", "sha256": "TODO", "urls": ["TODO"] }],
+      "minRamMb": 4096,
+      "recommendedFor": ["multilingual"]
+    },
+    {
+      "id": "whisper-base-en-q5",
+      "engine": "whisper",
+      "displayName": "Whisper Base (English) — small download",
+      "sizeBytes": 62914560,
+      "languages": ["en"],
+      "license": { "spdx": "MIT", "attribution": "OpenAI Whisper — https://github.com/openai/whisper" },
+      "files": [{ "name": "ggml-base.en-q5_1.bin", "sha256": "TODO", "urls": ["TODO"] }],
+      "minRamMb": 1024,
+      "recommendedFor": ["low-ram", "bundled-installer"]
+    }
+  ]
+}

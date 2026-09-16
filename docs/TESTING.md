@@ -1,0 +1,105 @@
+# Testing strategy
+
+Most of what can go wrong here cannot be caught by a unit test, so the strategy is explicit
+about which layer catches what.
+
+## Automated
+
+**Unit** — settings migrations (every version pair), text post-processing and dictionary
+substitution (snapshot tests with `insta`), history retention pruning, model manifest parsing
+and hash verification, hotkey binding parsing and chord matching, state machine transitions
+including every illegal transition.
+
+**Integration, in-process** — the pipeline end to end with a mock audio source and a mock
+injector: WAV fixture in, expected transcript out, expected history row written, expected
+outcome recorded. Fixtures cover: clean speech, background noise, silence only, a 0.2 s tap,
+a recording that hits the cap, and non-English input.
+
+**Property tests** — arbitrary transcripts survive the post-processing pipeline without
+mangling; arbitrary settings JSON either parses or fails cleanly, never panics.
+
+**Benchmarks** — `criterion` per-stage timings against `benches/baseline.json`; a >15% p50
+regression fails the PR. See [LATENCY.md](LATENCY.md).
+
+**Footprint gate** — `cargo bench --bench footprint` scripts a five-minute run with three
+dictations and records idle RSS, peak RSS and idle CPU. A >15% idle-RSS regression fails the
+PR, exactly like a latency regression. See [FOOTPRINT.md](FOOTPRINT.md).
+
+**Learning tests** — edit alignment against a fixture corpus of insertion/correction pairs,
+including the negatives that must *not* produce candidates: whole-sentence rewrites, deletions,
+edits after focus left the app, and anything in a field we refused to insert into. Plus the
+three-occurrence threshold, the auto-suspend rule, and the guarantee that deleting a term also
+deletes its evidence.
+
+**UI contract coverage** — every command in `src/lib/contract.ts` has a mock implementation,
+and every state documented in [UI-STATES.md](UI-STATES.md) has a scenario in
+`src/mock/scenarios.ts`. Both fail the build when they drift, which is what stops error and
+empty states from being discovered at review time.
+
+**Export tests** — a table with no exporter fails the build. Every export round-trips: history
+out and back in without loss ([adr/0015](adr/0015-exit-is-cheap.md)).
+
+**Guard tests** — the ones that protect the product's promises:
+
+- With `network.offlineLock` on, a full dictation cycle plus an attempted update check opens
+  zero sockets.
+- No transcript text appears in log output at any log level.
+- `telemetry.rs` contains no network code (asserted structurally, not by convention).
+- Every model registry entry has a licence, an attribution string, and a SHA-256 per file.
+- Correction candidates never contain text beyond the two forms — asserted against a fixture of
+  long, sensitive-looking corrections.
+- No engagement surface: no code path emits a notification, badge or summary that is not a
+  failure or an explicit user request.
+- `InjectionOutcome` has no variant that implies success without verification — enforced by an
+  exhaustive match in a test that must be updated deliberately if the enum changes.
+
+## Manual gates
+
+Required per platform before any release. Automation cannot cover system-level key taps or
+insertion into third-party applications.
+
+### Hotkey checklist
+
+1. Hold the binding in a text editor: recording starts, stops on release.
+2. Hold it while the app is unfocused and while a full-screen app is frontmost.
+3. Tap it briefly — nothing happens.
+4. Hold, press Escape — nothing is inserted, nothing is stored.
+5. Hold during an existing transcription — ignored, busy state shown.
+6. On an AltGr layout: confirm the warning appears and the suggested alternative works.
+7. Toggle mode and double-tap-hold mode.
+8. Revoke the OS permission mid-session: the tray badges within one check cycle.
+
+### Injection compatibility matrix
+
+The application list in [TEXT-INJECTION.md](TEXT-INJECTION.md), per platform, recording for
+each: method used, outcome, and observed latency. Results committed to
+`docs/compat/<version>.md` so regressions are visible across releases.
+
+### Long-form and learning
+
+1. Lock a session, speak for five minutes with long pauses — session does not end, memory stays
+   flat, text keeps appearing.
+2. Stop, route to each destination in turn.
+3. Dictate a known-wrong proper noun, correct it in the target app, three times across two
+   sessions — term appears in the Vocabulary pane with correct provenance.
+4. Delete it; dictate and correct once more — it does not immediately reappear.
+5. Turn learning off; confirm applied terms stop firing and capture can be wiped.
+
+### Install and update
+
+Fresh install on a clean VM per platform; first-run onboarding to first successful dictation;
+update from the previous release with settings and history preserved; uninstall leaves no
+background process and removes or clearly documents remaining data.
+
+## Hardware matrix
+
+Benchmarks and the slow-machine gate run on the reference machines listed in
+[LATENCY.md](LATENCY.md). Additionally test at least one machine with no GPU acceleration
+available and one with 8 GB RAM, since the memory-resident model is the biggest risk on
+low-spec hardware.
+
+## CI
+
+`ci.yml` on every PR: `fmt`, `clippy -D warnings`, `test` on all three platforms,
+`cargo-deny`, `cargo-audit`, frontend typecheck and `vitest`, `typos`, and a link check on the
+docs. Benchmarks run on the Linux and macOS runners only.
