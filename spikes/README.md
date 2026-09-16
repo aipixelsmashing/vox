@@ -15,6 +15,7 @@ cd spikes && cargo run --release -p <spike> -- [args]
 | Spike | Binary | Needs | What to paste back |
 | --- | --- | --- | --- |
 | S1 hotkey | `s1-hotkey [seconds]` | Input Monitoring for the terminal you run it from | the whole output, especially the summary block |
+| S2 inject | `s2-inject [--delay N] [--method auto\|ax\|paste\|both] [--no-restore] [TEXT]` | Accessibility for the terminal | the whole output per app, plus what you saw appear in the field |
 
 ## Permissions
 
@@ -24,3 +25,13 @@ desktop app), not the binary. Grant it once to the terminal and every spike bina
 that terminal inherits it, debug or release, across rebuilds.
 
 System Settings → Privacy & Security → Input Monitoring (S1) / Accessibility (S2).
+
+## S2 notes
+
+- After launch it counts down (default 5 s) so you can click into the target field first.
+- `--method both` runs the accessibility path and then the paste path into the same field,
+  which is one row of the compatibility matrix per run.
+- The paste path restores your previous clipboard string only when the insertion was
+  verified; otherwise the transcript is left on the clipboard, per docs/TEXT-INJECTION.md.
+- Building `axuielement` with only Command Line Tools needs the link-path workaround in
+  `s2-inject/build.rs`.

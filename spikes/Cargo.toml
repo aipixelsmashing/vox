@@ -3,7 +3,7 @@
 # docs/spikes/. See spikes/README.md for how to run each one.
 [workspace]
 resolver = "2"
-members = ["s1-hotkey"]
+members = ["s1-hotkey", "s2-inject"]
 
 [profile.release]
 debug = 1
