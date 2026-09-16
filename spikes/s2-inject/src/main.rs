@@ -96,6 +96,37 @@ fn parse_args() -> Args {
     a
 }
 
+/// Compare two snapshots and say what proves `text` arrived. Targets normalise input: the
+/// Brave/Chrome omnibox trims trailing whitespace, so exact-length checks fail on a real
+/// insert. Exact evidence is reported as-is; evidence that only matches the trimmed text is
+/// suffixed with `~` so the matrix can tell "inserted" from "inserted, normalised".
+fn evidence(before: &Snapshot, after: &Snapshot, text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let trimmed = text.trim_end();
+    let (want, want_t) = (utf16_len(text), utf16_len(trimmed));
+    let check = |label: &str, delta: Option<isize>| -> Option<String> {
+        match delta {
+            Some(d) if d == want => Some(label.to_string()),
+            Some(d) if d == want_t && want_t != want => Some(format!("{label}~")),
+            _ => None,
+        }
+    };
+    if let (Some((l0, _)), Some((l1, _))) = (before.range, after.range) {
+        out.extend(check("caret", Some(l1 - l0)));
+    }
+    if let (Some(c0), Some(c1)) = (before.chars, after.chars) {
+        out.extend(check("count", Some((c1 - c0) as isize)));
+    }
+    if after.value.is_some() {
+        if occurrences(after, text) == occurrences(before, text) + 1 {
+            out.push("readback".into());
+        } else if occurrences(after, trimmed) == occurrences(before, trimmed) + 1 {
+            out.push("readback~".into());
+        }
+    }
+    out
+}
+
 /// How many times `needle` occurs in a snapshot's value. Verification requires this to go up
 /// by one, not merely to be non-zero: with `--method both` the text is already in the field.
 fn occurrences(snap: &Snapshot, needle: &str) -> usize {
@@ -319,52 +350,39 @@ fn insert_ax(t: &Target, text: &str) -> Outcome {
     println!("[ax] after:      {}", after.describe());
 
     let want = utf16_len(text);
-    let mut evidence = Vec::new();
     if let (Some((l0, _)), Some((l1, _))) = (before.range, after.range) {
-        let adv = l1 - l0;
-        let ok = adv == want;
         println!(
-            "[ax] caret:      advanced {adv} UTF-16 units, expected {want} → {}",
-            if ok { "match" } else { "MISMATCH" }
+            "[ax] caret:      advanced {} UTF-16 units, expected {want}",
+            l1 - l0
         );
-        if ok {
-            evidence.push("caret");
-        }
     } else {
-        println!("[ax] caret:      AXSelectedTextRange unavailable, cannot verify by caret");
+        println!("[ax] caret:      AXSelectedTextRange unavailable");
     }
     if let (Some(c0), Some(c1)) = (before.chars, after.chars) {
-        let ok = c1 - c0 == want as i64;
         println!(
-            "[ax] chars:      {c0} → {c1} (+{}), expected +{want} → {}",
-            c1 - c0,
-            if ok { "match" } else { "MISMATCH" }
+            "[ax] chars:      {c0} → {c1} (+{}), expected +{want}",
+            c1 - c0
         );
-        if ok {
-            evidence.push("count");
-        }
     }
-    let mut readback = None;
-    match &after.value {
-        Some(v) => {
-            let (n0, n1) = (occurrences(&before, text), occurrences(&after, text));
-            let found = n1 == n0 + 1;
-            println!(
-                "[ax] read-back:  AXValue occurrences of the text {n0} → {n1} → {}",
-                if found {
-                    "one new copy"
-                } else {
-                    "NOT one new copy"
-                }
-            );
-            if found {
-                evidence.push("readback");
-            }
-            readback = Some(v.clone());
-        }
-        None => println!("[ax] read-back:  AXValue unreadable"),
+    if after.value.is_some() {
+        println!(
+            "[ax] read-back:  occurrences of the text {} → {}",
+            occurrences(&before, text),
+            occurrences(&after, text)
+        );
+    } else {
+        println!("[ax] read-back:  AXValue unreadable");
     }
-
+    let evidence = evidence(&before, &after, text);
+    println!(
+        "[ax] evidence:   {}",
+        if evidence.is_empty() {
+            "none".to_string()
+        } else {
+            evidence.join("+")
+        }
+    );
+    let readback = after.value.clone();
     let inserted = set.is_ok() && !evidence.is_empty();
     Outcome {
         method: "ax",
@@ -435,54 +453,33 @@ fn insert_paste(t: Option<&Target>, text: &str, restore: bool) -> Outcome {
     }
 
     // Verify by evidence from the target's AX tree, bounded by the design's 1500 ms.
-    let want = utf16_len(text);
     let t0 = Instant::now();
-    let mut evidence = Vec::new();
+    let mut evidence: Vec<String> = Vec::new();
     let mut readback = None;
-    let mut last: Option<Snapshot> = None;
     if let (Some(t), Some(b)) = (t, &before) {
+        let mut last = Snapshot::take(&t.el);
         while t0.elapsed() < PASTE_VERIFY_TIMEOUT {
-            let now = Snapshot::take(&t.el);
-            let by_caret =
-                matches!((b.range, now.range), (Some((l0, _)), Some((l1, _))) if l1 - l0 == want);
-            let by_count =
-                matches!((b.chars, now.chars), (Some(c0), Some(c1)) if c1 - c0 == want as i64);
-            let by_value = occurrences(&now, text) == occurrences(b, text) + 1;
-            if by_caret || by_count || by_value {
-                if by_caret {
-                    evidence.push("caret");
-                }
-                if by_count {
-                    evidence.push("count");
-                }
-                if by_value {
-                    evidence.push("readback");
-                }
-                last = Some(now);
+            last = Snapshot::take(&t.el);
+            evidence = self::evidence(b, &last, text);
+            if !evidence.is_empty() {
                 break;
             }
-            last = Some(now);
             std::thread::sleep(Duration::from_millis(10));
         }
         let waited = ms(t0);
-        match last {
-            Some(s) if !evidence.is_empty() => {
-                println!(
-                    "[paste] verify:  evidence after {waited:.0}ms via {} — {}",
-                    evidence.join("+"),
-                    s.describe()
-                );
-                readback = s.value;
-            }
-            Some(s) => {
-                println!(
-                    "[paste] verify:  NO evidence within {waited:.0}ms — {}",
-                    s.describe()
-                );
-                readback = s.value;
-            }
-            None => println!("[paste] verify:  no snapshot"),
+        if evidence.is_empty() {
+            println!(
+                "[paste] verify:  NO evidence within {waited:.0}ms — {}",
+                last.describe()
+            );
+        } else {
+            println!(
+                "[paste] verify:  evidence after {waited:.0}ms via {} — {}",
+                evidence.join("+"),
+                last.describe()
+            );
         }
+        readback = last.value;
     } else {
         println!(
             "[paste] verify:  no AX target to read back; waiting {PASTE_VERIFY_TIMEOUT:?} blind"
