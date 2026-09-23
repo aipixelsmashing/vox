@@ -70,6 +70,9 @@ application's text field.
    idle and the text appears at the caret with a trailing space.
 3. Same in Terminal: text appears via paste (check the history row's `method`).
 4. Same in a Chromium browser's address bar and in a web textarea.
+4a. Same in an Electron app (the Claude desktop app, Slack, VS Code): the log shows the
+    element found "per-app-after-wake", and the text arrives, inserted or at least pasted
+    with the "couldn't confirm" notification. Never nothing.
 5. Hold, say something, switch apps with ⌘Tab, release: nothing is typed into the new app,
    the text is on the clipboard, and the notification names both apps.
 6. Hold, press Escape, release: nothing inserted, nothing in history.

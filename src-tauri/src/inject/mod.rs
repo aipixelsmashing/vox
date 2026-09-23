@@ -65,7 +65,9 @@ impl FallbackReason {
             FallbackReason::WaylandUnverifiable => {
                 "Copied — your compositor doesn't allow typing into other apps. Press Ctrl+V.".into()
             }
-            FallbackReason::MethodFailed(_) => "Copied. Vox couldn't confirm the text arrived — press ⌘V to paste.".into(),
+            FallbackReason::MethodFailed(_) => {
+                "Vox couldn't confirm the text arrived. It's on the clipboard — press ⌘V if it's missing.".into()
+            }
         }
     }
 

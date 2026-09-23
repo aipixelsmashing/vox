@@ -137,19 +137,73 @@ fn frontmost_app() -> Option<(u32, String, Option<String>)> {
     Some((pid, name, bundle))
 }
 
-/// The focused element: system-wide first (the documented route), then through the frontmost
-/// application's element, which is what actually works on macOS 26.5
+/// Chromium, and therefore every Electron app, does not build its accessibility tree until
+/// an assistive client asks for it. VoiceOver asks by setting `AXEnhancedUserInterface` on the
+/// application element; Electron additionally honours `AXManualAccessibility`. Both are
+/// idempotent and only sent when the ordinary routes found nothing, because
+/// AXEnhancedUserInterface also changes some window behaviours in the target.
+fn wake_chromium_accessibility(app: &AXUIElement) {
+    let _ = app.set_bool_attribute("AXEnhancedUserInterface", true);
+    let _ = app.set_bool_attribute("AXManualAccessibility", true);
+}
+
+const WAKE_POLL: Duration = Duration::from_millis(700);
+
+/// The focused element and which route found it: system-wide first (the documented route),
+/// then through the frontmost application's element, which is what actually works on
+/// macOS 26.5, then once more after asking Chromium to build its tree
 /// (docs/TEXT-INJECTION.md#macos).
-fn focused_element(pid: u32) -> Option<AXUIElement> {
+fn focused_element(pid: u32) -> (Option<AXUIElement>, &'static str) {
     if let Some(sys) = system_wide() {
         if let Ok(Some(el)) = sys.focused_ui_element() {
-            return Some(el);
+            return (Some(el), "system-wide");
         }
     }
-    let app = AXUIElement::from_pid(pid as i32)?;
-    app.element_attribute(AX_FOCUSED_UI_ELEMENT_ATTRIBUTE)
-        .ok()
-        .flatten()
+    let Some(app) = AXUIElement::from_pid(pid as i32) else {
+        return (None, "no-app-element");
+    };
+    if let Ok(Some(el)) = app.element_attribute(AX_FOCUSED_UI_ELEMENT_ATTRIBUTE) {
+        return (Some(el), "per-app");
+    }
+    wake_chromium_accessibility(&app);
+    let t0 = Instant::now();
+    while t0.elapsed() < WAKE_POLL {
+        std::thread::sleep(Duration::from_millis(30));
+        if let Ok(Some(el)) = app.element_attribute(AX_FOCUSED_UI_ELEMENT_ATTRIBUTE) {
+            return (Some(el), "per-app-after-wake");
+        }
+    }
+    (None, "none")
+}
+
+/// Diagnostic only, logged when no focused element could be found: what the focused window
+/// contains, so the compatibility matrix can say why an app failed. Never logs text.
+fn describe_focused_window(pid: u32) -> String {
+    let Some(app) = AXUIElement::from_pid(pid as i32) else {
+        return "no app element".into();
+    };
+    let Ok(Some(win)) = app.element_attribute("AXFocusedWindow") else {
+        return "no focused window".into();
+    };
+    let mut queue = std::collections::VecDeque::from([win]);
+    let mut roles: std::collections::BTreeMap<String, usize> = Default::default();
+    let mut scanned = 0;
+    while let Some(el) = queue.pop_front() {
+        if scanned >= 300 {
+            break;
+        }
+        scanned += 1;
+        let role = el
+            .string_attribute(AX_ROLE_ATTRIBUTE)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "?".into());
+        *roles.entry(role).or_default() += 1;
+        if let Ok(kids) = el.children() {
+            queue.extend(kids);
+        }
+    }
+    format!("{scanned} elements scanned; roles {roles:?}")
 }
 
 fn post_cmd_v() -> Result<(), Error> {
@@ -216,8 +270,14 @@ impl MacInjector {
         post_cmd_v()?;
         let verified = match (el, &before) {
             (Some(el), Some(b)) if b.readable() => verify_within(el, b, text, PASTE_VERIFY_TIMEOUT),
-            // No read-back available: nothing can prove delivery (docs/adr/0005).
-            _ => false,
+            // No read-back available: the paste is still posted, because the app is the one
+            // the user held the key in and revalidation confirmed it is still frontmost, but
+            // nothing can prove delivery, so the outcome stays ClipboardOnly (docs/adr/0005)
+            // and the transcript stays on the clipboard. Give the target a moment to read it.
+            _ => {
+                std::thread::sleep(Duration::from_millis(150));
+                false
+            }
         };
         if verified && restore {
             // Only restore if nothing else has written the pasteboard since we did.
@@ -244,12 +304,17 @@ impl TextInjector for MacInjector {
     fn capture_target(&self) -> Result<InjectionTarget, Error> {
         let (pid, app_name, bundle_id) =
             frontmost_app().ok_or_else(|| Error::Platform("no frontmost application".into()))?;
-        let element = focused_element(pid).map(ElementRef);
+        let (element, route) = focused_element(pid);
+        tracing::info!(
+            "target: {} via {route}, element {}",
+            bundle_id.as_deref().unwrap_or(&app_name),
+            if element.is_some() { "found" } else { "none" }
+        );
         Ok(InjectionTarget {
             pid,
             app_name,
             bundle_id,
-            element,
+            element: element.map(ElementRef),
             captured_at: Instant::now(),
         })
     }
@@ -268,36 +333,53 @@ impl TextInjector for MacInjector {
             (s.output.method.clone(), s.output.restore_clipboard)
         };
 
-        // Re-resolve if the captured element is gone; keep the captured one otherwise.
-        let el = target
-            .element
-            .as_ref()
-            .filter(|e| e.0.pid().is_ok())
-            .map(|e| e.0.clone())
-            .or_else(|| focused_element(target.pid));
-
-        let (role, subrole) = match &el {
-            Some(el) => (
-                el.string_attribute(AX_ROLE_ATTRIBUTE).ok().flatten(),
-                el.string_attribute(AX_SUBROLE_ATTRIBUTE).ok().flatten(),
-            ),
-            None => (None, None),
+        // Keep the captured element if it is still alive; otherwise look again now.
+        let (el, route) = match target.element.as_ref().filter(|e| e.0.pid().is_ok()) {
+            Some(e) => (Some(e.0.clone()), "captured"),
+            None => focused_element(target.pid),
         };
+
+        let attr = |el: &AXUIElement, n: &str| el.string_attribute(n).ok().flatten();
+        let (role, subrole, settable) = match &el {
+            Some(el) => (
+                attr(el, AX_ROLE_ATTRIBUTE),
+                attr(el, AX_SUBROLE_ATTRIBUTE),
+                el.is_attribute_settable(AX_SELECTED_TEXT_ATTRIBUTE)
+                    .unwrap_or(false),
+            ),
+            None => (None, None, false),
+        };
+        tracing::info!(
+            "inject: route {route}, role {:?}, subrole {:?}, selected-text settable {settable}, method setting {method}",
+            role, subrole
+        );
+        if el.is_none() {
+            tracing::info!(
+                "inject: no focused element; {}",
+                describe_focused_window(target.pid)
+            );
+        }
         if subrole.as_deref() == Some(AX_SECURE_TEXT_FIELD_SUBROLE) {
             return Ok(InjectionOutcome::ClipboardOnly {
                 reason: FallbackReason::PasswordField,
             });
         }
-        let ax_ok_role = matches!(
+        let text_role = matches!(
             role.as_deref(),
             Some(AX_TEXT_FIELD_ROLE) | Some(AX_TEXT_AREA_ROLE) | Some(AX_COMBO_BOX_ROLE)
         );
         let elapsed = |t0: Instant| t0.elapsed().as_millis() as u32;
 
-        // 1. Accessibility.
+        // 1. Accessibility: any element that is a text role or says its selected text is
+        // settable. Verification decides, not the role.
         if matches!(method.as_str(), "auto" | "accessibility") {
-            if let Some(el) = &el {
-                if ax_ok_role && self.try_accessibility(el, text) {
+            if let Some(el) = el.as_ref().filter(|_| text_role || settable) {
+                let ok = self.try_accessibility(el, text);
+                tracing::info!(
+                    "inject: accessibility {}",
+                    if ok { "verified" } else { "not verified" }
+                );
+                if ok {
                     return Ok(InjectionOutcome::Inserted {
                         method: Method::Accessibility,
                         elapsed_ms: elapsed(t0),
@@ -314,41 +396,51 @@ impl TextInjector for MacInjector {
                 });
             }
         }
-        // With no element at all there is nothing to read back, so neither paste nor typing
-        // can be verified. Say so rather than guess.
-        if el.is_none() {
-            return Ok(InjectionOutcome::ClipboardOnly {
-                reason: FallbackReason::NoTextTarget,
-            });
-        }
-        // 2. Paste.
-        if matches!(method.as_str(), "auto" | "paste")
-            && self.try_paste(el.as_ref(), text, restore)?
-        {
-            return Ok(InjectionOutcome::Inserted {
-                method: Method::Paste,
-                elapsed_ms: elapsed(t0),
-            });
-        }
-        if method == "paste" {
-            return Ok(InjectionOutcome::ClipboardOnly {
-                reason: FallbackReason::MethodFailed(Method::Paste),
-            });
+        // 2. Paste, verified by read-back where the field can be read, blind otherwise.
+        if matches!(method.as_str(), "auto" | "paste") {
+            let ok = self.try_paste(el.as_ref(), text, restore)?;
+            tracing::info!(
+                "inject: paste {}",
+                if ok {
+                    "verified"
+                } else if el.is_some() {
+                    "not verified"
+                } else {
+                    "blind"
+                }
+            );
+            if ok {
+                return Ok(InjectionOutcome::Inserted {
+                    method: Method::Paste,
+                    elapsed_ms: elapsed(t0),
+                });
+            }
+            if method == "paste" || el.is_none() {
+                return Ok(InjectionOutcome::ClipboardOnly {
+                    reason: FallbackReason::MethodFailed(Method::Paste),
+                });
+            }
         }
         // 3. Unicode events. Only when explicitly chosen: in "auto" a failed paste has already
         // left the transcript on the clipboard, and typing on top would duplicate it.
-        if method == "type" && self.try_unicode(el.as_ref(), text)? {
-            return Ok(InjectionOutcome::Inserted {
-                method: Method::Type,
-                elapsed_ms: elapsed(t0),
+        if method == "type" {
+            let ok = self.try_unicode(el.as_ref(), text)?;
+            tracing::info!(
+                "inject: unicode {}",
+                if ok { "verified" } else { "not verified" }
+            );
+            if ok {
+                return Ok(InjectionOutcome::Inserted {
+                    method: Method::Type,
+                    elapsed_ms: elapsed(t0),
+                });
+            }
+            return Ok(InjectionOutcome::ClipboardOnly {
+                reason: FallbackReason::MethodFailed(Method::Type),
             });
         }
         Ok(InjectionOutcome::ClipboardOnly {
-            reason: FallbackReason::MethodFailed(if method == "type" {
-                Method::Type
-            } else {
-                Method::Paste
-            }),
+            reason: FallbackReason::MethodFailed(Method::Paste),
         })
     }
 

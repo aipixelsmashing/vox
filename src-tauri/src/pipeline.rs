@@ -224,14 +224,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
             Action::Nothing => {}
             Action::Busy => tray::flash_busy(&deps.app),
             Action::StartRecording => {
-                // Capture the target now, before the user starts speaking.
-                target = match deps.injector.capture_target() {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        tracing::warn!("capture_target failed: {e}");
-                        None
-                    }
-                };
+                // Audio first: the microphone must be open before the first syllable. The
+                // target is captured right after, still at key-down, while the ring buffer
+                // fills; waking an Electron app's accessibility tree can take a few hundred ms.
                 let device = deps.settings.read().audio.input_device.clone();
                 match audio::Capture::start(&device) {
                     Ok(c) => {
@@ -244,8 +239,16 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         notify(&deps.app, crate::permissions::MSG_MICROPHONE);
                         state = State::Idle;
                         tray::set_state(&deps.app, tray::IconState::Attention);
+                        continue;
                     }
                 }
+                target = match deps.injector.capture_target() {
+                    Ok(t) => Some(t),
+                    Err(e) => {
+                        tracing::warn!("capture_target failed: {e}");
+                        None
+                    }
+                };
             }
             Action::Discard => {
                 capture = None;
