@@ -235,6 +235,197 @@ public func vox_sa_transcribe(
     return json(rep)
 }
 
+// MARK: - Streaming sessions
+//
+// The pipeline pushes 16 kHz mono float chunks while the key is held; the analyzer works on
+// them as they arrive, so at release only the tail is left to finalise. Volatile results are
+// requested to keep the model processing incrementally; only final results are kept.
+// All entry points are called from the single Rust engine thread.
+
+private struct StreamStartReport: Codable {
+    var ok = false
+    var handle: Int32 = 0
+    var error: String? = nil
+}
+
+private struct StreamFinishReport: Codable {
+    var text = ""
+    var ms = 0.0
+    var finals = 0
+    var volatiles = 0
+    var pushedSeconds = 0.0
+    var error: String? = nil
+}
+
+@available(macOS 26.0, *)
+private final class StreamSession: @unchecked Sendable {
+    let transcriber: SpeechTranscriber
+    let analyzer: SpeechAnalyzer
+    let cont: AsyncStream<AnalyzerInput>.Continuation
+    let inFmt: AVAudioFormat
+    let outFmt: AVAudioFormat?
+    let converter: AVAudioConverter?
+    let box = Box<(String, Int, Int)>(("", 0, 0))
+    var results: Task<Void, Error>? = nil
+    var pushedFrames = 0
+
+    init(transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer,
+         cont: AsyncStream<AnalyzerInput>.Continuation, inFmt: AVAudioFormat, outFmt: AVAudioFormat?) {
+        self.transcriber = transcriber
+        self.analyzer = analyzer
+        self.cont = cont
+        self.inFmt = inFmt
+        self.outFmt = outFmt
+        if let outFmt, outFmt != inFmt {
+            self.converter = AVAudioConverter(from: inFmt, to: outFmt)
+        } else {
+            self.converter = nil
+        }
+    }
+}
+
+@available(macOS 26.0, *)
+private final class StreamRegistry: @unchecked Sendable {
+    static let shared = StreamRegistry()
+    var sessions: [Int32: StreamSession] = [:]
+    var next: Int32 = 1
+}
+
+@_cdecl("vox_sa_stream_start")
+public func vox_sa_stream_start(_ cLocale: UnsafePointer<CChar>, _ sampleRate: Double) -> UnsafeMutablePointer<CChar>? {
+    let wanted = String(cString: cLocale)
+    var rep = StreamStartReport()
+    guard #available(macOS 26.0, *) else {
+        rep.error = "SpeechAnalyzer needs macOS 26"
+        return json(rep)
+    }
+    rep = blocking(rep) {
+        var r = StreamStartReport()
+        var resolved = EngineState.shared.locale
+        if resolved == nil {
+            resolved = await SpeechTranscriber.supportedLocale(equivalentTo: resolveLocale(wanted))
+        }
+        let locale = resolved ?? Locale(identifier: "en_US")
+        do {
+            let transcriber = SpeechTranscriber(
+                locale: locale,
+                transcriptionOptions: [],
+                reportingOptions: [.volatileResults],
+                attributeOptions: [])
+            let analyzer = SpeechAnalyzer(
+                modules: [transcriber],
+                options: .init(priority: .userInitiated, modelRetention: .processLifetime))
+            let best = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+            try await analyzer.prepareToAnalyze(in: best)
+            guard let inFmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else {
+                r.error = "bad input format"
+                return r
+            }
+            let (stream, cont) = AsyncStream.makeStream(of: AnalyzerInput.self)
+            let session = StreamSession(transcriber: transcriber, analyzer: analyzer, cont: cont, inFmt: inFmt, outFmt: best)
+            let box = session.box
+            session.results = Task {
+                for try await res in transcriber.results {
+                    if res.isFinal {
+                        box.value.0 += String(res.text.characters)
+                        box.value.1 += 1
+                    } else {
+                        box.value.2 += 1
+                    }
+                }
+            }
+            try await analyzer.start(inputSequence: stream)
+            let reg = StreamRegistry.shared
+            let handle = reg.next
+            reg.next += 1
+            reg.sessions[handle] = session
+            r.handle = handle
+            r.ok = true
+        } catch {
+            r.error = "\(error)"
+        }
+        return r
+    }
+    return json(rep)
+}
+
+/// Pushes `len` float32 samples at the session's input rate. Returns false if the handle is
+/// unknown or the conversion failed.
+@_cdecl("vox_sa_stream_push")
+public func vox_sa_stream_push(_ handle: Int32, _ pcm: UnsafePointer<Float>, _ len: Int) -> Bool {
+    guard #available(macOS 26.0, *), len > 0,
+          let s = StreamRegistry.shared.sessions[handle] else { return false }
+    guard let inBuf = AVAudioPCMBuffer(pcmFormat: s.inFmt, frameCapacity: AVAudioFrameCount(len)) else { return false }
+    inBuf.frameLength = AVAudioFrameCount(len)
+    inBuf.floatChannelData![0].update(from: pcm, count: len)
+    s.pushedFrames += len
+    if let conv = s.converter, let outFmt = s.outFmt {
+        let ratio = outFmt.sampleRate / s.inFmt.sampleRate
+        let cap = AVAudioFrameCount(Double(len) * ratio) + 64
+        guard let outBuf = AVAudioPCMBuffer(pcmFormat: outFmt, frameCapacity: cap) else { return false }
+        var consumed = false
+        var err: NSError? = nil
+        let status = conv.convert(to: outBuf, error: &err) { _, outStatus in
+            if consumed {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            consumed = true
+            outStatus.pointee = .haveData
+            return inBuf
+        }
+        if status == .error { return false }
+        if outBuf.frameLength > 0 { s.cont.yield(AnalyzerInput(buffer: outBuf)) }
+    } else {
+        s.cont.yield(AnalyzerInput(buffer: inBuf))
+    }
+    return true
+}
+
+/// Ends input, finalises whatever is left, and returns the text. The session is removed.
+@_cdecl("vox_sa_stream_finish")
+public func vox_sa_stream_finish(_ handle: Int32) -> UnsafeMutablePointer<CChar>? {
+    var rep = StreamFinishReport()
+    guard #available(macOS 26.0, *) else {
+        rep.error = "SpeechAnalyzer needs macOS 26"
+        return json(rep)
+    }
+    guard let s = StreamRegistry.shared.sessions.removeValue(forKey: handle) else {
+        rep.error = "unknown stream handle \(handle)"
+        return json(rep)
+    }
+    rep = blocking(rep) {
+        var r = StreamFinishReport()
+        let t0 = Date()
+        r.pushedSeconds = Double(s.pushedFrames) / s.inFmt.sampleRate
+        do {
+            s.cont.finish()
+            try await s.analyzer.finalizeAndFinishThroughEndOfInput()
+            try await s.results?.value
+            r.text = s.box.value.0.trimmingCharacters(in: .whitespacesAndNewlines)
+            r.finals = s.box.value.1
+            r.volatiles = s.box.value.2
+        } catch {
+            r.error = "\(error)"
+        }
+        r.ms = ms(t0)
+        return r
+    }
+    return json(rep)
+}
+
+@_cdecl("vox_sa_stream_cancel")
+public func vox_sa_stream_cancel(_ handle: Int32) {
+    guard #available(macOS 26.0, *),
+          let s = StreamRegistry.shared.sessions.removeValue(forKey: handle) else { return }
+    _ = blocking(false) {
+        s.cont.finish()
+        await s.analyzer.cancelAndFinishNow()
+        s.results?.cancel()
+        return true
+    }
+}
+
 @_cdecl("vox_sa_free")
 public func vox_sa_free(_ p: UnsafeMutablePointer<CChar>?) { free(p) }
 

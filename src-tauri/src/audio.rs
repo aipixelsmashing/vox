@@ -27,9 +27,20 @@ pub struct Capture {
     // Dropped in `finish`, which stops the device.
     _stream: cpal::Stream,
     cons: HeapCons<f32>,
-    samples: Vec<f32>,
-    device_rate: u32,
+    /// Device-rate samples not yet resampled (less than one resampler chunk).
+    pending: Vec<f32>,
+    /// Everything produced so far at 16 kHz, for the energy gate at the end.
+    pcm: Vec<f32>,
+    resampler: Option<Incremental>,
     started: Instant,
+}
+
+/// What `finish` hands back: the last 16 kHz samples not yet pushed to a streaming engine,
+/// and the whole gated clip for the batch path or for deciding there was no speech.
+pub struct Finished {
+    pub tail: Vec<f32>,
+    pub speech: Option<Vec<f32>>,
+    pub total_samples: usize,
 }
 
 impl Capture {
@@ -62,40 +73,150 @@ impl Capture {
             other => anyhow::bail!("unsupported input sample format {other:?}"),
         };
         stream.play()?;
+        let resampler = if device_rate == TARGET_SAMPLE_RATE {
+            None
+        } else {
+            Some(Incremental::new(device_rate, TARGET_SAMPLE_RATE)?)
+        };
         Ok(Self {
             _stream: stream,
             cons,
-            samples: Vec::with_capacity(device_rate as usize * 30),
-            device_rate,
+            pending: Vec::with_capacity(8192),
+            pcm: Vec::with_capacity(TARGET_SAMPLE_RATE as usize * 30),
+            resampler,
             started: Instant::now(),
         })
     }
 
-    /// Move whatever the callback has produced into the pipeline-side buffer. Cheap; call it
-    /// every few tens of milliseconds while recording.
-    pub fn drain(&mut self) {
+    /// Move whatever the callback has produced through the resampler and return the new
+    /// 16 kHz samples. Cheap; call it every few tens of milliseconds while recording.
+    pub fn drain(&mut self) -> Vec<f32> {
         let mut buf = [0f32; 4096];
         loop {
             let n = self.cons.pop_slice(&mut buf);
             if n == 0 {
                 break;
             }
-            self.samples.extend_from_slice(&buf[..n]);
+            self.pending.extend_from_slice(&buf[..n]);
         }
+        let fresh = match self.resampler.as_mut() {
+            None => std::mem::take(&mut self.pending),
+            Some(rs) => rs.push(&mut self.pending),
+        };
+        self.pcm.extend_from_slice(&fresh);
+        fresh
     }
 
     pub fn elapsed_ms(&self) -> u32 {
         self.started.elapsed().as_millis() as u32
     }
 
-    /// Stops capture and returns 16 kHz mono f32, trimmed. Returns None when no speech was
-    /// detected, so an accidental hold produces nothing rather than a hallucinated line.
-    pub fn finish(mut self, vad: &crate::settings::Vad) -> anyhow::Result<Option<Vec<f32>>> {
-        self.drain();
+    /// Stops capture. `speech` is None when nothing was said, so an accidental hold produces
+    /// nothing rather than a hallucinated line.
+    pub fn finish(mut self, vad: &crate::settings::Vad) -> anyhow::Result<Finished> {
+        let mut tail = self.drain();
         drop(self._stream);
-        let raw = std::mem::take(&mut self.samples);
-        let pcm = resample(&raw, self.device_rate, TARGET_SAMPLE_RATE)?;
-        Ok(gate(&pcm, vad))
+        let flushed = match self.resampler.as_mut() {
+            None => std::mem::take(&mut self.pending),
+            Some(rs) => rs.flush(&self.pending)?,
+        };
+        self.pcm.extend_from_slice(&flushed);
+        tail.extend_from_slice(&flushed);
+        let total_samples = self.pcm.len();
+        Ok(Finished {
+            tail,
+            speech: gate(&self.pcm, vad),
+            total_samples,
+        })
+    }
+}
+
+/// Chunked sinc resampling for the live path. The group delay is dropped from the first
+/// output so the stream is not offset; `flush` pads the remainder and drains the tail.
+pub struct Incremental {
+    rs: rubato::SincFixedIn<f32>,
+    chunk: usize,
+    delay_left: usize,
+    ratio: f64,
+    in_frames: usize,
+    out_frames: usize,
+}
+
+impl Incremental {
+    pub fn new(from: u32, to: u32) -> anyhow::Result<Self> {
+        use rubato::{Resampler, SincFixedIn};
+        let chunk = 1024;
+        let rs = SincFixedIn::<f32>::new(
+            f64::from(to) / f64::from(from),
+            2.0,
+            sinc_params(),
+            chunk,
+            1,
+        )?;
+        let delay_left = rs.output_delay();
+        Ok(Self {
+            rs,
+            chunk,
+            delay_left,
+            ratio: f64::from(to) / f64::from(from),
+            in_frames: 0,
+            out_frames: 0,
+        })
+    }
+
+    fn emit(&mut self, mut out: Vec<f32>) -> Vec<f32> {
+        if self.delay_left > 0 {
+            let d = self.delay_left.min(out.len());
+            out.drain(..d);
+            self.delay_left -= d;
+        }
+        // Never emit more than the input accounts for; the flush pads with zeros.
+        let allowed = (self.in_frames as f64 * self.ratio).round() as usize;
+        let room = allowed.saturating_sub(self.out_frames);
+        out.truncate(room);
+        self.out_frames += out.len();
+        out
+    }
+
+    /// Consumes whole chunks from `pending`, leaving the remainder in place.
+    pub fn push(&mut self, pending: &mut Vec<f32>) -> Vec<f32> {
+        use rubato::Resampler;
+        let mut out = Vec::new();
+        let mut pos = 0;
+        while pos + self.chunk <= pending.len() {
+            match self.rs.process(&[&pending[pos..pos + self.chunk]], None) {
+                Ok(res) => out.extend_from_slice(&res[0]),
+                Err(e) => tracing::warn!("resample: {e}"),
+            }
+            pos += self.chunk;
+            self.in_frames += self.chunk;
+        }
+        pending.drain(..pos);
+        self.emit(out)
+    }
+
+    pub fn flush(&mut self, remainder: &[f32]) -> anyhow::Result<Vec<f32>> {
+        use rubato::Resampler;
+        let mut out = Vec::new();
+        if !remainder.is_empty() {
+            let res = self.rs.process_partial(Some(&[remainder]), None)?;
+            out.extend_from_slice(&res[0]);
+            self.in_frames += remainder.len();
+        }
+        let res = self.rs.process_partial::<&[f32]>(None, None)?;
+        out.extend_from_slice(&res[0]);
+        Ok(self.emit(out))
+    }
+}
+
+fn sinc_params() -> rubato::SincInterpolationParameters {
+    use rubato::{SincInterpolationParameters, SincInterpolationType, WindowFunction};
+    SincInterpolationParameters {
+        sinc_len: 128,
+        f_cutoff: 0.95,
+        interpolation: SincInterpolationType::Linear,
+        oversampling_factor: 128,
+        window: WindowFunction::BlackmanHarris2,
     }
 }
 
@@ -133,18 +254,15 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> anyhow::Result<Vec<f32>> {
     if from == to || input.is_empty() {
         return Ok(input.to_vec());
     }
-    use rubato::{
-        Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
-    };
-    let params = SincInterpolationParameters {
-        sinc_len: 128,
-        f_cutoff: 0.95,
-        interpolation: SincInterpolationType::Linear,
-        oversampling_factor: 128,
-        window: WindowFunction::BlackmanHarris2,
-    };
+    use rubato::{Resampler, SincFixedIn};
     let chunk = 1024;
-    let mut rs = SincFixedIn::<f32>::new(f64::from(to) / f64::from(from), 2.0, params, chunk, 1)?;
+    let mut rs = SincFixedIn::<f32>::new(
+        f64::from(to) / f64::from(from),
+        2.0,
+        sinc_params(),
+        chunk,
+        1,
+    )?;
     let mut out = Vec::with_capacity(input.len() * to as usize / from as usize + chunk);
     let mut pos = 0;
     while pos + chunk <= input.len() {
@@ -248,6 +366,26 @@ mod tests {
         // 1 s of speech + 300 ms padding each side, give or take a frame.
         assert!(out.len() > 16000 + 2 * 4800 - FRAME * 2);
         assert!(out.len() < 16000 + 2 * 4800 + FRAME * 2);
+    }
+
+    #[test]
+    fn incremental_matches_batch_length() {
+        let input = tone(1.0, 0.5);
+        let batch = resample(&input, 48_000, 16_000).unwrap();
+        let mut inc = Incremental::new(48_000, 16_000).unwrap();
+        let mut pending = Vec::new();
+        let mut out = Vec::new();
+        for piece in input.chunks(700) {
+            pending.extend_from_slice(piece);
+            out.extend(inc.push(&mut pending));
+        }
+        out.extend(inc.flush(&pending).unwrap());
+        assert!(
+            (out.len() as i64 - batch.len() as i64).abs() < 8,
+            "incremental {} vs batch {}",
+            out.len(),
+            batch.len()
+        );
     }
 
     #[test]

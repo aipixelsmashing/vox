@@ -74,6 +74,20 @@ pub trait SpeechEngine: Send {
     fn set_vocabulary(&mut self, _terms: &[String]) -> bool {
         false
     }
+
+    // Streaming: audio is pushed while the key is held so only the tail is left to
+    // finalise at release. Engines that cannot stream keep the defaults and the pipeline
+    // falls back to `transcribe` with the whole clip.
+    fn stream_start(&mut self, _hint: &LanguageHint) -> Result<(), Error> {
+        Err(Error::Unavailable("streaming not supported".into()))
+    }
+    fn stream_push(&mut self, _pcm: &[f32]) -> Result<(), Error> {
+        Err(Error::Unavailable("streaming not supported".into()))
+    }
+    fn stream_finish(&mut self) -> Result<Transcript, Error> {
+        Err(Error::Unavailable("streaming not supported".into()))
+    }
+    fn stream_cancel(&mut self) {}
 }
 
 enum Job {
@@ -85,6 +99,17 @@ enum Job {
     Status {
         reply: crossbeam_channel::Sender<Result<String, Error>>,
     },
+    StreamStart {
+        hint: LanguageHint,
+        reply: crossbeam_channel::Sender<Result<(), Error>>,
+    },
+    StreamPush {
+        pcm: Vec<f32>,
+    },
+    StreamFinish {
+        reply: crossbeam_channel::Sender<Result<Transcript, Error>>,
+    },
+    StreamCancel,
 }
 
 /// Owns the engine thread. Requests are serialised; a transcription in flight blocks the
@@ -102,6 +127,33 @@ impl Handle {
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?;
         rx.recv()
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?
+    }
+
+    pub fn stream_start(&self, hint: LanguageHint) -> Result<(), Error> {
+        let (reply, rx) = crossbeam_channel::bounded(1);
+        self.tx
+            .send(Job::StreamStart { hint, reply })
+            .map_err(|_| Error::Unavailable("engine thread gone".into()))?;
+        rx.recv()
+            .map_err(|_| Error::Unavailable("engine thread gone".into()))?
+    }
+
+    /// Blocks only if the engine thread is far behind, which it never is: pushes are cheap.
+    pub fn stream_push(&self, pcm: Vec<f32>) {
+        let _ = self.tx.send(Job::StreamPush { pcm });
+    }
+
+    pub fn stream_finish(&self) -> Result<Transcript, Error> {
+        let (reply, rx) = crossbeam_channel::bounded(1);
+        self.tx
+            .send(Job::StreamFinish { reply })
+            .map_err(|_| Error::Unavailable("engine thread gone".into()))?;
+        rx.recv()
+            .map_err(|_| Error::Unavailable("engine thread gone".into()))?
+    }
+
+    pub fn stream_cancel(&self) {
+        let _ = self.tx.send(Job::StreamCancel);
     }
 
     /// Ok(engine id) when loaded; the load error otherwise.
@@ -141,7 +193,7 @@ fn build(id: &str) -> Result<Box<dyn SpeechEngine>, Error> {
 }
 
 pub fn spawn(settings: Arc<RwLock<crate::settings::Settings>>) -> anyhow::Result<Handle> {
-    let (tx, rx) = crossbeam_channel::bounded::<Job>(4);
+    let (tx, rx) = crossbeam_channel::bounded::<Job>(256);
     let cfg = settings.read().engine.clone();
     std::thread::Builder::new()
         .name("vox-inference".into())
@@ -182,6 +234,32 @@ pub fn spawn(settings: Arc<RwLock<crate::settings::Settings>>) -> anyhow::Result
                             Err(e) => Err(e.clone()),
                         };
                         let _ = reply.send(result);
+                    }
+                    Job::StreamStart { hint, reply } => {
+                        let result = match &mut state {
+                            Ok(e) => e.stream_start(&hint),
+                            Err(e) => Err(e.clone()),
+                        };
+                        let _ = reply.send(result);
+                    }
+                    Job::StreamPush { pcm } => {
+                        if let Ok(e) = &mut state {
+                            if let Err(err) = e.stream_push(&pcm) {
+                                tracing::warn!("stream push failed: {err}");
+                            }
+                        }
+                    }
+                    Job::StreamFinish { reply } => {
+                        let result = match &mut state {
+                            Ok(e) => e.stream_finish(),
+                            Err(e) => Err(e.clone()),
+                        };
+                        let _ = reply.send(result);
+                    }
+                    Job::StreamCancel => {
+                        if let Ok(e) = &mut state {
+                            e.stream_cancel();
+                        }
                     }
                 }
             }

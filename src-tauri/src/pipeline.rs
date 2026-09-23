@@ -185,6 +185,8 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     let mut capture: Option<audio::Capture> = None;
     let mut target: Option<InjectionTarget> = None;
     let mut started: Option<Instant> = None;
+    // True while the engine has a live streaming session for this recording.
+    let mut streaming = false;
 
     loop {
         // While recording, poll so audio is drained and the cap is enforced.
@@ -193,7 +195,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 Ok(e) => e,
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                     if let Some(c) = capture.as_mut() {
-                        c.drain();
+                        let fresh = c.drain();
+                        if streaming && !fresh.is_empty() {
+                            deps.engine.stream_push(fresh);
+                        }
                     }
                     let cap = deps.settings.read().audio.max_recording_sec;
                     let over = started
@@ -242,6 +247,15 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         continue;
                     }
                 }
+                // Open the streaming session so the engine works while the user speaks.
+                let hint = language_hint(&deps.settings.read());
+                streaming = match deps.engine.stream_start(hint) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        tracing::info!("streaming unavailable, batch transcription: {e}");
+                        false
+                    }
+                };
                 target = match deps.injector.capture_target() {
                     Ok(t) => Some(t),
                     Err(e) => {
@@ -251,6 +265,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 };
             }
             Action::Discard => {
+                if streaming {
+                    deps.engine.stream_cancel();
+                    streaming = false;
+                }
                 capture = None;
                 target = None;
                 started = None;
@@ -264,6 +282,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 started = None;
                 if held_ms < min_hold || cap.is_none() {
                     // A brush of the key. Nothing recorded, nothing written.
+                    if streaming {
+                        deps.engine.stream_cancel();
+                        streaming = false;
+                    }
                     state = State::Idle;
                     tray::set_state(&deps.app, tray::IconState::Idle);
                     continue;
@@ -276,8 +298,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         &format!("Stopped at {minutes} minutes. Transcribed what was recorded."),
                     );
                 }
-                let cancelled = finish(&deps, cap.expect("checked"), tgt, held_ms, &rx);
+                let cancelled = finish(&deps, cap.expect("checked"), tgt, held_ms, streaming, &rx);
                 let _ = cancelled;
+                streaming = false;
                 state = State::Idle;
                 tray::set_state(&deps.app, tray::IconState::Idle);
             }
@@ -286,44 +309,62 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
 }
 
 /// Transcribe → revalidate → inject → history. Returns true if the user cancelled.
+fn language_hint(s: &settings::Settings) -> engine::LanguageHint {
+    if s.engine.language == "auto" {
+        engine::LanguageHint::Auto
+    } else {
+        engine::LanguageHint::Fixed(s.engine.language.clone())
+    }
+}
+
 fn finish(
     deps: &Deps,
     capture: audio::Capture,
     target: Option<InjectionTarget>,
     held_ms: u32,
+    streaming: bool,
     rx: &crossbeam_channel::Receiver<Event>,
 ) -> bool {
     let released_at = Instant::now();
     let (vad, hint, output, history_cfg) = {
         let s = deps.settings.read();
-        let hint = if s.engine.language == "auto" {
-            engine::LanguageHint::Auto
-        } else {
-            engine::LanguageHint::Fixed(s.engine.language.clone())
-        };
         (
             s.audio.vad.clone(),
-            hint,
+            language_hint(&s),
             s.output.clone(),
             s.history.clone(),
         )
     };
 
-    let pcm = match capture.finish(&vad) {
-        Ok(Some(pcm)) => pcm,
-        Ok(None) => {
-            // No speech: silent no-op, no history entry (docs/ARCHITECTURE.md#failure-handling).
-            tracing::debug!("no speech detected in {held_ms} ms");
-            return false;
-        }
+    let fin = match capture.finish(&vad) {
+        Ok(f) => f,
         Err(e) => {
             tracing::warn!("audio finish failed: {e}");
+            if streaming {
+                deps.engine.stream_cancel();
+            }
             return false;
         }
     };
+    let Some(pcm) = fin.speech else {
+        // No speech: silent no-op, no history entry (docs/ARCHITECTURE.md#failure-handling).
+        tracing::debug!("no speech detected in {held_ms} ms");
+        if streaming {
+            deps.engine.stream_cancel();
+        }
+        return false;
+    };
     let duration_ms = (pcm.len() as u64 * 1000 / u64::from(audio::TARGET_SAMPLE_RATE)) as u32;
 
-    let transcript = match deps.engine.transcribe(pcm, hint) {
+    let result = if streaming {
+        if !fin.tail.is_empty() {
+            deps.engine.stream_push(fin.tail);
+        }
+        deps.engine.stream_finish()
+    } else {
+        deps.engine.transcribe(pcm, hint)
+    };
+    let transcript = match result {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("engine failed: {e}");

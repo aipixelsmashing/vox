@@ -21,6 +21,28 @@ extern "C" {
         locale: *const c_char,
     ) -> *mut c_char;
     fn vox_sa_free(p: *mut c_char);
+    fn vox_sa_stream_start(locale: *const c_char, sample_rate: f64) -> *mut c_char;
+    fn vox_sa_stream_push(handle: i32, pcm: *const f32, len: usize) -> bool;
+    fn vox_sa_stream_finish(handle: i32) -> *mut c_char;
+    fn vox_sa_stream_cancel(handle: i32);
+}
+
+#[derive(serde::Deserialize)]
+struct StreamStartReport {
+    ok: bool,
+    handle: i32,
+    error: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StreamFinishReport {
+    text: String,
+    ms: f64,
+    finals: usize,
+    volatiles: usize,
+    pushed_seconds: f64,
+    error: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -56,6 +78,8 @@ fn call_json<T: serde::de::DeserializeOwned>(f: impl FnOnce() -> *mut c_char) ->
 pub struct SpeechAnalyzerEngine {
     loaded: bool,
     locale: String,
+    /// Live streaming session handle in the bridge, if a dictation is in progress.
+    stream: Option<i32>,
 }
 
 impl SpeechAnalyzerEngine {
@@ -63,6 +87,7 @@ impl SpeechAnalyzerEngine {
         Self {
             loaded: false,
             locale: "auto".into(),
+            stream: None,
         }
     }
 
@@ -147,5 +172,80 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             confidence: None,
             inference_ms: rep.ms as u32,
         })
+    }
+
+    fn stream_start(&mut self, hint: &LanguageHint) -> Result<(), Error> {
+        if !self.loaded {
+            return Err(Error::NotLoaded);
+        }
+        if let Some(h) = self.stream.take() {
+            // A session left over from a cancelled or failed dictation.
+            unsafe { vox_sa_stream_cancel(h) };
+        }
+        let locale = match hint {
+            LanguageHint::Fixed(l) => l.clone(),
+            LanguageHint::Auto => self.locale.clone(),
+        };
+        let c_locale = CString::new(locale).unwrap_or_default();
+        // SAFETY: valid C string for the call; the bridge copies it.
+        let rep: StreamStartReport = call_json(|| unsafe {
+            vox_sa_stream_start(
+                c_locale.as_ptr(),
+                f64::from(crate::audio::TARGET_SAMPLE_RATE),
+            )
+        })?;
+        if !rep.ok {
+            return Err(Error::Inference(
+                rep.error.unwrap_or_else(|| "stream start failed".into()),
+            ));
+        }
+        self.stream = Some(rep.handle);
+        Ok(())
+    }
+
+    fn stream_push(&mut self, pcm: &[f32]) -> Result<(), Error> {
+        let Some(h) = self.stream else {
+            return Err(Error::Inference("no stream".into()));
+        };
+        if pcm.is_empty() {
+            return Ok(());
+        }
+        // SAFETY: pcm is valid for len samples for the call; the bridge copies it.
+        if unsafe { vox_sa_stream_push(h, pcm.as_ptr(), pcm.len()) } {
+            Ok(())
+        } else {
+            Err(Error::Inference("stream push rejected".into()))
+        }
+    }
+
+    fn stream_finish(&mut self) -> Result<Transcript, Error> {
+        let Some(h) = self.stream.take() else {
+            return Err(Error::Inference("no stream".into()));
+        };
+        // SAFETY: handle came from the bridge and is consumed exactly once.
+        let rep: StreamFinishReport = call_json(|| unsafe { vox_sa_stream_finish(h) })?;
+        if let Some(e) = rep.error {
+            return Err(Error::Inference(e));
+        }
+        tracing::info!(
+            "stream finish: {:.0} ms for {:.2} s pushed, {} final / {} volatile results",
+            rep.ms,
+            rep.pushed_seconds,
+            rep.finals,
+            rep.volatiles
+        );
+        Ok(Transcript {
+            text: rep.text,
+            language: Some(self.locale.clone()),
+            confidence: None,
+            inference_ms: rep.ms as u32,
+        })
+    }
+
+    fn stream_cancel(&mut self) {
+        if let Some(h) = self.stream.take() {
+            // SAFETY: handle came from the bridge and is consumed exactly once.
+            unsafe { vox_sa_stream_cancel(h) };
+        }
     }
 }
