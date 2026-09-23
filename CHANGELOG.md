@@ -17,6 +17,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   inserting. Where a field still can't be read back, the text is pasted anyway and the
   notification says it couldn't be confirmed, with the text also on the clipboard.
 - A local signing identity for development, so permissions survive rebuilds.
+- Transcription now runs while you hold the key, so the text appears almost as soon as you
+  let go instead of a beat later.
+- Apps where direct insertion never takes (Chromium-based ones) are remembered for the
+  session, so later dictations there skip straight to the working method.
 - Project design documents, architecture, and repository scaffolding.
 
 <!--
