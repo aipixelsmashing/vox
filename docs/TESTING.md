@@ -76,8 +76,9 @@ application's text field.
 4a. Same in an Electron app (the Claude desktop app, Slack, VS Code): the log shows the
     element found "per-app-after-wake", and the text arrives, inserted or at least pasted
     with the "couldn't confirm" notification. Never nothing.
-5. Hold, say something, switch apps with ⌘Tab, release: nothing is typed into the new app,
-   the text is on the clipboard, and the notification names both apps.
+5. Hold, say something, switch apps by clicking another app's window, release: nothing is
+   typed into the new app, the text is on the clipboard, and the notification names both
+   apps. (⌘Tab does not open the app switcher while Option is held, so use the mouse.)
 6. Hold, press Escape, release: nothing inserted, nothing in history, and the app did not
    react to the Escape either — in Notes, no completion menu (Option+Escape) appears.
 7. Tap right Option for under 120 ms: nothing happens.
