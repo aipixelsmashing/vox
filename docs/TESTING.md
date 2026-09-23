@@ -78,7 +78,8 @@ application's text field.
     with the "couldn't confirm" notification. Never nothing.
 5. Hold, say something, switch apps with ⌘Tab, release: nothing is typed into the new app,
    the text is on the clipboard, and the notification names both apps.
-6. Hold, press Escape, release: nothing inserted, nothing in history.
+6. Hold, press Escape, release: nothing inserted, nothing in history, and the app did not
+   react to the Escape either — in Notes, no completion menu (Option+Escape) appears.
 7. Tap right Option for under 120 ms: nothing happens.
 8. Hold in a password field: "Not inserted — a password field is active." and nothing on
    the clipboard.

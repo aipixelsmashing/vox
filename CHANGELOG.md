@@ -12,7 +12,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - When text can't be placed, it is put on the clipboard and a notification says why.
 - Every dictation is kept in a local history database, including ones that could not be
   inserted, so nothing is lost. (The history panel itself comes later.)
-- Escape cancels a dictation in progress; nothing is transcribed or stored.
+- Escape cancels a dictation in progress; nothing is transcribed or stored. The Escape is
+  swallowed while you dictate, so the app you are dictating into never sees it as
+  Option+Escape (which would open its completion menu).
 - Electron and Chromium apps: Vox now asks them to expose their text fields before
   inserting. Where a field still can't be read back, the text is pasted anyway and the
   notification says it couldn't be confirmed, with the text also on the clipboard.

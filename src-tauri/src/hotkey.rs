@@ -105,6 +105,10 @@ impl Matcher {
     pub fn reset(&mut self) {
         self.active = false;
     }
+
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
 }
 
 pub fn key_name(key: Key) -> String {
@@ -121,6 +125,23 @@ pub fn spawn(
 ) -> anyhow::Result<()> {
     let tap = Tap::new().map_err(|e| anyhow::anyhow!("keytap: {e}"))?;
     let hotkey = settings.read().hotkey.clone();
+    // True from Start to End. The cancel tap reads it to decide whether the cancel key belongs
+    // to us (swallow it, send Cancel) or to the foreground app (let it through).
+    let dictating = Arc::new(AtomicBool::new(false));
+    #[cfg(target_os = "macos")]
+    match cancel_tap::macos_keycode(&hotkey.cancel_key) {
+        Some(code) => {
+            if let Err(e) = cancel_tap::install(code, dictating.clone(), pipeline.clone()) {
+                tracing::warn!(
+                    "cancel key is observed but not swallowed; the foreground app will also see it: {e}"
+                );
+            }
+        }
+        None => tracing::warn!(
+            "no macOS keycode for cancel key {:?}; it is observed but not swallowed",
+            hotkey.cancel_key
+        ),
+    }
     std::thread::Builder::new()
         .name("vox-hotkey".into())
         .spawn(move || {
@@ -131,18 +152,30 @@ pub fn spawn(
                     EventKind::KeyUp(k) => (key_name(k), false),
                     EventKind::KeyRepeat(_) => continue,
                 };
+                // The cancel tap ended the session without this thread seeing the key.
+                if matcher.is_active() && !dictating.load(Ordering::Acquire) {
+                    matcher.reset();
+                }
                 let Some(action) = matcher.feed(&name, down) else {
                     continue;
                 };
                 if paused.load(Ordering::Relaxed) {
                     matcher.reset();
+                    dictating.store(false, Ordering::Release);
                     continue;
                 }
                 match action {
-                    Action::Start => pipeline.send(pipeline::Event::HotkeyDown),
-                    Action::End => pipeline.send(pipeline::Event::HotkeyUp),
+                    Action::Start => {
+                        dictating.store(true, Ordering::Release);
+                        pipeline.send(pipeline::Event::HotkeyDown)
+                    }
+                    Action::End => {
+                        dictating.store(false, Ordering::Release);
+                        pipeline.send(pipeline::Event::HotkeyUp)
+                    }
                     Action::Cancel => {
                         matcher.reset();
+                        dictating.store(false, Ordering::Release);
                         pipeline.send(pipeline::Event::Cancel)
                     }
                 }
@@ -150,6 +183,189 @@ pub fn spawn(
             tracing::warn!("hotkey tap ended");
         })?;
     Ok(())
+}
+
+/// Swallows the cancel key while a dictation is in progress.
+///
+/// keytap's tap is listen-only, so the foreground app sees every key we see. While the
+/// hotkey modifier is held that makes the cancel key a chord: with right Option held, Escape
+/// reaches a Cocoa text view as Option+Escape, which opens the completion menu and can
+/// insert a word — exactly what cancelling must never do. This active tap sits ahead of
+/// keytap's, drops the cancel key's down, repeats and up while `dictating` is set, and sends
+/// Cancel itself. The modifier is never swallowed here; that is `hotkey.consume`, a separate
+/// and off-by-default choice (docs/HOTKEYS.md, problems 2 and 4).
+#[cfg(target_os = "macos")]
+mod cancel_tap {
+    use std::ffi::c_void;
+    use std::ptr::NonNull;
+    use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use objc2_core_foundation::{kCFRunLoopCommonModes, CFMachPort, CFRunLoop};
+    use objc2_core_graphics::{
+        CGEvent, CGEventField, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+        CGEventTapProxy, CGEventType,
+    };
+
+    use crate::pipeline;
+
+    struct Ctx {
+        keycode: i64,
+        dictating: Arc<AtomicBool>,
+        /// A down was swallowed; swallow its repeats and the matching up too, so the app
+        /// never sees half a keystroke.
+        swallowed_down: AtomicBool,
+        pipeline: Arc<pipeline::Handle>,
+        /// For re-enabling after the system disables a slow or interrupted tap.
+        tap: AtomicPtr<CFMachPort>,
+    }
+
+    struct SendPtr(*mut Ctx);
+    // SAFETY: the pointer is only dereferenced from the tap thread and the tap callback,
+    // and the Ctx is never freed (the tap lives as long as the process).
+    unsafe impl Send for SendPtr {}
+
+    /// macOS virtual keycode for a keytap key name. Only the keys that make sense as a cancel
+    /// key; anything else is observed but not swallowed.
+    pub fn macos_keycode(name: &str) -> Option<i64> {
+        match name {
+            "Escape" => Some(53),
+            "F1" => Some(122),
+            "F2" => Some(120),
+            "F3" => Some(99),
+            "F4" => Some(118),
+            "F5" => Some(96),
+            "F6" => Some(97),
+            "F7" => Some(98),
+            "F8" => Some(100),
+            "F9" => Some(101),
+            "F10" => Some(109),
+            "F11" => Some(103),
+            "F12" => Some(111),
+            _ => None,
+        }
+    }
+
+    pub fn install(
+        keycode: i64,
+        dictating: Arc<AtomicBool>,
+        pipeline: Arc<pipeline::Handle>,
+    ) -> anyhow::Result<()> {
+        let ctx = SendPtr(Box::into_raw(Box::new(Ctx {
+            keycode,
+            dictating,
+            swallowed_down: AtomicBool::new(false),
+            pipeline,
+            tap: AtomicPtr::new(std::ptr::null_mut()),
+        })));
+        let (ready_tx, ready_rx) = crossbeam_channel::bounded::<Result<(), String>>(1);
+        std::thread::Builder::new()
+            .name("vox-cancel-tap".into())
+            .spawn(move || {
+                let ctx = ctx;
+                run(ctx.0, ready_tx)
+            })?;
+        ready_rx
+            .recv_timeout(Duration::from_secs(2))
+            .map_err(|_| anyhow::anyhow!("cancel tap thread did not report"))?
+            .map_err(anyhow::Error::msg)
+    }
+
+    fn run(ctx: *mut Ctx, ready: crossbeam_channel::Sender<Result<(), String>>) {
+        let mask = (1u64 << CGEventType::KeyDown.0) | (1u64 << CGEventType::KeyUp.0);
+        // SAFETY: the callback matches CGEventTapCallBack and ctx outlives the tap.
+        let tap = unsafe {
+            CGEvent::tap_create(
+                CGEventTapLocation::HIDEventTap,
+                CGEventTapPlacement::HeadInsertEventTap,
+                CGEventTapOptions::Default,
+                mask,
+                Some(callback),
+                ctx as *mut c_void,
+            )
+        };
+        let Some(tap) = tap else {
+            let _ = ready.send(Err(
+                "CGEventTapCreate returned null (Accessibility or Input Monitoring missing)".into(),
+            ));
+            return;
+        };
+        let port: *const CFMachPort = &*tap;
+        // SAFETY: ctx is valid; the tap thread is its only writer.
+        unsafe { (*ctx).tap.store(port.cast_mut(), Ordering::Release) };
+        let Some(source) = CFMachPort::new_run_loop_source(None, Some(&tap), 0) else {
+            let _ = ready.send(Err("CFMachPortCreateRunLoopSource returned null".into()));
+            return;
+        };
+        let Some(run_loop) = CFRunLoop::current() else {
+            let _ = ready.send(Err("no current run loop".into()));
+            return;
+        };
+        // SAFETY: reading a CoreFoundation constant.
+        run_loop.add_source(Some(&source), unsafe { kCFRunLoopCommonModes });
+        CGEvent::tap_enable(&tap, true);
+        let _ = ready.send(Ok(()));
+        CFRunLoop::run();
+        tracing::warn!("cancel tap run loop ended");
+    }
+
+    unsafe extern "C-unwind" fn callback(
+        _proxy: CGEventTapProxy,
+        ty: CGEventType,
+        event: NonNull<CGEvent>,
+        info: *mut c_void,
+    ) -> *mut CGEvent {
+        // SAFETY: info is the Ctx pointer given to tap_create, never freed.
+        let ctx = unsafe { &*(info as *const Ctx) };
+        if ty.0 == CGEventType::TapDisabledByTimeout.0
+            || ty.0 == CGEventType::TapDisabledByUserInput.0
+        {
+            let tap = ctx.tap.load(Ordering::Acquire);
+            if !tap.is_null() {
+                // SAFETY: set by the tap thread to a port that lives as long as the process.
+                CGEvent::tap_enable(unsafe { &*tap }, true);
+            }
+            return event.as_ptr();
+        }
+        // SAFETY: event is a valid CGEvent for the duration of the callback.
+        let keycode = CGEvent::integer_value_field(
+            Some(unsafe { event.as_ref() }),
+            CGEventField::KeyboardEventKeycode,
+        );
+        if keycode != ctx.keycode {
+            return event.as_ptr();
+        }
+        if ty.0 == CGEventType::KeyDown.0 {
+            if ctx.swallowed_down.load(Ordering::Acquire) {
+                // Auto-repeat of a swallowed key.
+                return std::ptr::null_mut();
+            }
+            if ctx.dictating.swap(false, Ordering::AcqRel) {
+                ctx.swallowed_down.store(true, Ordering::Release);
+                ctx.pipeline.send(pipeline::Event::Cancel);
+                return std::ptr::null_mut();
+            }
+        } else if ty.0 == CGEventType::KeyUp.0 && ctx.swallowed_down.swap(false, Ordering::AcqRel) {
+            return std::ptr::null_mut();
+        }
+        event.as_ptr()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::macos_keycode;
+
+        #[test]
+        fn escape_has_a_keycode_and_letters_do_not() {
+            assert_eq!(macos_keycode("Escape"), Some(53));
+            assert_eq!(
+                macos_keycode("KeyA"),
+                None,
+                "letters are never a cancel key"
+            );
+        }
+    }
 }
 
 /// True when the active keyboard layout maps right Alt to AltGr, in which case onboarding
@@ -206,5 +422,21 @@ mod tests {
         m.reset();
         // The physical key is still down; releasing it must not produce a stray End.
         assert_eq!(m.feed("AltRight", false), None);
+    }
+
+    #[test]
+    fn external_cancel_then_reset_lets_the_next_press_start() {
+        // The cancel tap swallows Escape before keytap sees it, so the matcher only learns
+        // the session ended through reset(). After that the release is silent and the next
+        // press is a fresh Start, in both modes.
+        for mode in [Mode::Hold, Mode::Toggle] {
+            let mut m = Matcher::new(&hk(&["AltRight"], mode));
+            assert_eq!(m.feed("AltRight", true), Some(Action::Start));
+            assert!(m.is_active());
+            m.reset();
+            assert!(!m.is_active());
+            assert_eq!(m.feed("AltRight", false), None);
+            assert_eq!(m.feed("AltRight", true), Some(Action::Start));
+        }
     }
 }

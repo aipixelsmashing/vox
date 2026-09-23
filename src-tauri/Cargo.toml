@@ -67,8 +67,10 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData", "NSEnumerator"] }
 # NSPasteboard direct (concealed type, changeCount, multi-item snapshot) and NSWorkspace.
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSPasteboard", "NSPasteboardItem", "NSRunningApplication", "NSWorkspace"] }
-# Synthesised Cmd+V and Unicode key events.
+# Synthesised Cmd+V and Unicode key events, and the active tap that swallows the cancel key
+# while a dictation is in progress (docs/HOTKEYS.md, problem 4).
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes", "CGEventSource", "CGRemoteOperation"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFMachPort", "CFRunLoop"] }
 libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
