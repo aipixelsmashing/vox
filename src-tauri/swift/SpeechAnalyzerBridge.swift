@@ -10,6 +10,7 @@
 // Transcripts are returned to Rust and never logged here.
 
 import AVFoundation
+import CoreMedia
 import Foundation
 import Speech
 
@@ -268,6 +269,8 @@ private final class StreamSession: @unchecked Sendable {
     let box = Box<(String, Int, Int)>(("", 0, 0))
     var results: Task<Void, Error>? = nil
     var pushedFrames = 0
+    /// Frames already covered by a periodic finalize request.
+    var finalizedFrames = 0
 
     init(transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer,
          cont: AsyncStream<AnalyzerInput>.Continuation, inFmt: AVAudioFormat, outFmt: AVAudioFormat?) {
@@ -359,6 +362,19 @@ public func vox_sa_stream_push(_ handle: Int32, _ pcm: UnsafePointer<Float>, _ l
     inBuf.frameLength = AVAudioFrameCount(len)
     inBuf.floatChannelData![0].update(from: pcm, count: len)
     s.pushedFrames += len
+    // Commit earlier audio while the user is still talking, so the work left at release is
+    // bounded by the lag, not by the length of the utterance. Every ~4 s of audio, ask for
+    // everything older than ~1.5 s to be finalised; the request is asynchronous.
+    let commitEvery = Int(s.inFmt.sampleRate * 4)
+    let keepBack = s.inFmt.sampleRate * 1.5
+    if s.pushedFrames - s.finalizedFrames >= commitEvery {
+        s.finalizedFrames = s.pushedFrames
+        let through = CMTime(seconds: Double(s.pushedFrames) / s.inFmt.sampleRate - keepBack, preferredTimescale: 16_000)
+        let analyzer = s.analyzer
+        Task.detached(priority: .userInitiated) {
+            try? await analyzer.finalize(through: through)
+        }
+    }
     if let conv = s.converter, let outFmt = s.outFmt {
         let ratio = outFmt.sampleRate / s.inFmt.sampleRate
         let cap = AVAudioFrameCount(Double(len) * ratio) + 64
