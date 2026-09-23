@@ -27,7 +27,10 @@ PR, exactly like a latency regression. See [FOOTPRINT.md](FOOTPRINT.md).
 
 **Learning tests** — edit alignment against a fixture corpus of insertion/correction pairs,
 including the negatives that must *not* produce candidates: whole-sentence rewrites, deletions,
-edits after focus left the app, and anything in a field we refused to insert into. Plus the
+edits after focus left the app, anything in a field we refused to insert into, and the
+homophone guard — their/there/they're, to/too/two, its/it's, affect/effect, than/then,
+your/you're, whose/who's, principal/principle, lead/led, bear/bare — none may produce a
+candidate, while "cuber netties" → "Kubernetes" and "acks UI element" → "AXUIElement" must. Plus the
 three-occurrence threshold, the auto-suspend rule, and the guarantee that deleting a term also
 deletes its evidence.
 
@@ -81,6 +84,13 @@ application's text field.
    the clipboard.
 9. Pause dictation from the tray: the hotkey does nothing; unpause: it works again.
 10. Quit from the tray: the process exits; nothing keeps running.
+
+### Context biasing (M3)
+
+1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`
+   off, right with it on.
+2. Same name in a password field: unchanged, and the log shows the read was refused.
+3. Turn the setting off mid-session: the next dictation sends no hints (Diagnostics shows 0).
 
 ### Hotkey checklist
 

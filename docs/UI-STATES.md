@@ -37,7 +37,7 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | Model | Not downloaded; downloading with progress; verification failed; import; engine in use | `model-none`, `model-downloading`, `model-hash-fail` |
 | Text | Manual dictionary empty vs populated | `dictionary-empty` |
 | Vocabulary | No terms yet; terms with provenance; a suspended term; learning off | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off` |
-| Privacy | Offline lock on/off; export running; wipe confirmation | `offline-locked` |
+| Privacy | Read-focused-field on/off; offline lock on/off; export running; wipe confirmation | `offline-locked` |
 | Diagnostics | Corrections trend; insertion outcomes by app; not enough data yet | `diagnostics-thin`, `diagnostics-rich` |
 
 ## Cross-cutting states
@@ -79,6 +79,7 @@ pane.
 | Term suspended | "You changed this back twice — Vox has stopped applying it." |
 | Wipe confirmation | "Delete all 47 transcripts? This can't be undone." |
 | Export finished | "Exported 47 transcripts and 12 learned words to ~/Documents/vox-export." |
+| Privacy pane, read-focused-field toggle | "Read the field you're dictating into — Vox looks at the text around your cursor to recognise the names and terms you're likely to say. Read once per dictation, never stored, never leaves this Mac. Off in password fields." |
 
 Empty states are invitations, not apologies:
 

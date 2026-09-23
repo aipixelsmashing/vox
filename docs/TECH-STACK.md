@@ -84,6 +84,11 @@ API and cannot reach it. The engine is therefore ~150 lines of Swift (`SpeechTra
 `axuielement` uses for its own bridge. Deployment target stays macOS 15 so the binary loads on
 an older OS and reports the engine unavailable rather than failing to launch.
 
+Two modules of the framework are in play: `SpeechTranscriber`, used when there are no
+hints, and `DictationTranscriber`, used whenever contextual strings exist, because only the
+latter honours `AnalysisContext.contextualStrings` ([S5](spikes/s5-context.md),
+[CONTEXT.md](CONTEXT.md)). Equal accuracy on the fixture measured; ~80 ms slower per 6 s.
+
 Measured ([S3](spikes/s3-engine.md), M1 Pro): a 6 s utterance in ~165 ms warm, ~250 ms cold,
 word-perfect on the fixture; the first use of a locale fetches Apple's model assets (under a
 second here). The model runs in Apple's `localspeechrecognition` XPC service, not in our
