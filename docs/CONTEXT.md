@@ -23,11 +23,12 @@ Spike S5 ([spikes/s5-context.md](spikes/s5-context.md)) established that Apple's
 4. **Read at key-down, not key-up.** The read happens right after the audio stream opens,
    while the user is still speaking, so it costs nothing on the release-to-text path. If it
    has not completed when the user releases, the dictation proceeds without hints.
-5. **A setting in the Privacy pane, on by default.** This is about what Vox is allowed to
+5. **A setting in the Privacy pane, off by default.** This is about what Vox is allowed to
    read, not a speed trade-off, so it sits with history retention and the offline lock,
-   with one plain sentence of what it does. Default on because the data never leaves the
-   machine and the benefit is the product's main accuracy lever; the onboarding privacy card
-   says it exists.
+   with one plain sentence of what it does. Off by default for the same reason
+   `learning.applyLearnedTerms` is: Vox reading the user's documents is a capability they
+   should opt into knowingly, not discover. The onboarding privacy card offers it with the
+   same sentence the pane uses.
 6. **Never degrade the dictation path.** Any failure to read, extract or pass hints is
    logged as a count, not a text, and the dictation continues as if the setting were off.
 
@@ -40,7 +41,7 @@ key-down
   ├── if privacy.readFocusedField and not secure and not password:
   │     read AXValue + AXSelectedTextRange of the focused element      ~1–10 ms
   │     take the window around the caret          ≤ 2 000 chars each side
-  │     extract hint terms                         see below
+  │     extract hint terms, nearest the caret first, at most 20
   │     add applied learned terms + manual dictionary
   │     engine.stream_start(hint, context)         → AnalysisContext.contextualStrings
   └── … speaking …
@@ -51,9 +52,16 @@ key-up
 **Extraction.** Hints are terms, not sentences. From the window, take tokens that are not
 ordinary dictionary words (the same system word list the homophone guard uses,
 [LEARNING.md](LEARNING.md)): capitalised words and runs of them, identifiers with digits,
-underscores, dots or mixed case, acronyms, and anything the word list does not know. Cap at
-200 terms, most recent first, so the sentence the user is continuing weighs most. Common
-words are never sent: they add nothing and they are the user's text.
+underscores, dots or mixed case, acronyms, and anything the word list does not know.
+**Cap at 20 terms, nearest the caret first**, walking outwards alternately before and after
+it, so the sentence the user is continuing weighs most. Applied learned terms and the manual
+dictionary count towards the same cap and rank ahead of extracted terms, because the user
+chose them. Common words are never sent: they add nothing and they are the user's text.
+
+The cap is small on purpose. A contextual string is a word the recogniser will prefer
+whenever the audio is close, which means every hint is also a chance to write a word the
+user did not say. Twenty nearby terms is enough to catch the name in the thread being
+answered; two hundred would be two hundred such chances per dictation.
 
 **Timing.** The AX read and extraction run on the pipeline thread before the first audio
 chunk is pushed, inside the ~700 ms the Chromium wake-up may already take. If the element
@@ -67,7 +75,8 @@ setting off and has no vocabulary gets exactly today's engine. Hints are set per
 
 ## What the user sees
 
-Nothing, when it works: fewer wrong names. The Privacy pane shows:
+Nothing, when it works: fewer wrong names. The setting is off until they turn it on; the
+Privacy pane and the onboarding privacy card both show:
 
 > **Read the field you're dictating into** — Vox looks at the text around your cursor to
 > recognise the names and terms you're likely to say. Read once per dictation, never stored,
@@ -95,8 +104,9 @@ terms.
 
 ## Testing
 
-- Unit: extraction (dictionary words excluded, identifiers kept, cap and ordering), the
-  password/secure-input refusal, the 150 ms deadline path.
+- Unit: extraction (dictionary words excluded, identifiers kept, the 20-term cap, nearest-
+  first ordering, learned and manual terms ranked ahead), the password/secure-input
+  refusal, the 150 ms deadline path, and the default being off.
 - Guard: no `tracing` call in the context path formats the window or the terms; the
   history schema has no column for them; the settings file has the flag.
 - Manual gate ([TESTING.md](TESTING.md)): dictate a name that is on screen and wrong

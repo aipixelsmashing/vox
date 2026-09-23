@@ -75,8 +75,8 @@ matrix is clean.
 - Onboarding, including the step that tells people they may not need this
 - Tray states, recording overlay, sound cues, pause
 - Context-aware recognition biasing from the focused field ([docs/CONTEXT.md](docs/CONTEXT.md)),
-  promoted from M9 by spike S5: read at key-down, focused field only, never stored, a
-  Privacy-pane setting
+  promoted from M9 by spike S5: read at key-down, focused field only, at most 20 terms
+  nearest the caret, never stored, an opt-in Privacy-pane setting ([adr/0017](docs/adr/0017-context-from-focused-field.md))
 
 **Exit:** someone who is not you installs it from a `.dmg` and dictates successfully without
 being talked through it.

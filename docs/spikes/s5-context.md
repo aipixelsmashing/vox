@@ -59,7 +59,7 @@ to be confirmed when the module is switched.
 
 - Real-voice fixture with genuinely rare terms, to size the accuracy gain and the module
   base-accuracy gap on a human speaker.
-- Whether hint count or length degrades recognition or latency (the app will pass up to a
-  few hundred tokens).
+- Whether hint count or length degrades recognition or latency, and how often a hint
+  produces a word the user did not say (the app passes at most 20, nearest the caret).
 - `DictationTranscriber` finals in the streaming path.
 - Custom LM with `CustomPronunciation` and the `weight` parameter, if ever needed.
