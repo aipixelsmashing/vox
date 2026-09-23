@@ -35,6 +35,10 @@ unsafe impl Sync for ElementRef {}
 
 pub struct MacInjector {
     settings: Arc<RwLock<settings::Settings>>,
+    /// Apps where the accessibility write reported success and never took (Chromium does
+    /// this). Remembered for the session so the next dictation there goes straight to paste
+    /// instead of waiting the verification timeout. Keyed by bundle id.
+    ax_unusable: parking_lot::Mutex<std::collections::HashSet<String>>,
 }
 
 /// What we know about the field before and after an insertion.
@@ -243,7 +247,24 @@ fn post_unicode(text: &str) -> Result<(), Error> {
 
 impl MacInjector {
     pub fn new(settings: Arc<RwLock<settings::Settings>>) -> Self {
-        Self { settings }
+        Self {
+            settings,
+            ax_unusable: parking_lot::Mutex::new(Default::default()),
+        }
+    }
+
+    fn ax_known_unusable(&self, target: &InjectionTarget) -> bool {
+        target
+            .bundle_id
+            .as_ref()
+            .map(|b| self.ax_unusable.lock().contains(b))
+            .unwrap_or(false)
+    }
+
+    fn remember_ax_unusable(&self, target: &InjectionTarget) {
+        if let Some(b) = &target.bundle_id {
+            self.ax_unusable.lock().insert(b.clone());
+        }
     }
 
     fn try_accessibility(&self, el: &AXUIElement, text: &str) -> bool {
@@ -371,8 +392,13 @@ impl TextInjector for MacInjector {
         let elapsed = |t0: Instant| t0.elapsed().as_millis() as u32;
 
         // 1. Accessibility: any element that is a text role or says its selected text is
-        // settable. Verification decides, not the role.
-        if matches!(method.as_str(), "auto" | "accessibility") {
+        // settable. Verification decides, not the role. Skipped in "auto" for apps where it
+        // has already failed this session, which saves the verification wait every time.
+        let skip_ax = method == "auto" && self.ax_known_unusable(target);
+        if skip_ax {
+            tracing::info!("inject: accessibility skipped, known not to take in this app");
+        }
+        if matches!(method.as_str(), "auto" | "accessibility") && !skip_ax {
             if let Some(el) = el.as_ref().filter(|_| text_role || settable) {
                 let ok = self.try_accessibility(el, text);
                 tracing::info!(
@@ -385,6 +411,7 @@ impl TextInjector for MacInjector {
                         elapsed_ms: elapsed(t0),
                     });
                 }
+                self.remember_ax_unusable(target);
             }
             if method == "accessibility" {
                 return Ok(InjectionOutcome::ClipboardOnly {
