@@ -36,9 +36,33 @@ unsafe impl Sync for ElementRef {}
 pub struct MacInjector {
     settings: Arc<RwLock<settings::Settings>>,
     /// Apps where the accessibility write reported success and never took (Chromium does
-    /// this). Remembered for the session so the next dictation there goes straight to paste
-    /// instead of waiting the verification timeout. Keyed by bundle id.
+    /// this). Remembered so the next dictation there goes straight to paste instead of
+    /// waiting the verification timeout. Keyed by bundle id, persisted to the data dir as a
+    /// cache (not a setting: nothing for the user to decide, docs/adr/0010).
     ax_unusable: parking_lot::Mutex<std::collections::HashSet<String>>,
+}
+
+fn memo_path() -> Option<std::path::PathBuf> {
+    settings::data_dir()
+        .ok()
+        .map(|d| d.join("injection-memo.json"))
+}
+
+fn load_memo() -> std::collections::HashSet<String> {
+    memo_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+        .map(|v| v.into_iter().collect())
+        .unwrap_or_default()
+}
+
+fn save_memo(set: &std::collections::HashSet<String>) {
+    let Some(p) = memo_path() else { return };
+    let mut v: Vec<&String> = set.iter().collect();
+    v.sort();
+    if let Ok(json) = serde_json::to_string_pretty(&v) {
+        let _ = std::fs::write(p, json);
+    }
 }
 
 /// What we know about the field before and after an insertion.
@@ -247,9 +271,13 @@ fn post_unicode(text: &str) -> Result<(), Error> {
 
 impl MacInjector {
     pub fn new(settings: Arc<RwLock<settings::Settings>>) -> Self {
+        let memo = load_memo();
+        if !memo.is_empty() {
+            tracing::info!("inject: {} app(s) remembered as paste-only", memo.len());
+        }
         Self {
             settings,
-            ax_unusable: parking_lot::Mutex::new(Default::default()),
+            ax_unusable: parking_lot::Mutex::new(memo),
         }
     }
 
@@ -263,7 +291,10 @@ impl MacInjector {
 
     fn remember_ax_unusable(&self, target: &InjectionTarget) {
         if let Some(b) = &target.bundle_id {
-            self.ax_unusable.lock().insert(b.clone());
+            let mut set = self.ax_unusable.lock();
+            if set.insert(b.clone()) {
+                save_memo(&set);
+            }
         }
     }
 
