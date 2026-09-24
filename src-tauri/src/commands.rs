@@ -29,6 +29,10 @@ pub struct VoxError {
 
 impl VoxError {
     fn io(e: impl std::fmt::Display) -> Self {
+        // Every command failure is logged here, because the UI may not show it (a toggle that
+        // "did nothing" is this line in the log). Never transcript text: these are I/O,
+        // settings and window errors.
+        tracing::warn!("command failed: {e}");
         Self {
             kind: "io",
             detail: e.to_string(),
@@ -322,19 +326,41 @@ pub fn settings_get(state: State<'_, AppState>) -> CmdResult<settings::Settings>
     Ok(state.settings.read().clone())
 }
 
+/// The contract passes the patch as the whole argument object — `settings_set(partial)`,
+/// not `settings_set({ patch })` — so this argument reads the raw invoke payload instead of
+/// one key of it. Any other signature makes Tauri reject the call before the command runs,
+/// which is how a toggle can "do nothing" without a line in the log.
+pub struct SettingsPatch(pub serde_json::Value);
+
+impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for SettingsPatch {
+    fn from_command(
+        command: tauri::ipc::CommandItem<'de, R>,
+    ) -> Result<Self, tauri::ipc::InvokeError> {
+        match command.message.payload() {
+            tauri::ipc::InvokeBody::Json(v) => Ok(Self(v.clone())),
+            tauri::ipc::InvokeBody::Raw(bytes) => serde_json::from_slice(bytes)
+                .map(Self)
+                .map_err(tauri::ipc::InvokeError::from_error),
+        }
+    }
+}
+
 /// Deep-merges the patch into the current settings, validates by round-tripping through the
 /// parser, saves, and returns the merged result so the UI never guesses what was accepted.
 #[tauri::command]
 pub fn settings_set(
     state: State<'_, AppState>,
-    patch: serde_json::Value,
+    patch: SettingsPatch,
 ) -> CmdResult<settings::Settings> {
+    let patch = patch.0;
     let mut current = serde_json::to_value(&*state.settings.read()).map_err(VoxError::io)?;
+    let touched = patch_keys(&patch);
     deep_merge(&mut current, patch);
     let merged = settings::Settings::parse(&current.to_string()).map_err(VoxError::io)?;
     merged.save().map_err(VoxError::io)?;
     *state.settings.write() = merged.clone();
     settings::SETTINGS_GEN.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    tracing::info!("settings updated: {touched}");
     Ok(merged)
 }
 
@@ -681,25 +707,34 @@ pub fn mic_test_start(app: AppHandle, state: State<'_, AppState>) -> CmdResult<(
             let mut capture = match audio::Capture::start(&device) {
                 Ok(c) => c,
                 Err(e) => {
-                    tracing::info!("mic test could not open the device: {e}");
+                    tracing::warn!("mic test could not open the device: {e}");
                     MIC_TEST.store(false, Ordering::Release);
                     return;
                 }
             };
+            tracing::info!("mic test: device open");
             let deadline = Instant::now() + Duration::from_secs(120);
+            let (mut frames, mut peak, mut emitted) = (0usize, 0f32, 0u32);
             while MIC_TEST.load(Ordering::Acquire) && Instant::now() < deadline {
                 std::thread::sleep(Duration::from_millis(50));
                 let pcm = capture.drain();
                 if pcm.is_empty() {
                     continue;
                 }
+                frames += pcm.len();
                 let rms = (pcm.iter().map(|x| x * x).sum::<f32>() / pcm.len() as f32).sqrt();
+                peak = peak.max(rms);
                 // Scaled so ordinary speech fills most of the meter.
-                let _ = app.emit(
-                    "vox://level",
-                    serde_json::json!({ "rms": (rms * 6.0).min(1.0) }),
-                );
+                let level = (rms * 6.0).min(1.0);
+                if let Err(e) = app.emit("vox://level", serde_json::json!({ "rms": level })) {
+                    tracing::warn!("mic test: level event not delivered: {e}");
+                    break;
+                }
+                emitted += 1;
             }
+            tracing::info!(
+                "mic test: stopped after {frames} frames, {emitted} level events, peak rms {peak:.3}"
+            );
             MIC_TEST.store(false, Ordering::Release);
         })
         .map_err(VoxError::io)?;
@@ -732,6 +767,29 @@ pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
 pub fn toast_fit(app: AppHandle, height: f64) -> CmdResult<()> {
     panel::fit_toast(&app, height);
     Ok(())
+}
+
+/// "history.enabled, privacy.readFocusedField" — the paths a patch touched, for the log.
+/// Keys only, never values.
+fn patch_keys(patch: &serde_json::Value) -> String {
+    fn walk(v: &serde_json::Value, prefix: &str, out: &mut Vec<String>) {
+        match v.as_object() {
+            Some(m) if !m.is_empty() => {
+                for (k, v) in m {
+                    let p = if prefix.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{prefix}.{k}")
+                    };
+                    walk(v, &p, out);
+                }
+            }
+            _ => out.push(prefix.to_string()),
+        }
+    }
+    let mut out = Vec::new();
+    walk(patch, "", &mut out);
+    out.join(", ")
 }
 
 fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
@@ -816,6 +874,15 @@ mod tests {
             serde_json::to_value(PipelineStateDto::Idle).unwrap(),
             json!({ "state": "idle" })
         );
+    }
+
+    #[test]
+    fn patch_keys_lists_paths_not_values() {
+        let keys = patch_keys(
+            &json!({ "history": { "enabled": false }, "privacy": { "readFocusedField": true } }),
+        );
+        assert_eq!(keys, "history.enabled, privacy.readFocusedField");
+        assert!(!keys.contains("true"));
     }
 
     #[test]

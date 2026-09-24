@@ -45,11 +45,11 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 
 | State | What renders | **[S]** |
 | --- | --- | --- |
-| First launch, nothing granted | Step 1 with the "you may not need this" paragraph; steps 2 and 4 show the missing grants with buttons | `onboarding-fresh` |
-| Everything granted, at "Try it" | Step 6 with the text box focused; a completed dictation lands in it and the step completes itself | `onboarding-ready` |
-| A grant that needs a restart | Step 4 shows "Granted — reopen Vox to use it" with "Quit and reopen" | `permissions-restart` |
-| Engine unavailable on this Mac | Step 3: "Vox needs macOS 26 or later…" | `model-none` |
-| AltGr layout | Step 6 opens with the Right Control suggestion | `hotkey-altgr` |
+| First launch, nothing granted | Step 1 with the "you may not need this" paragraph; step 2 shows every missing grant with a button | `onboarding-fresh` |
+| Everything granted, at the last step | Step 3 with the two choices and the text box focused; a completed dictation lands in it and the step completes itself | `onboarding-ready` |
+| A grant that needs a restart | Step 2 shows "Granted — reopen Vox to use it" with "Quit and reopen" | `permissions-restart` |
+| Engine unavailable on this Mac | Step 2's engine row: "Needs macOS 26 or later" | `model-none` |
+| AltGr layout | Step 3 opens with the Right Control suggestion | `hotkey-altgr` |
 
 ## Cross-cutting states
 
@@ -127,7 +127,7 @@ the update check, which sends nothing but the request itself." ([PRIVACY.md](../
 
 ### Onboarding copy
 
-Six steps, strings in `src/lib/copy.ts` under `onboarding`. The step-one paragraph is the
+Three steps, strings in `src/lib/copy.ts` under `onboarding`. The step-one paragraph is the
 one [VALUES.md](VALUES.md#we-tell-people-when-they-dont-need-this) commits to: "Your Mac
 already has dictation built in, and for short messages it's probably enough. It's in System
 Settings → Keyboard → Dictation." The learning card is the place someone turns capture on

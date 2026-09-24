@@ -204,7 +204,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     if (s === 'history-disabled') base.history.enabled = false
     if (s === 'dictionary-empty') base.output.dictionary = []
     if (s === 'onboarding-fresh') base.onboarding = { completedStep: 0, done: false }
-    if (s === 'onboarding-ready') base.onboarding = { completedStep: 5, done: false }
+    if (s === 'onboarding-ready') base.onboarding = { completedStep: 2, done: false }
     return base
   },
   async settings_set(patch: Record<string, unknown>) {
