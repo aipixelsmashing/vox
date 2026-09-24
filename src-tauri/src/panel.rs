@@ -15,7 +15,8 @@ pub const SETTINGS_WINDOW: &str = "settings";
 pub const ONBOARDING_WINDOW: &str = "onboarding";
 pub const TOAST_WINDOW: &str = "toast";
 const TOAST_WIDTH: f64 = 380.0;
-const TOAST_HEIGHT: f64 = 72.0;
+/// Before the page has measured its text; `toast_fit` replaces it.
+const TOAST_INITIAL_HEIGHT: f64 = 56.0;
 const TOAST_LIFETIME: std::time::Duration = std::time::Duration::from_millis(4500);
 
 /// The message the toast currently shows, for a window that was created after the event.
@@ -243,7 +244,7 @@ pub fn show_toast(app: &AppHandle, message: &str) {
             .resizable(false)
             .accept_first_mouse(true)
             .visible(false)
-            .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
+            .inner_size(TOAST_WIDTH, TOAST_INITIAL_HEIGHT)
             .build();
             match built {
                 Ok(w) => w,
@@ -254,15 +255,20 @@ pub fn show_toast(app: &AppHandle, message: &str) {
             }
         }
     };
-    if let Some(pos) = toast_position(app) {
-        let _ = window.set_position(pos);
-    }
     let _ = app.emit_to(
         TOAST_WINDOW,
         "vox://toast",
         serde_json::json!({ "message": message }),
     );
-    let _ = window.show();
+    // The page measures the text and calls toast_fit, which sizes, anchors and shows. If it
+    // never does (a broken page), show anyway after a beat rather than lose the message.
+    let fallback = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        if !fallback.is_visible().unwrap_or(false) {
+            let _ = fallback.show();
+        }
+    });
 
     let handle = app.clone();
     std::thread::spawn(move || {
@@ -276,15 +282,28 @@ pub fn show_toast(app: &AppHandle, message: &str) {
     });
 }
 
+/// Sizes the toast to its measured text, anchors it bottom centre, and shows it.
+pub fn fit_toast(app: &AppHandle, height: f64) {
+    let Some(window) = app.get_webview_window(TOAST_WINDOW) else {
+        return;
+    };
+    let height = height.clamp(32.0, 320.0);
+    let _ = window.set_size(LogicalSize::new(TOAST_WIDTH, height));
+    if let Some(pos) = toast_position(app, height) {
+        let _ = window.set_position(pos);
+    }
+    let _ = window.show();
+}
+
 /// Bottom centre of the primary monitor, above where the Dock usually is.
-fn toast_position(app: &AppHandle) -> Option<LogicalPosition<f64>> {
+fn toast_position(app: &AppHandle, height: f64) -> Option<LogicalPosition<f64>> {
     let monitor = app.primary_monitor().ok().flatten()?;
     let scale = monitor.scale_factor();
     let pos = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
     Some(LogicalPosition::new(
         pos.x + (size.width - TOAST_WIDTH) / 2.0,
-        pos.y + size.height - TOAST_HEIGHT - 96.0,
+        pos.y + size.height - height - 96.0,
     ))
 }
 

@@ -5,7 +5,7 @@
  * history row; this window only shows them.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { commands } from '../lib/commands'
 import { useVoxEvent } from '../lib/events'
 
@@ -13,6 +13,15 @@ const LIFETIME_MS = 4500
 
 export function Toast() {
   const [message, setMessage] = useState<string | null>(null)
+  const pill = useRef<HTMLDivElement>(null)
+
+  // Size to the text: deck strings run from one line to three. Measured after layout, then
+  // the core resizes the window to fit and shows it.
+  useLayoutEffect(() => {
+    if (!message || !pill.current) return
+    const height = Math.ceil(pill.current.getBoundingClientRect().height)
+    void commands.toast_fit({ height })
+  }, [message])
 
   useEffect(() => {
     commands
@@ -33,6 +42,7 @@ export function Toast() {
   if (!message) return null
   return (
     <div
+      ref={pill}
       role="status"
       aria-live="polite"
       onClick={() => {

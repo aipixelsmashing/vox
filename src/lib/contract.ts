@@ -207,6 +207,8 @@ export interface Commands {
   onboarding_open(): Promise<void>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
+  /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
+  toast_fit(a: { height: number }): Promise<void>
 }
 
 /**
@@ -244,6 +246,7 @@ export const COMMAND_NAMES = [
   'mic_test_stop',
   'onboarding_open',
   'toast_current',
+  'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]
 
 type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>

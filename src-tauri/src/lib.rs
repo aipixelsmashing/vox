@@ -178,6 +178,7 @@ pub fn run() {
             commands::mic_test_stop,
             commands::onboarding_open,
             commands::toast_current,
+            commands::toast_fit,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build application")

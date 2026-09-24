@@ -728,6 +728,12 @@ pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
     Ok(panel::toast_current().map(|message| ToastMessage { message }))
 }
 
+#[tauri::command]
+pub fn toast_fit(app: AppHandle, height: f64) -> CmdResult<()> {
+    panel::fit_toast(&app, height);
+    Ok(())
+}
+
 fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
     match (base, patch) {
         (serde_json::Value::Object(b), serde_json::Value::Object(p)) => {

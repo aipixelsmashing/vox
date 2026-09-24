@@ -155,8 +155,8 @@ Cannot be automated: real prompts, a real microphone, a real key.
 Cannot be automated: the assertion is about focus and placement on a real screen.
 
 1. Dictate with no text field focused (Finder in front): a toast appears at the bottom
-   centre reading "Copied. No text field was focused.", and the caret in whatever you were
-   in is untouched — the toast never takes focus.
+   centre reading "Copied. No text field was focused.", sized to its text, and the caret in
+   whatever you were in is untouched — the toast never takes focus.
 2. It goes away by itself after about four seconds; a click dismisses it sooner.
 3. Two failures in a row: the second message replaces the first and the timer restarts.
 4. Dictate successfully: no toast. Success is the text appearing.

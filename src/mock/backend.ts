@@ -241,6 +241,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   async mic_test_stop() { micTest = false },
   async onboarding_open() { /* already looking at it in a browser tab */ },
   async toast_current() { return lastToast ? { message: lastToast } : null },
+  async toast_fit() { /* a browser tab sizes itself */ },
 
   async models_list() {
     await wait()
