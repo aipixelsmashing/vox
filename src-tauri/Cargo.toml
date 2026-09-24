@@ -16,7 +16,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # ---- shell ----------------------------------------------------------------
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+# macos-private-api: a transparent, frameless panel window with its own rounded corners.
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
@@ -64,7 +65,7 @@ directories = "5"
 # Command Line Tools link-path fix (docs/spikes/s2-injection.md).
 axuielement = "0.9"
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData", "NSEnumerator"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData", "NSEnumerator", "NSURL"] }
 # NSPasteboard direct (concealed type, changeCount, multi-item snapshot) and NSWorkspace.
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSPasteboard", "NSPasteboardItem", "NSRunningApplication", "NSWorkspace"] }
 # Synthesised Cmd+V and Unicode key events, and the active tap that swallows the cancel key

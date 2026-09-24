@@ -28,6 +28,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   the microphone is open even when the menu bar is on another screen. On by default;
   `ui.soundCues` in settings turns it off.
 
+- The history panel: click the menu bar icon (or press ⌘⇧V) to see what you dictated,
+  ranked so the thing you just said into this app is at the top and anything that
+  couldn't be placed floats. Click a row to copy it; Insert puts it into whatever is
+  focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
+
 ### Fixed
 - Updated the audio ring-buffer dependency past a memory-safety advisory (RUSTSEC-2026-0293).
   Vox never used the affected calls.

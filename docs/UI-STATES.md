@@ -79,6 +79,8 @@ pane.
 | Term suspended | "You changed this back twice — Vox has stopped applying it." |
 | Wipe confirmation | "Delete all 47 transcripts? This can't be undone." |
 | Export finished | "Exported 47 transcripts and 12 learned words to ~/Documents/vox-export." |
+| History database could not be read | "Couldn't read Vox's data. Try again." with the action "Try again" |
+| A feature this build does not have | "That isn't available in this version of Vox." |
 | Privacy pane and onboarding card, read-focused-field toggle (off by default) | "Read the field you're dictating into — Vox looks at the text around your cursor to recognise the names and terms you're likely to say. Read once per dictation, never stored, never leaves this Mac. Off in password fields." |
 
 Empty states are invitations, not apologies:

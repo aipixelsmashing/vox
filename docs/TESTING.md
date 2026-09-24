@@ -101,6 +101,28 @@ Cannot be automated: the assertion is that a human hears it.
 3. With the output routed to headphones, the cue is not audible in the room and the
    transcript is unaffected either way.
 
+### History panel (M3)
+
+Cannot be automated: a real tray, a real focus change, a real clipboard.
+
+1. Left-click the tray icon: the panel opens under it, focused, search box ready. Click
+   elsewhere: it hides. Left-click again: it toggles. Right-click: the menu, with "Show
+   history" doing the same.
+2. `history.panelHotkey` (default ⌘⇧V): toggles the panel from any app. On macOS ⌘⇧V is
+   also "Paste and Match Style" in many apps, so the app underneath may paste; set the
+   hotkey to something free or to null if that bites.
+3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,
+   Space expands a long row, Escape closes, typing filters — all without the mouse, and all
+   after having clicked a button first (WebKit leaves focus on the body after a click).
+4. Dictate while the panel is open: a live row appears at the top and the new transcript
+   arrives in the list when the dictation ends.
+5. "Insert" on a row with a text field focused in the app underneath: the panel hides and
+   the text lands there. With no text field focused: the text goes to the clipboard and
+   the row shows why.
+6. "Delete all…" asks once, then the list is empty and `history.db` has been vacuumed
+   (file size drops).
+7. `history.enabled` false: the panel says history is off and offers nothing else.
+
 ### Context biasing (M3)
 
 1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`

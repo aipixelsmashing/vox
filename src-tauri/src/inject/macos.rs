@@ -153,7 +153,7 @@ fn verify_within(el: &AXUIElement, before: &Snapshot, text: &str, timeout: Durat
     }
 }
 
-fn frontmost_app() -> Option<(u32, String, Option<String>)> {
+pub(crate) fn frontmost_app() -> Option<(u32, String, Option<String>)> {
     let app: objc2::rc::Retained<NSRunningApplication> =
         NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = app.processIdentifier() as u32;
@@ -163,6 +163,30 @@ fn frontmost_app() -> Option<(u32, String, Option<String>)> {
         .unwrap_or_else(|| format!("pid {pid}"));
     let bundle = app.bundleIdentifier().map(|s| s.to_string());
     Some((pid, name, bundle))
+}
+
+/// The name people know an app by, for a bundle id in a history row. Asks LaunchServices
+/// through NSWorkspace, once per id, then remembers the answer.
+pub(crate) fn app_name_for_bundle(bundle_id: &str) -> Option<String> {
+    use objc2_foundation::NSString;
+    static CACHE: parking_lot::Mutex<Option<std::collections::HashMap<String, Option<String>>>> =
+        parking_lot::Mutex::new(None);
+    let mut cache = CACHE.lock();
+    let map = cache.get_or_insert_with(std::collections::HashMap::new);
+    if let Some(hit) = map.get(bundle_id) {
+        return hit.clone();
+    }
+    let name = NSWorkspace::sharedWorkspace()
+        .URLForApplicationWithBundleIdentifier(&NSString::from_str(bundle_id))
+        .and_then(|url| url.path())
+        .map(|p| p.to_string())
+        .and_then(|p| {
+            std::path::Path::new(&p)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+        });
+    map.insert(bundle_id.to_string(), name.clone());
+    name
 }
 
 /// Chromium, and therefore every Electron app, does not build its accessibility tree until

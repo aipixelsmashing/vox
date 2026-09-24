@@ -2,14 +2,17 @@
 //! a distinct always-listening variant when pre-roll is enabled — an open microphone must
 //! never be invisible. See docs/UI-SPEC.md.
 //!
-//! M1 menu: Pause dictation · Quit Vox. History and Settings come with their windows in M3.
+//! Menu: Show history · Pause dictation · Quit Vox. Left click opens the history panel
+//! directly; the menu is on right click. Settings joins the menu with its window.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+use crate::panel;
 
 pub const TRAY_ID: &str = "main";
 
@@ -33,17 +36,43 @@ fn icon(state: IconState) -> Image<'static> {
 }
 
 pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> {
+    let history = MenuItem::with_id(app, "history", "Show history", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Vox", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&pause, &PredefinedMenuItem::separator(app)?, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &history,
+            &PredefinedMenuItem::separator(app)?,
+            &pause,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon(IconState::Idle))
         .icon_as_template(true)
         .tooltip("Vox — hold right Option and speak")
         .menu(&menu)
-        .show_menu_on_left_click(true)
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| match event {
+            TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                rect,
+                ..
+            } => {
+                panel::remember_tray_rect(tray.app_handle(), rect);
+                panel::toggle_history(tray.app_handle());
+            }
+            TrayIconEvent::Enter { rect, .. } | TrayIconEvent::Move { rect, .. } => {
+                panel::remember_tray_rect(tray.app_handle(), rect);
+            }
+            _ => {}
+        })
         .on_menu_event(move |app, event| match event.id.as_ref() {
+            "history" => panel::show_history(app),
             "pause" => {
                 let now = !paused.load(Ordering::Relaxed);
                 paused.store(now, Ordering::Relaxed);
@@ -76,8 +105,4 @@ pub fn set_state(app: &tauri::AppHandle, state: IconState) {
 /// A second key-down while busy: show the transcribing icon briefly rather than queue.
 pub fn flash_busy(app: &tauri::AppHandle) {
     set_state(app, IconState::Transcribing);
-}
-
-pub fn show_history(_app: &tauri::AppHandle) {
-    // M3: create the panel window lazily, anchored near the tray icon.
 }

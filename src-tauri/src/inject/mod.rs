@@ -34,6 +34,15 @@ impl Method {
             Method::Type => "unicode",
         }
     }
+
+    /// The contract's spelling (`InjectionMethod` in src/lib/contract.ts) for a stored value.
+    pub fn contract_name(stored: &str) -> &'static str {
+        match stored {
+            "ax" | "accessibility" => "accessibility",
+            "paste" => "paste",
+            _ => "type",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +77,44 @@ impl FallbackReason {
             FallbackReason::MethodFailed(_) => {
                 "Vox couldn't confirm the text arrived. It's on the clipboard — press ⌘V if it's missing.".into()
             }
+        }
+    }
+
+    /// The contract's `FallbackReason` name for a stored reason code.
+    pub fn contract_kind_from_code(code: &str) -> &'static str {
+        match code.split(':').next().unwrap_or(code) {
+            "no_text_target" => "noTextTarget",
+            "focus_changed" => "focusChanged",
+            "secure_input" => "secureInput",
+            "password_field" => "passwordField",
+            "elevated_target" => "elevatedTarget",
+            "wayland_unverifiable" => "waylandUnverifiable",
+            _ => "methodFailed",
+        }
+    }
+
+    /// What a history row says after "not inserted —" for a stored reason code
+    /// (docs/HISTORY.md: "not inserted — window was elevated").
+    pub fn note_from_code(code: &str) -> String {
+        let (kind, arg) = match code.split_once(':') {
+            Some((k, a)) => (k, Some(a)),
+            None => (code, None),
+        };
+        match kind {
+            "no_text_target" => "no text field was focused".into(),
+            "focus_changed" => match arg.and_then(|a| a.split_once("->")) {
+                Some((from, to)) => format!("you switched from {from} to {to}"),
+                None => "you switched apps while speaking".into(),
+            },
+            "secure_input" | "password_field" => "a password field was active".into(),
+            "elevated_target" => "window was elevated".into(),
+            "wayland_unverifiable" => "the compositor doesn't allow typing into other apps".into(),
+            "method_failed" => match arg {
+                Some("paste") => "the paste could not be confirmed".into(),
+                Some("ax") => "the field refused the text".into(),
+                _ => "the text could not be placed".into(),
+            },
+            other => other.replace('_', " "),
         }
     }
 
