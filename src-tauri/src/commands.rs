@@ -326,13 +326,33 @@ pub fn settings_get(state: State<'_, AppState>) -> CmdResult<settings::Settings>
     Ok(state.settings.read().clone())
 }
 
+/// The contract passes the patch as the whole argument object — `settings_set(partial)`,
+/// not `settings_set({ patch })` — so this argument reads the raw invoke payload instead of
+/// one key of it. Any other signature makes Tauri reject the call before the command runs,
+/// which is how a toggle can "do nothing" without a line in the log.
+pub struct SettingsPatch(pub serde_json::Value);
+
+impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for SettingsPatch {
+    fn from_command(
+        command: tauri::ipc::CommandItem<'de, R>,
+    ) -> Result<Self, tauri::ipc::InvokeError> {
+        match command.message.payload() {
+            tauri::ipc::InvokeBody::Json(v) => Ok(Self(v.clone())),
+            tauri::ipc::InvokeBody::Raw(bytes) => serde_json::from_slice(bytes)
+                .map(Self)
+                .map_err(tauri::ipc::InvokeError::from_error),
+        }
+    }
+}
+
 /// Deep-merges the patch into the current settings, validates by round-tripping through the
 /// parser, saves, and returns the merged result so the UI never guesses what was accepted.
 #[tauri::command]
 pub fn settings_set(
     state: State<'_, AppState>,
-    patch: serde_json::Value,
+    patch: SettingsPatch,
 ) -> CmdResult<settings::Settings> {
+    let patch = patch.0;
     let mut current = serde_json::to_value(&*state.settings.read()).map_err(VoxError::io)?;
     let touched = patch_keys(&patch);
     deep_merge(&mut current, patch);
