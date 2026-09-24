@@ -2,8 +2,8 @@
 //! a distinct always-listening variant when pre-roll is enabled — an open microphone must
 //! never be invisible. See docs/UI-SPEC.md.
 //!
-//! Menu: Show history · Pause dictation · Quit Vox. Left click opens the history panel
-//! directly; the menu is on right click. Settings joins the menu with its window.
+//! Menu: Show history · Settings… · Pause dictation · Quit Vox. Left click opens the history
+//! panel directly; the menu is on right click.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -37,12 +37,14 @@ fn icon(state: IconState) -> Image<'static> {
 
 pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> {
     let history = MenuItem::with_id(app, "history", "Show history", true, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Vox", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
             &history,
+            &settings,
             &PredefinedMenuItem::separator(app)?,
             &pause,
             &PredefinedMenuItem::separator(app)?,
@@ -73,6 +75,7 @@ pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> 
         })
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "history" => panel::show_history(app),
+            "settings" => panel::show_settings(app),
             "pause" => {
                 let now = !paused.load(Ordering::Relaxed);
                 paused.store(now, Ordering::Relaxed);

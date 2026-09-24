@@ -11,6 +11,7 @@ use parking_lot::Mutex;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const HISTORY_WINDOW: &str = "history";
+pub const SETTINGS_WINDOW: &str = "settings";
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 520.0;
 const GAP_BELOW_TRAY: f64 = 6.0;
@@ -121,6 +122,45 @@ fn anchor_position(app: &AppHandle) -> Option<LogicalPosition<f64>> {
     let max_x = mon_pos.x + mon_size.width - WIDTH - 8.0;
     let x = x.min(max_x).max(mon_pos.x + 8.0);
     Some(LogicalPosition::new(x, y))
+}
+
+/// Settings: an ordinary window (docs/ARCHITECTURE.md), created lazily, hidden on close so
+/// its state survives, shown and focused on every request.
+pub fn show_settings(app: &AppHandle) {
+    let window = match app.get_webview_window(SETTINGS_WINDOW) {
+        Some(w) => w,
+        None => {
+            let built = WebviewWindowBuilder::new(
+                app,
+                SETTINGS_WINDOW,
+                WebviewUrl::App(format!("index.html?window={SETTINGS_WINDOW}").into()),
+            )
+            .title("Vox Settings")
+            .inner_size(780.0, 580.0)
+            .min_inner_size(640.0, 420.0)
+            .resizable(true)
+            .visible(false)
+            .build();
+            match built {
+                Ok(w) => {
+                    let handle = w.clone();
+                    w.on_window_event(move |e| {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                            api.prevent_close();
+                            let _ = handle.hide();
+                        }
+                    });
+                    w
+                }
+                Err(e) => {
+                    tracing::warn!("settings window: {e}");
+                    return;
+                }
+            }
+        }
+    };
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 #[cfg(target_os = "macos")]

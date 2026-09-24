@@ -115,6 +115,22 @@ pub fn key_name(key: Key) -> String {
     format!("{key:?}")
 }
 
+/// A pending "press the keys you want" request from Settings. While one is set, the next
+/// chord the user presses and fully releases is sent here instead of reaching the matcher.
+static CAPTURE: parking_lot::Mutex<Option<crossbeam_channel::Sender<Vec<String>>>> =
+    parking_lot::Mutex::new(None);
+
+/// Arms a capture; the receiver gets the keys in the order they went down.
+pub fn capture_next() -> crossbeam_channel::Receiver<Vec<String>> {
+    let (tx, rx) = crossbeam_channel::bounded(1);
+    *CAPTURE.lock() = Some(tx);
+    rx
+}
+
+pub fn capture_cancel() {
+    *CAPTURE.lock() = None;
+}
+
 /// A chord such as `CmdOrCtrl+Shift+V` as groups of keytap key names; any key in a group
 /// satisfies it, so either Shift works. The last group is the key that fires it.
 pub fn parse_chord(spec: &str) -> Option<Vec<Vec<String>>> {
@@ -191,13 +207,15 @@ pub fn spawn(
 ) -> anyhow::Result<()> {
     let tap = Tap::new().map_err(|e| anyhow::anyhow!("keytap: {e}"))?;
     let hotkey = settings.read().hotkey.clone();
-    let mut panel_chord = settings
-        .read()
-        .history
-        .panel_hotkey
-        .as_deref()
-        .and_then(parse_chord)
-        .map(ChordWatch::new);
+    let chord_for = |s: &settings::Settings| {
+        s.history
+            .panel_hotkey
+            .as_deref()
+            .and_then(parse_chord)
+            .map(ChordWatch::new)
+    };
+    let mut panel_chord = chord_for(&settings.read());
+    let mut seen_gen = settings::SETTINGS_GEN.load(Ordering::Acquire);
     // True from Start to End. The cancel tap reads it to decide whether the cancel key belongs
     // to us (swallow it, send Cancel) or to the foreground app (let it through).
     let dictating = Arc::new(AtomicBool::new(false));
@@ -219,12 +237,44 @@ pub fn spawn(
         .name("vox-hotkey".into())
         .spawn(move || {
             let mut matcher = Matcher::new(&hotkey);
+            // For Settings' "press the keys": what is down right now, and the largest chord
+            // seen since the first key went down.
+            let mut capture_seq: Vec<String> = Vec::new();
+            let mut capture_down: HashSet<String> = HashSet::new();
             for event in tap.iter() {
                 let (name, down) = match event.kind {
                     EventKind::KeyDown(k) => (key_name(k), true),
                     EventKind::KeyUp(k) => (key_name(k), false),
                     EventKind::KeyRepeat(_) => continue,
                 };
+
+                // Settings changed: rebuild what this thread caches, without a restart.
+                let gen = settings::SETTINGS_GEN.load(Ordering::Acquire);
+                if gen != seen_gen {
+                    seen_gen = gen;
+                    let s = settings.read();
+                    matcher = Matcher::new(&s.hotkey);
+                    panel_chord = chord_for(&s);
+                    dictating.store(false, Ordering::Release);
+                }
+
+                if CAPTURE.lock().is_some() {
+                    if down {
+                        capture_down.insert(name.clone());
+                        if !capture_seq.contains(&name) {
+                            capture_seq.push(name.clone());
+                        }
+                    } else {
+                        capture_down.remove(&name);
+                        if capture_down.is_empty() && !capture_seq.is_empty() {
+                            let chord = std::mem::take(&mut capture_seq);
+                            if let Some(tx) = CAPTURE.lock().take() {
+                                let _ = tx.send(chord);
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if let Some(chord) = panel_chord.as_mut() {
                     if chord.feed(&name, down) && !matcher.is_active() {
                         on_panel();

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
 
-use crate::{clipboard, history, inject, panel, settings, AppState};
+use crate::{audio, clipboard, history, hotkey, inject, panel, permissions, settings, AppState};
 
 // ─── Error model ─────────────────────────────────────────────────────────────
 
@@ -334,7 +334,330 @@ pub fn settings_set(
     let merged = settings::Settings::parse(&current.to_string()).map_err(VoxError::io)?;
     merged.save().map_err(VoxError::io)?;
     *state.settings.write() = merged.clone();
+    settings::SETTINGS_GEN.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     Ok(merged)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HotkeyBindingDto {
+    pub keys: Vec<String>,
+    pub mode: hotkey::Mode,
+    pub min_hold_ms: u32,
+    pub consume: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub alt_gr: bool,
+}
+
+/// Resolves with the next chord the user presses and fully releases, or errors after 15 s.
+/// The keys are not saved here; Settings decides what to do with them.
+#[tauri::command]
+pub async fn hotkey_capture_start(state: State<'_, AppState>) -> CmdResult<HotkeyBindingDto> {
+    let rx = hotkey::capture_next();
+    let keys =
+        tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(Duration::from_secs(15)))
+            .await
+            .map_err(VoxError::io)?
+            .map_err(|_| {
+                hotkey::capture_cancel();
+                VoxError::unsupported("no key pressed within 15 s")
+            })?;
+    let h = state.settings.read().hotkey.clone();
+    let alt_gr = hotkey::layout_uses_altgr() && keys.iter().any(|k| k == "AltRight");
+    Ok(HotkeyBindingDto {
+        keys,
+        mode: h.mode,
+        min_hold_ms: h.min_hold_ms,
+        consume: h.consume,
+        alt_gr,
+    })
+}
+
+// ─── Permissions, devices, models, vocabulary, diagnostics, export ────────────
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionReportDto {
+    pub microphone: &'static str,
+    pub input_monitoring: &'static str,
+    pub accessibility: &'static str,
+    pub input_group: &'static str,
+}
+
+fn status_name(s: permissions::Status) -> &'static str {
+    match s {
+        permissions::Status::Granted => "granted",
+        permissions::Status::Denied => "denied",
+        permissions::Status::NeedsRestart => "needsRestart",
+        permissions::Status::NotApplicable => "notApplicable",
+    }
+}
+
+#[tauri::command]
+pub fn permissions_status() -> CmdResult<PermissionReportDto> {
+    let r = permissions::check();
+    Ok(PermissionReportDto {
+        microphone: status_name(r.microphone),
+        input_monitoring: status_name(r.input_monitoring),
+        accessibility: status_name(r.accessibility),
+        input_group: status_name(r.input_group),
+    })
+}
+
+#[tauri::command]
+pub fn permissions_open_pane(which: String) -> CmdResult<()> {
+    let pane = match which.as_str() {
+        "inputMonitoring" => "input-monitoring",
+        "accessibility" => "accessibility",
+        "microphone" => "microphone",
+        other => return Err(VoxError::unsupported(&format!("no pane for {other}"))),
+    };
+    permissions::open_pane(pane).map_err(VoxError::io)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioDeviceDto {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
+}
+
+#[tauri::command]
+pub fn audio_devices() -> CmdResult<Vec<AudioDeviceDto>> {
+    Ok(audio::input_devices()
+        .into_iter()
+        .map(|(id, name, is_default)| AudioDeviceDto {
+            id,
+            name,
+            is_default,
+        })
+        .collect())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelLicenseDto {
+    pub spdx: &'static str,
+    pub attribution: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfoDto {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub engine: &'static str,
+    pub size_bytes: u64,
+    pub languages: Vec<&'static str>,
+    pub installed: bool,
+    pub is_default: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<&'static str>,
+    pub license: ModelLicenseDto,
+}
+
+/// v1 has one engine, Apple's, and no downloads (docs/adr/0016). The row says whether it is
+/// usable on this machine; the M8 engines return as further rows.
+#[tauri::command]
+pub fn models_list(state: State<'_, AppState>) -> CmdResult<Vec<ModelInfoDto>> {
+    let usable = state.pipeline_engine_ok();
+    Ok(vec![ModelInfoDto {
+        id: "speechanalyzer",
+        display_name: "Apple Speech (built in)",
+        engine: "speechanalyzer",
+        size_bytes: 0,
+        languages: vec!["en"],
+        installed: usable,
+        is_default: true,
+        provider: Some("Apple, on device"),
+        license: ModelLicenseDto {
+            spdx: "OS-provided",
+            attribution: "Apple SpeechAnalyzer, macOS 26+",
+        },
+    }])
+}
+
+#[tauri::command]
+pub fn models_download(id: String) -> CmdResult<()> {
+    Err(VoxError::unsupported(&format!(
+        "download {id}: v1 ships no downloadable engines"
+    )))
+}
+
+#[tauri::command]
+pub fn models_import(path: String) -> CmdResult<ModelInfoDto> {
+    Err(VoxError::unsupported(&format!(
+        "import {path}: v1 ships no importable engines"
+    )))
+}
+
+#[tauri::command]
+pub fn models_remove(id: String) -> CmdResult<()> {
+    Err(VoxError::unsupported(&format!(
+        "remove {id}: the built-in engine cannot be removed"
+    )))
+}
+
+#[tauri::command]
+pub fn vocab_list(state: State<'_, AppState>) -> CmdResult<Vec<history::VocabTerm>> {
+    state.history.vocab_list().map_err(VoxError::io)
+}
+
+#[tauri::command]
+pub fn vocab_forget(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    state.history.vocab_forget(id).map_err(VoxError::io)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn vocab_export(state: State<'_, AppState>) -> CmdResult<ExportedTo> {
+    let dir = export_dir().map_err(VoxError::io)?;
+    let (path, _) = state.history.vocab_export_to(&dir).map_err(VoxError::io)?;
+    Ok(ExportedTo {
+        path: path.display().to_string(),
+    })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsDto {
+    pub corrections_per_100_words: Vec<serde_json::Value>,
+    pub insertions_by_app: Vec<InsertionsByAppDto>,
+    pub stage_timings_ms: StageTimingsDto,
+    pub memory: MemoryDto,
+    pub preload_hit_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InsertionsByAppDto {
+    pub app: String,
+    pub inserted: u32,
+    pub clipboard_only: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageTimingsDto {
+    pub capture: u32,
+    pub inference: u32,
+    pub injection: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryDto {
+    pub idle_rss_mb: u32,
+    pub peak_rss_mb: u32,
+}
+
+/// The user's own numbers, from the history database and this process. v1 stores one
+/// timing per dictation (release-to-text), reported as `inference`; capture and injection
+/// stay 0 until they are recorded separately. Corrections need M4's capture to exist.
+#[tauri::command]
+pub fn diagnostics_recent(state: State<'_, AppState>, limit: u32) -> CmdResult<DiagnosticsDto> {
+    let _ = limit;
+    let stats = state.history.stats().map_err(VoxError::io)?;
+    let (idle, peak) = process_memory_mb();
+    Ok(DiagnosticsDto {
+        corrections_per_100_words: vec![],
+        insertions_by_app: stats
+            .by_app
+            .into_iter()
+            .map(|(app, inserted, clipboard_only)| InsertionsByAppDto {
+                app: if app.is_empty() {
+                    "—".into()
+                } else {
+                    display_app_name(&app)
+                },
+                inserted,
+                clipboard_only,
+            })
+            .collect(),
+        stage_timings_ms: StageTimingsDto {
+            capture: 0,
+            inference: stats.median_latency_ms,
+            injection: 0,
+        },
+        memory: MemoryDto {
+            idle_rss_mb: idle,
+            peak_rss_mb: peak,
+        },
+        preload_hit_rate: 0.0,
+    })
+}
+
+/// (resident now, lifetime peak physical footprint) in MB for this process.
+#[cfg(target_os = "macos")]
+fn process_memory_mb() -> (u32, u32) {
+    // SAFETY: RUSAGE_INFO_V4 matches the struct passed; the kernel fills it or fails.
+    let mut info: libc::rusage_info_v4 = unsafe { std::mem::zeroed() };
+    let rc = unsafe {
+        libc::proc_pid_rusage(
+            std::process::id() as i32,
+            libc::RUSAGE_INFO_V4,
+            &mut info as *mut _ as *mut libc::rusage_info_t,
+        )
+    };
+    if rc != 0 {
+        return (0, 0);
+    }
+    const MB: u64 = 1_048_576;
+    (
+        (info.ri_resident_size / MB) as u32,
+        (info.ri_lifetime_max_phys_footprint / MB) as u32,
+    )
+}
+
+#[cfg(not(target_os = "macos"))]
+fn process_memory_mb() -> (u32, u32) {
+    (0, 0)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportedEverything {
+    pub path: String,
+    pub counts: std::collections::BTreeMap<&'static str, usize>,
+}
+
+/// History as .md and .json and the vocabulary as a plain list, into `dest` or the default
+/// export folder (adr/0015).
+#[tauri::command]
+pub fn export_everything(
+    state: State<'_, AppState>,
+    dest: String,
+) -> CmdResult<ExportedEverything> {
+    let dir = if dest.trim().is_empty() {
+        export_dir().map_err(VoxError::io)?
+    } else {
+        let d = PathBuf::from(dest.trim());
+        std::fs::create_dir_all(&d).map_err(VoxError::io)?;
+        d
+    };
+    state
+        .history
+        .export_to(&dir, history::ExportFormat::Markdown)
+        .map_err(VoxError::io)?;
+    state
+        .history
+        .export_to(&dir, history::ExportFormat::Json)
+        .map_err(VoxError::io)?;
+    let (_, words) = state.history.vocab_export_to(&dir).map_err(VoxError::io)?;
+    let transcripts = state.history.count().map_err(VoxError::io)? as usize;
+    let mut counts = std::collections::BTreeMap::new();
+    counts.insert("transcripts", transcripts);
+    counts.insert("words", words);
+    Ok(ExportedEverything {
+        path: dir.display().to_string(),
+        counts,
+    })
+}
+
+#[tauri::command]
+pub fn app_relaunch(app: AppHandle) {
+    app.restart();
 }
 
 fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
