@@ -140,6 +140,20 @@ low-spec hardware.
 
 ## CI
 
-`ci.yml` on every PR: `fmt`, `clippy -D warnings`, `test` on all three platforms,
-`cargo-deny`, `cargo-audit`, frontend typecheck and `vitest`, `typos`, and a link check on the
-docs. Benchmarks run on the Linux and macOS runners only.
+`ci.yml` on every PR and on `main`:
+
+- **rust** (macOS 26 runner, `src-tauri/`): `fmt --check`, `clippy --all-targets -D warnings`,
+  `test`, and `bench --no-run` so the benches keep compiling. macOS only while v1 is macOS
+  only ([adr/0016](adr/0016-macos-first.md)); the Linux and Windows legs return with M8. The
+  >15% p50 and idle-RSS regression gate is wired when M2 lands the real benches and
+  `benches/baseline.json`; until then the benches are placeholders that print so.
+- **supply-chain** (`cargo-deny`, `src-tauri/deny.toml`): advisories, licence allow-list,
+  sources. Unmaintained crates reached only through Tauri are ignored by ID with the reason
+  written next to it; a vulnerability is never ignored.
+- **frontend**: `pnpm typecheck` and `vitest`. The two tests that exist today are the
+  contract-coverage and scenario-coverage checks above.
+- **docs**: `typos` (false positives go in `_typos.toml` with a comment) and an offline
+  `lychee` link check over `docs/` and the root Markdown files.
+
+All four run locally with the same commands; `brew install typos-cli lychee cargo-deny` for
+the tools.

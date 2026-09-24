@@ -1,0 +1,48 @@
+# cargo-deny configuration (docs/TESTING.md, "supply-chain" job). Advisories fail the build;
+# licences are an allow-list because a privacy tool ships every dependency's terms to users.
+[graph]
+all-features = false
+# v1 is macOS only (docs/adr/0016). Linux and Windows dependency trees return with M8.
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+  # unic-* (via tauri-utils → urlpattern) are unmaintained but not vulnerable. Not our
+  # dependency to replace; drops out when Tauri moves urlpattern off them. Revisit on
+  # every Tauri upgrade.
+  { id = "RUSTSEC-2025-0075", reason = "unic-char-range: via tauri-utils/urlpattern" },
+  { id = "RUSTSEC-2025-0080", reason = "unic-common: via tauri-utils/urlpattern" },
+  { id = "RUSTSEC-2025-0081", reason = "unic-char-property: via tauri-utils/urlpattern" },
+  { id = "RUSTSEC-2025-0098", reason = "unic-ucd-version: via tauri-utils/urlpattern" },
+  { id = "RUSTSEC-2025-0100", reason = "unic-ucd-ident: via tauri-utils/urlpattern" },
+]
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "MPL-2.0",
+  "CC0-1.0",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "BSL-1.0",
+  "OpenSSL",
+  "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

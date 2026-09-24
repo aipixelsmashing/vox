@@ -1,5 +1,9 @@
 name: CI
 
+# What runs here and why is in docs/TESTING.md ("CI"). v1 is macOS only (docs/adr/0016), so
+# the Rust jobs run on a macOS runner; the Linux and Windows legs return with M8. The Cargo
+# crate lives in src-tauri/; spikes/ is its own throwaway workspace and is not built here.
+
 on:
   pull_request:
   push:
@@ -10,72 +14,64 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
+  rust:
+    name: fmt, clippy, test
+    # macOS 26 SDK: the Swift bridge imports SpeechAnalyzer, which older SDKs do not have.
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: src-tauri
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      # tauri::generate_context! embeds ../dist, so the frontend has to exist first.
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      - run: pnpm build
+        working-directory: .
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt, clippy }
-      - uses: ./.github/actions/linux-deps
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-targets --all-features -- -D warnings
-
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Linux system dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
-            librsvg2-dev libasound2-dev libudev-dev patchelf
-      - run: cargo test --workspace --all-features
+        with: { workspaces: src-tauri }
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      # The benches are placeholders until M2 wires the mock audio source and injector;
+      # compiling them keeps them honest. The >15% regression gate (docs/LATENCY.md,
+      # docs/FOOTPRINT.md) is added with the real benches and benches/baseline.json.
+      - run: cargo bench --no-run
 
   supply-chain:
+    name: cargo-deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
-        with: { command: check all }
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check
 
   frontend:
+    name: typecheck, vitest
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
 
-  bench:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Pipeline benchmarks
-        run: cargo bench --bench pipeline -- --save-baseline pr
-      - name: Footprint benchmarks
-        run: cargo bench --bench footprint -- --save-baseline pr
-      - name: Fail on >15% regression in p50 latency or idle RSS
-        run: cargo run -p vox-bench-gate -- --baseline benches/baseline.json --threshold 0.15
-
   docs:
+    name: typos, links
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: crate-ci/typos@master
       - uses: lycheeverse/lychee-action@v2
-        with: { args: "--no-progress --offline docs/ *.md" }
+        with:
+          args: "--no-progress --offline docs/ *.md"
+          fail: true
