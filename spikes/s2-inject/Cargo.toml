@@ -1,0 +1,15 @@
+[package]
+name = "s2-inject"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "M0 spike S2: accessibility insertion with read-back, and the clipboard-paste fallback"
+
+[dependencies]
+# Same crate the product will use (src-tauri/Cargo.toml); the spike validates it too,
+# including its Swift-bridge build step on a machine with only Command Line Tools.
+axuielement = "0.9"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSArray", "NSData", "NSEnumerator"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSPasteboard", "NSPasteboardItem", "NSRunningApplication", "NSWorkspace"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes", "CGEventSource", "CGRemoteOperation"] }

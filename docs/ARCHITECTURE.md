@@ -36,8 +36,8 @@ Concurrency here is not incidental — the latency budget depends on nothing blo
 | Main | Tauri event loop, tray, windows | Platform requirement: tray and windows must be on the main thread on macOS and Windows |
 | Hotkey listener | `keytap::Tap` on its own run loop | Platform key taps need a dedicated run loop; a blocked callback delays every keystroke on the system |
 | Audio | `cpal` input stream callback | Real-time priority thread owned by the audio subsystem. Nothing but a lock-free push into a ring buffer happens here |
-| Inference | Loaded model, ONNX/ggml session | Runs for hundreds of ms. Never on the main thread. Weights are mmapped and unloaded when idle |
-| Residency | Preload prediction | Watches focus and hotkey-prefix signals; reloads the model before the user reaches the key |
+| Inference | The engine. v1: a Swift bridge to SpeechAnalyzer, whose model runs in Apple's XPC service. M8: ONNX/ggml session with mmapped weights | Runs for hundreds of ms. Never on the main thread |
+| Residency | Preload prediction | **M8 only.** v1 has no model of ours to unload; Apple's service retention is one option value ([FOOTPRINT.md](FOOTPRINT.md)) |
 | Orchestrator | The pipeline state machine | Async, coordinates the rest, does the injection call |
 
 Channels between them are `crossbeam` for the hotkey and audio hops (no async runtime in a
@@ -88,7 +88,8 @@ src-tauri/src/
 │   ├── residency.rs     adaptive unload/preload, mmap weights (docs/FOOTPRINT.md)
 │   ├── parakeet.rs      parakeet-rs / ONNX Runtime backend
 │   ├── whisper.rs       whisper-rs (whisper.cpp) backend
-│   └── speechanalyzer.rs  Apple SpeechAnalyzer, macOS 26+, zero download
+│   └── speechanalyzer.rs  Apple SpeechAnalyzer, macOS 26+, via swift/ (Swift-only API)
+├── swift/               SpeechAnalyzer bridge, compiled by build.rs with swiftc, linked statically
 ├── learning.rs          post-insertion correction watch, vocabulary candidates
 ├── longform.rs          locked sessions, chunked transcription, destinations
 ├── export.rs            everything out, as plain text and JSON
@@ -171,7 +172,7 @@ Every failure has a defined user-visible result. No silent drops.
 | --- | --- |
 | Microphone permission missing | Onboarding pane, dictation disabled until granted |
 | Accessibility / input-monitoring permission missing | Hotkey doesn't fire; tray icon shows a warning badge with a direct link to the OS settings pane |
-| Model missing or corrupt | Dictation disabled, tray offers re-download; hash mismatch is reported as a hash mismatch, not "download failed" |
+| Model missing or corrupt | v1: Apple's locale assets not yet installed — tray offers the one-time install. M8: dictation disabled, tray offers re-download; hash mismatch is reported as a hash mismatch, not "download failed" |
 | No speech detected | Silent no-op, no history entry |
 | Focus changed during recording | Clipboard fallback + one-line notice naming both apps |
 | Target refuses insertion (elevated window, secure input, password field) | Clipboard fallback + reason |

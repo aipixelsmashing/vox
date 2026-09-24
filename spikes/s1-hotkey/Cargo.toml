@@ -1,0 +1,14 @@
+[package]
+name = "s1-hotkey"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "M0 spike S1: does keytap deliver right-Option down/up, and how fast"
+
+[dependencies]
+keytap = "0.4"
+crossbeam-channel = "0.5"
+mach2 = "0.4"
+# Same versions and features keytap itself uses, so the two taps share one build of the bindings.
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFRunLoop", "CFMachPort"] }
+objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEvent", "CGEventTypes"] }

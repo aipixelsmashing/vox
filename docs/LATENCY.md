@@ -39,15 +39,15 @@ Reference hardware (CI benchmarks run on the first two; the third is a manual ga
 
 | Stage | Budget (p50, machine A) | Notes |
 | --- | --- | --- |
-| Key-up observed | < 5 ms | `keytap` event delivery |
+| Key-up observed | < 5 ms | `keytap` event delivery. Measured 2.1 ms median, 6 ms p95 HID-to-consumer ([S1](spikes/s1-hotkey.md)) |
 | Stop stream, drain ring buffer | 10–20 ms | Bounded by one audio callback period |
 | Resample + normalise + VAD trim | < 15 ms | 6 s of audio, `rubato` + Silero |
-| **Inference** | **150–400 ms** | Parakeet TDT int8, dominant term |
+| **Inference** | **150–400 ms** | v1: Apple SpeechAnalyzer, measured **165 ms warm, 250 ms cold** for 6 s on an M1 Pro ([S3](spikes/s3-engine.md)). M8: Parakeet TDT int8 |
 | Vocabulary substitution | < 2 ms | Learned + manual terms, whole-token match |
 | Post-processing (dictionary, spacing) | < 5 ms | |
 | Target revalidation | < 10 ms | AX / window query |
-| Insertion — AX direct | 5–20 ms | |
-| Insertion — clipboard paste | 30–80 ms | Includes waiting for read confirmation |
+| Insertion — AX direct | 5–20 ms | Measured 2–15 ms ([S2](spikes/s2-injection.md)) |
+| Insertion — clipboard paste | 30–80 ms | Includes waiting for read confirmation. Measured 37–81 ms to read-back evidence |
 | History write | < 5 ms, off the critical path | Fire-and-forget after insertion |
 
 Everything except inference is under 150 ms combined. If a change makes the non-inference path
@@ -74,6 +74,11 @@ Two mitigations, one shipped and one optional:
   always-listening state — no hidden mic access, ever.
 
 ## Warm start without staying warm
+
+**v1:** the model is Apple's and lives in Apple's process. Warm-up is 90–165 ms once per
+process with `modelRetention: .processLifetime`, after which every dictation is warm
+([S3](spikes/s3-engine.md), [S4](spikes/s4-footprint.md)). Nothing below applies until a
+model of our own returns in M8.
 
 Cold model load is 0.5–2 s. Keeping the model resident all day removes that cost and spends
 ~750 MB for the 99% of the day nobody is speaking — a trade nobody should be asked to

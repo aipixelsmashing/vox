@@ -10,8 +10,9 @@ it is for — never a wall of requests at launch.
 | Permission | Needed for | How |
 | --- | --- | --- |
 | **Microphone** | Recording | Standard `AVCaptureDevice` prompt on first use. `NSMicrophoneUsageDescription` in Info.plist |
-| **Input Monitoring** | Seeing the hotkey while unfocused | Cannot be prompted programmatically in a useful way. Onboarding opens `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent` and explains the toggle |
-| **Accessibility** | Reading the focused element and inserting text | `AXIsProcessTrustedWithOptions` with the prompt option, plus a direct link to `…?Privacy_Accessibility` |
+| **Input Monitoring** | Seeing the hotkey while unfocused | `IOHIDRequestAccess(kIOHIDRequestTypeListen)` shows the system prompt and adds the app to the pane. **`keytap` only checks (`IOHIDCheckAccess`) and never requests**, so the app must make this call itself before creating the tap ([S1](spikes/s1-hotkey.md)). Onboarding also opens `x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent` and explains the toggle |
+| **Accessibility** | Reading the focused element and inserting text | `AXIsProcessTrustedWithOptions` with the prompt option, plus a direct link to `…?Privacy_Accessibility`. Note: being trusted does not make the system-wide `AXUIElement` work on macOS 26.5; use the per-application element ([TEXT-INJECTION.md](TEXT-INJECTION.md#macos)) |
+| **Speech model assets** | First transcription in a locale | Not a permission, but a first-use step: `AssetInventory.status` reports `supported` until `assetInstallationRequest(...).downloadAndInstall()` has run once. Apple's download, not ours; under a second on a machine with dictation already installed ([S3](spikes/s3-engine.md)). Needs the network once; `network.offlineLock` blocks it and says so |
 
 Notes that will otherwise cost days:
 
@@ -21,8 +22,9 @@ Notes that will otherwise cost days:
   are different entries; developers will grant it repeatedly during development.
 - `IsSecureEventInputEnabled()` can be stuck on because some other app leaked the state. When
   detected, the UI names it as a system-wide condition rather than a Vox failure.
-- Entitlements: hardened runtime, `com.apple.security.device.audio-input`, and
-  `com.apple.security.cs.disable-library-validation` for the ONNX Runtime dylib.
+- Entitlements: hardened runtime and `com.apple.security.device.audio-input`.
+  `com.apple.security.cs.disable-library-validation` was for the ONNX Runtime dylib; v1 ships
+  no ONNX runtime ([adr/0016](adr/0016-macos-first.md)) and does not carry it.
 
 ## Windows
 
