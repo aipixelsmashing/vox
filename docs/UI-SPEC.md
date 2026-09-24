@@ -140,6 +140,12 @@ Used sparingly and only for things the user must know:
 - Model download finished or failed verification.
 - An update is ready to install.
 
+Two channels carry the same words. Vox's own **toast** — a small pill at the bottom centre
+of the screen, never focused, gone after 4.5 seconds or on click — shows every one of these
+on every build, and gives Vox control of placement and timing. The system notification is
+the second copy, and only on Apple-signed builds, because Notification Center refuses
+self-signed ones ([PERMISSIONS.md](PERMISSIONS.md)).
+
 Never used for successful dictations. The text appearing in the field is the notification.
 
 Never used for engagement: no usage summaries, no streaks, no "you've dictated 40,000 words".

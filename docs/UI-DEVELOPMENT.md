@@ -57,6 +57,7 @@ panel and settings without restarting anything.
 | `onboarding` | Onboarding, plus `&step=` |
 | `longform` | Long-form session panel |
 | `overlay` | Recording overlay |
+| `toast` | Failure toast (drive it with `scenario=recording-fails`) |
 
 ## Simulating the dictation loop
 

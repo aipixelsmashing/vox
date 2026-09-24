@@ -14,6 +14,7 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | History panel | Frameless, always-on-top, 380px | Tray, or `Cmd/Ctrl+Shift+Space` |
 | Long-form panel | Frameless, resizable | Locking the hotkey |
 | Recording overlay | Click-through, near the caret | Automatic while recording |
+| Toast | Frameless, never focused, bottom centre, 4.5 s | Every failure notification |
 | Settings | Ordinary window, 6 panes | Tray |
 | Onboarding | Ordinary window, 6 steps | First launch |
 
@@ -63,6 +64,7 @@ These can appear over any screen and are the ones most often forgotten:
 | Offline lock on | Update and download controls disabled with an inline reason | `offline-locked` |
 | Contract version mismatch | Single full-window message: restart Vox | `contract-mismatch` |
 | Dictation in progress | History panel shows a live row at the top | `recording` |
+| Text could not be placed | Toast at the bottom of the screen with the deck's reason, plus the system notification on signed builds | `recording-fails` |
 
 ## Copy deck
 

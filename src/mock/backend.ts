@@ -66,6 +66,10 @@ export async function runScriptedDictation(succeed = true) {
     outcomeNote: succeed ? null : 'window was elevated', method: succeed ? 'accessibility' : null,
     longForm: false,
   }, ...history]
+  if (!succeed) {
+    lastToast = 'Copied instead — Terminal is running as administrator. Press Ctrl+Shift+V to paste.'
+    emit('vox://toast', { message: lastToast })
+  }
   emit('vox://insertion-result', succeed
     ? { outcome: 'inserted', method: 'accessibility', elapsedMs: 12, entryId: 1 }
     : {
@@ -108,6 +112,7 @@ if (typeof window !== 'undefined') {
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 let micTest = false
+let lastToast: string | null = null
 
 /** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
 let mockSettings: Settings = structuredClone(fx.settings)
@@ -235,6 +240,8 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async mic_test_stop() { micTest = false },
   async onboarding_open() { /* already looking at it in a browser tab */ },
+  async toast_current() { return lastToast ? { message: lastToast } : null },
+  async toast_fit() { /* a browser tab sizes itself */ },
 
   async models_list() {
     await wait()

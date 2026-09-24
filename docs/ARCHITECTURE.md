@@ -159,6 +159,8 @@ Tauri v2 webview, React + TypeScript + Vite. Two windows, both created lazily:
   a native tray menu, because native menus can't do a scrolling searchable list with
   per-row actions on all three platforms.
 - **Settings** — an ordinary window.
+- **Toast** — a tiny never-focused window at the bottom of the screen for the one message
+  per failure; created on first use, hidden between messages.
 
 Tray menu itself stays native and short: *Show history · Settings · Check for updates ·
 Pause dictation · Quit*.
