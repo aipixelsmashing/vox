@@ -27,7 +27,10 @@ PR, exactly like a latency regression. See [FOOTPRINT.md](FOOTPRINT.md).
 
 **Learning tests** — edit alignment against a fixture corpus of insertion/correction pairs,
 including the negatives that must *not* produce candidates: whole-sentence rewrites, deletions,
-edits after focus left the app, and anything in a field we refused to insert into. Plus the
+edits after focus left the app, anything in a field we refused to insert into, and the
+homophone guard — their/there/they're, to/too/two, its/it's, affect/effect, than/then,
+your/you're, whose/who's, principal/principle, lead/led, bear/bare — none may produce a
+candidate, while "cuber netties" → "Kubernetes" and "acks UI element" → "AXUIElement" must. Plus the
 three-occurrence threshold, the auto-suspend rule, and the guarantee that deleting a term also
 deletes its evidence.
 
@@ -57,6 +60,43 @@ out and back in without loss ([adr/0015](adr/0015-exit-is-cheap.md)).
 
 Required per platform before any release. Automation cannot cover system-level key taps or
 insertion into third-party applications.
+
+### M1 loop (run before calling M1 done)
+
+Cannot be automated: every step involves a real key tap, a real microphone, or a real
+application's text field. Notifications only appear on an Apple-signed build
+([PERMISSIONS.md](PERMISSIONS.md#macos)); on a dev build, check the log line for the same
+outcome instead (`dictation: … outcome "clipboard_only"`, `refused: …`, `cancelled …`).
+
+1. Fresh launch with no permissions granted: three prompts appear (Input Monitoring,
+   Accessibility, microphone), each notification uses the deck wording, the tray shows the
+   attention badge, and after granting and relaunching the badge clears. The first
+   notification also brings the macOS notification-permission prompt; after allowing, Vox is
+   listed in System Settings → Notifications.
+2. Hold right Option in Notes, say a sentence, release: the tray goes recording → working →
+   idle and the text appears at the caret with a trailing space.
+3. Same in Terminal: text appears via paste (check the history row's `method`).
+4. Same in a Chromium browser's address bar and in a web textarea.
+4a. Same in an Electron app (the Claude desktop app, Slack, VS Code): the log shows the
+    element found "per-app-after-wake", and the text arrives, inserted or at least pasted
+    with the "couldn't confirm" notification. Never nothing.
+5. Hold, say something, switch apps by clicking another app's window, release: nothing is
+   typed into the new app, the text is on the clipboard, and the notification names both
+   apps. (⌘Tab does not open the app switcher while Option is held, so use the mouse.)
+6. Hold, press Escape, release: nothing inserted, nothing in history, and the app did not
+   react to the Escape either — in Notes, no completion menu (Option+Escape) appears.
+7. Tap right Option for under 120 ms: nothing happens.
+8. Hold in a password field: "Not inserted — a password field is active." and nothing on
+   the clipboard.
+9. Pause dictation from the tray: the hotkey does nothing; unpause: it works again.
+10. Quit from the tray: the process exits; nothing keeps running.
+
+### Context biasing (M3)
+
+1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`
+   off, right with it on.
+2. Same name in a password field: unchanged, and the log shows the read was refused.
+3. Turn the setting off mid-session: the next dictation sends no hints (Diagnostics shows 0).
 
 ### Hotkey checklist
 

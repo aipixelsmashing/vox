@@ -3,6 +3,8 @@
  * Same routing rule as commands.ts: real Tauri, or the mock event bus in dev.
  */
 
+import { useEffect } from 'react'
+
 import type { Events } from './contract'
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -26,8 +28,6 @@ export function useVoxEvent<K extends keyof Events>(
   handler: (payload: Events[K]) => void,
   deps: unknown[] = [],
 ) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const { useEffect } = require('react') as typeof import('react')
   useEffect(() => {
     let dispose: (() => void) | undefined
     let cancelled = false

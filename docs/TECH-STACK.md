@@ -29,7 +29,11 @@ The cost, stated plainly: WebKitGTK on Linux is the weakest of the three webview
 Linux story generally needs more testing effort than the other two platforms.
 
 Plugins used: `tauri-plugin-single-instance`, `tauri-plugin-autostart`,
-`tauri-plugin-updater`, `tauri-plugin-opener`, `tauri-plugin-notification`.
+`tauri-plugin-updater`, `tauri-plugin-opener`, `tauri-plugin-notification`. On macOS the
+notification plugin is bypassed: it posts through the deprecated `NSUserNotification` API,
+which current macOS drops without registering the app, so `notify()` goes through
+`UNUserNotificationCenter` in the Swift bridge instead and the plugin serves the other
+platforms and unbundled dev runs.
 
 ## Push-to-talk key capture
 
@@ -61,7 +65,14 @@ ALSA compat). **`rubato`** for resampling to the 16 kHz mono the models expect. 
 `ringbuf` between the audio callback and the pipeline, because allocating or locking in a
 real-time audio callback is how you get dropouts.
 
-**`voice_activity_detector`** (Silero VAD v5 via ONNX) to trim silence and reject
+**v1: an energy gate in `audio.rs`**, not Silero. Silero ships as ONNX and v1 has no ONNX
+runtime ([ROADMAP.md](../ROADMAP.md), "The one decision S3 gates"). The gate answers the
+only two questions the pipeline asks — was anything said, and where does it start and end —
+with a 20 ms RMS frame, an adaptive threshold at four times the room's 10th-percentile
+level, and 300 ms of padding; clips with under `audio.vad.minSpeechMs` of speech are
+rejected before the engine sees them. Apple's engine does its own endpointing on top.
+
+**M8: `voice_activity_detector`** (Silero VAD v5 via ONNX) to trim silence and reject
 speechless recordings. Fixed window sizes — 512 samples at 16 kHz — which is fine since that's
 our native rate. If its ONNX Runtime dependency proves awkward to co-load alongside the ASR
 session, `fast-vad` is a pure-DSP fallback that is much faster and adequate for
@@ -76,6 +87,11 @@ API and cannot reach it. The engine is therefore ~150 lines of Swift (`SpeechTra
 `build.rs` with `swiftc` into a static library and linked into the binary, the same shape
 `axuielement` uses for its own bridge. Deployment target stays macOS 15 so the binary loads on
 an older OS and reports the engine unavailable rather than failing to launch.
+
+Two modules of the framework are in play: `SpeechTranscriber`, used when there are no
+hints, and `DictationTranscriber`, used whenever contextual strings exist, because only the
+latter honours `AnalysisContext.contextualStrings` ([S5](spikes/s5-context.md),
+[CONTEXT.md](CONTEXT.md)). Equal accuracy on the fixture measured; ~80 ms slower per 6 s.
 
 Measured ([S3](spikes/s3-engine.md), M1 Pro): a 6 s utterance in ~165 ms warm, ~250 ms cold,
 word-perfect on the fixture; the first use of a locale fetches Apple's model assets (under a

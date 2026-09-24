@@ -95,6 +95,14 @@ setting says. Never any content rewriting.
      from a trusted process on macOS 26.5 ([S2](spikes/s2-injection.md)); the per-app route
      worked in every app tested. Try system-wide first, fall through to per-app, never treat
      a system-wide failure as "no target".
+   - **Chromium and Electron apps expose no focused element until asked.** Chromium builds
+     its accessibility tree lazily, when an assistive client sets `AXEnhancedUserInterface`
+     on the application element (what VoiceOver does); Electron also honours
+     `AXManualAccessibility`. When both routes return nothing, set both attributes and poll
+     the per-app route for up to ~700 ms. Done only then, because
+     `AXEnhancedUserInterface` also changes some window behaviours in the target. Observed:
+     the Claude desktop app and the ChatGPT app reported no focused element on the first
+     M1 build ([M1 verification](../CHANGELOG.md)).
    - check `kAXRole` is one of `AXTextField`, `AXTextArea`, or a `AXComboBox` that reports a
      settable `kAXSelectedTextAttribute`; refuse `AXSecureTextField`
    - snapshot `kAXSelectedTextRange`, `kAXNumberOfCharacters` and `kAXValue`
@@ -124,10 +132,18 @@ setting says. Never any content rewriting.
    tell us the target has read the clipboard. The evidence that the paste landed is the
    field itself, read back through accessibility with the same checks as step 2, polled for
    up to 1500 ms (37–81 ms observed). Restore the previous pasteboard contents when that
-   evidence appears. If the timeout wins, or no accessibility read-back is available, report
-   `ClipboardOnly` and leave the transcript on the clipboard rather than restoring over it —
-   losing the user's old clipboard is bad, losing the transcript is worse. If `changeCount`
-   moved in the meantime, something else wrote the pasteboard: do not restore at all.
+   evidence appears. If the timeout wins, report `ClipboardOnly` and leave the transcript on
+   the clipboard rather than restoring over it — losing the user's old clipboard is bad,
+   losing the transcript is worse. If `changeCount` moved in the meantime, something else
+   wrote the pasteboard: do not restore at all.
+
+   **When no field can be read back at all** (no focused element even after the Chromium
+   wake-up), the paste is still posted: the application is the one the user held the key
+   in, and revalidation has just confirmed it is still frontmost. The outcome is still
+   `ClipboardOnly { MethodFailed(Paste) }` with the message "Vox couldn't confirm the text
+   arrived. It's on the clipboard — press ⌘V if it's missing." The text very likely
+   arrived, and the user is told the truth about what was confirmed
+   ([ADR 0005](adr/0005-no-unverified-injection-success.md)).
 
 4. **Unicode key events.** `CGEventKeyboardSetUnicodeString` in chunks of ≤ 20 UTF-16 units,
    posted with zero inter-event delay. Layout-independent, handles emoji and non-Latin text,

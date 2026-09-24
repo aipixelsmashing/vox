@@ -42,7 +42,7 @@ Reference hardware (CI benchmarks run on the first two; the third is a manual ga
 | Key-up observed | < 5 ms | `keytap` event delivery. Measured 2.1 ms median, 6 ms p95 HID-to-consumer ([S1](spikes/s1-hotkey.md)) |
 | Stop stream, drain ring buffer | 10–20 ms | Bounded by one audio callback period |
 | Resample + normalise + VAD trim | < 15 ms | 6 s of audio, `rubato` + Silero |
-| **Inference** | **150–400 ms** | v1: Apple SpeechAnalyzer, measured **165 ms warm, 250 ms cold** for 6 s on an M1 Pro ([S3](spikes/s3-engine.md)). M8: Parakeet TDT int8 |
+| **Inference** | **150–400 ms** | v1: Apple SpeechAnalyzer streamed during the hold; the budget here is the finalisation of the tail at release. Batch measurement for reference: **165 ms warm, 250 ms cold** for 6 s on an M1 Pro ([S3](spikes/s3-engine.md)). M8: Parakeet TDT int8 |
 | Vocabulary substitution | < 2 ms | Learned + manual terms, whole-token match |
 | Post-processing (dictionary, spacing) | < 5 ms | |
 | Target revalidation | < 10 ms | AX / window query |
@@ -103,8 +103,11 @@ Absolute numbers are not the whole story.
   the gap reads as progress rather than as a hang.
 - **Never block the UI thread.** Inference and injection are both off the main thread; the
   tray must stay responsive during a 15-second transcription.
-- **Streaming (v1.1)** is the real answer for short-form: transcribing during the hold reduces
-  release-to-text to the tail chunk plus injection, targeting p50 under 250 ms.
+- **Streaming** is the real answer for short-form and is in v1: a SpeechAnalyzer session
+  opens at key-down and audio is pushed every 20 ms as it is resampled, so at release only
+  the tail is finalised. Release-to-text becomes finalisation of the last fraction of a
+  second plus injection. Target p50 under 250 ms in native apps; the injector's per-app
+  memo keeps Chromium targets near that too.
 - **Long-form has a different clock entirely.** Text appearing within a couple of seconds of
   being spoken is what matters there, not release-to-text — see [LONG-FORM.md](LONG-FORM.md).
 

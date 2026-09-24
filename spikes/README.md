@@ -16,6 +16,7 @@ cd spikes && cargo run --release -p <spike> -- [args]
 | --- | --- | --- | --- |
 | S1 hotkey | `s1-hotkey [seconds]` | Input Monitoring for the terminal you run it from | the whole output, especially the summary block |
 | S4 footprint | `s4-footprint [--interval-ms 100] [-- <command>...]` | nothing (wraps s3-engine by default) | the whole output |
+| S5 context | `s5-context [--context "a,b,c"] [AUDIO]` | nothing | the whole output; also what the audio says |
 | S3 engine | `s3-engine [--locale en-US] [--runs 3] [--download] [AUDIO]` | network once, for the model assets | the whole output; also say what the audio actually said |
 | S2 inject | `s2-inject [--delay N] [--method auto\|ax\|paste\|both] [--no-restore] [TEXT]` | Accessibility for the terminal | the whole output per app, plus what you saw appear in the field |
 

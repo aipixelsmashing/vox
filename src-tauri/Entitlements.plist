@@ -5,11 +5,10 @@
     <!-- Microphone capture -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
-    <!-- ONNX Runtime ships its own dylib; hardened runtime otherwise refuses to load it -->
-    <key>com.apple.security.cs.disable-library-validation</key>
-    <true/>
     <!-- Required by the WebView's JIT -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+    <!-- com.apple.security.cs.disable-library-validation was for the ONNX Runtime dylib.
+         v1 ships no ONNX runtime (docs/adr/0016), so it is not requested. -->
 </dict>
 </plist>

@@ -61,6 +61,12 @@ drives migrations; each migration is a pure function with a test.
     ]
   },
 
+  "privacy": {
+    "readFocusedField": false      // opt in: read the text around the caret at key-down as up to
+                                   // 20 recognition hints; never stored, never leaves the
+                                   // machine — docs/CONTEXT.md
+  },
+
   "history": {
     "enabled": true,
     "maxItems": 200,
@@ -101,6 +107,7 @@ drives migrations; each migration is a pure function with a test.
 | `learning.captureCorrections` | `true` | Local, kilobytes, and the corpus takes months to build. Delete it any time |
 | `learning.applyLearnedTerms` | `false` | A system that learns silently can be confidently wrong. Earn the default with a year of data |
 | `output.onFocusChange` | `clipboard` | Typing into whatever the user switched to is worse than not typing |
+| `privacy.readFocusedField` | `false` | Vox reading the user's documents is a capability to opt into knowingly, like `learning.applyLearnedTerms`. In the Privacy pane because it is about what Vox may read, not a speed trade-off ([adr/0017](adr/0017-context-from-focused-field.md)) |
 | `history.maxItems` | `200` | Enough to recover from a bad day, small enough that a wipe is quick |
 | `network.updateCheck` | `startup` | Security updates matter for an app holding accessibility permission. One request, disableable, documented |
 | `network.offlineLock` | `false` | Opt-in, because it also disables updates. Once on, it survives updates |
@@ -124,8 +131,9 @@ One window, four panes, no search, no nesting deeper than one level:
    dictionary.
 4. **Vocabulary** — every learned term with its provenance and a delete button, the learning
    toggle, and an export. Specified in [LEARNING.md](LEARNING.md#the-failure-mode-stated-plainly).
-5. **Privacy** — history retention, wipe, offline lock, update checks, **Export everything**,
-   plus one plain paragraph stating exactly what the app sends and when.
+5. **Privacy** — reading the focused field for recognition hints ([CONTEXT.md](CONTEXT.md)),
+   history retention, wipe, offline lock, update checks, **Export everything**, plus one plain
+   paragraph stating exactly what the app sends and when.
 6. **Diagnostics** — corrections per 100 words over time, insertion outcomes, per-stage
    timings, memory. The user's own numbers, computed locally, so they can judge whether this
    is earning its place.

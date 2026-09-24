@@ -52,12 +52,23 @@ Rules that keep this honest:
 - **Watches are cheap and bounded.** An accessibility read every few seconds for 90 s, only on
   the field we just wrote to. If the read fails, the watch is dropped silently — this feature
   never degrades the dictation path.
+- **The homophone guard: no candidate when both forms are ordinary words.** "their" →
+  "there", "to" → "too", "affect" → "effect" are the user fixing a homophone the engine
+  chose wrongly *in that sentence*, not teaching a term. Learning it would make the next
+  sentence wrong. A candidate is only recorded when at least one of the two forms is not in
+  the system word list (`/usr/share/dict/words` on macOS, the platform spell-checker
+  elsewhere), case-insensitively, token by token for multi-word forms. Proper nouns,
+  product names, acronyms and jargon pass because they are not dictionary words; grammar
+  fixes never do. [TESTING.md](TESTING.md) lists the homophone pairs that must produce no
+  candidate.
 
 ## How terms are applied
 
 Applied terms become a post-recognition replacement list, the same mechanism as the manual
-dictionary, and where the engine supports vocabulary biasing they are also passed to the model
-as a hint before recognition, which fixes the error rather than patching it afterwards.
+dictionary, and they are also passed to the model as recognition hints before recognition,
+which fixes the error rather than patching it afterwards. On macOS that is
+`AnalysisContext.contextualStrings` with the `DictationTranscriber` module, the same channel
+the focused-field context uses ([CONTEXT.md](CONTEXT.md), spike S5).
 
 Matching is case-insensitive and whole-token; replacement preserves sentence-initial
 capitalisation.

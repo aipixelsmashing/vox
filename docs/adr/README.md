@@ -24,3 +24,4 @@ by NNNN`, or `proposed`.
 | [0014](0014-long-form-sessions.md) | Long-form is a session, not a longer timeout | accepted |
 | [0015](0015-exit-is-cheap.md) | Exit is cheap | accepted |
 | [0016](0016-macos-first.md) | macOS first, and one engine | accepted |
+| [0017](0017-context-from-focused-field.md) | Recognition is biased by the text in the focused field | accepted |

@@ -91,7 +91,8 @@ if (typeof window !== 'undefined') {
     ]
     let i = 0
     setInterval(() => {
-      if (i < chunks.length) emit('vox://longform-chunk', { text: chunks[i], elapsedMs: ++i * 30_000 })
+      const text = chunks[i]
+      if (text !== undefined) emit('vox://longform-chunk', { text, elapsedMs: ++i * 30_000 })
     }, 2500)
   }
 }

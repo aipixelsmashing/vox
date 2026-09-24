@@ -80,9 +80,22 @@ nothing is inserted, no history entry is written. This is a hard requirement —
 realise you said the wrong thing must not cost you a transcription and a paste into your
 colleague's chat window.
 
-Escape is observed on the same tap. It is not consumed, so the foreground app also sees it;
-this is acceptable because Escape in most contexts is harmless, and consuming it would be
-worse.
+Escape is observed on the same tap, but it cannot be left for the foreground app to see.
+The hotkey modifier is still held when Escape is pressed, so the app does not receive a bare
+Escape: it receives **Option+Escape**, which in every Cocoa text view is the "show
+completions" shortcut. The M1 gate found exactly that: cancelling in Notes opened the
+completion menu and left an "I" behind when it closed.
+
+So on macOS the cancel key is swallowed while a dictation is in progress, by a second, active
+`CGEventTap` inserted ahead of keytap's listen-only one. It drops the cancel key's down, its
+auto-repeats and its up, and sends the cancel to the pipeline itself; outside a dictation it
+passes everything through untouched. It swallows only the cancel key, never the modifier —
+consuming the modifier is `hotkey.consume`, a separate and off-by-default choice (problem 2).
+If the active tap cannot be created (permission missing), the cancel still works through
+keytap's tap and the app sees the chord; the log says so.
+
+Windows will need the same via the `WH_KEYBOARD_LL` hook; Linux cannot swallow without root
+and will need a cancel key that is harmless in combination with the modifier.
 
 ## Binding configuration
 

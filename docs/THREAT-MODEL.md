@@ -76,6 +76,11 @@ practical set of entitlements on macOS.
 ### The user dictating something they didn't mean to
 
 - Escape cancels mid-recording with nothing transcribed and nothing stored.
+- The text around the caret in the focused field is read at key-down as recognition hints
+  when `privacy.readFocusedField` is on ([CONTEXT.md](CONTEXT.md)). Focused field only, in
+  memory for one dictation, sent only to Apple's on-device speech process, never stored or
+  logged; a guard test enforces it. This is the user's document, not their speech, and is
+  treated as the most sensitive thing Vox handles.
 - Password fields and secure-input states are refused outright — the transcript is dropped,
   not even placed on the clipboard.
 - History is capped and wipeable, with an optional panic-wipe hotkey.
