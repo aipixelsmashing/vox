@@ -12,6 +12,7 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, Webvie
 
 pub const HISTORY_WINDOW: &str = "history";
 pub const SETTINGS_WINDOW: &str = "settings";
+pub const ONBOARDING_WINDOW: &str = "onboarding";
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 520.0;
 const GAP_BELOW_TRAY: f64 = 6.0;
@@ -154,6 +155,45 @@ pub fn show_settings(app: &AppHandle) {
                 }
                 Err(e) => {
                     tracing::warn!("settings window: {e}");
+                    return;
+                }
+            }
+        }
+    };
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+/// Onboarding: shown on first launch until its last step is done, and from Settings
+/// afterwards. The page reads the saved step itself.
+pub fn show_onboarding(app: &AppHandle) {
+    let window = match app.get_webview_window(ONBOARDING_WINDOW) {
+        Some(w) => w,
+        None => {
+            let built = WebviewWindowBuilder::new(
+                app,
+                ONBOARDING_WINDOW,
+                WebviewUrl::App(format!("index.html?window={ONBOARDING_WINDOW}").into()),
+            )
+            .title("Welcome to Vox")
+            .inner_size(640.0, 560.0)
+            .min_inner_size(520.0, 440.0)
+            .resizable(true)
+            .visible(false)
+            .build();
+            match built {
+                Ok(w) => {
+                    let handle = w.clone();
+                    w.on_window_event(move |e| {
+                        if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                            api.prevent_close();
+                            let _ = handle.hide();
+                        }
+                    });
+                    w
+                }
+                Err(e) => {
+                    tracing::warn!("onboarding window: {e}");
                     return;
                 }
             }

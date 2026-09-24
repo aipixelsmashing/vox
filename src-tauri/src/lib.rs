@@ -135,6 +135,11 @@ pub fn run() {
                 notify(app.handle(), permissions::MSG_INPUT_MONITORING);
             }
 
+            // First launch, or a setup left unfinished: the window comes up by itself.
+            if !settings.read().onboarding.done {
+                panel::show_onboarding(app.handle());
+            }
+
             app.manage(AppState {
                 settings,
                 history,
@@ -169,6 +174,9 @@ pub fn run() {
             commands::export_everything,
             commands::panel_hide,
             commands::app_relaunch,
+            commands::mic_test_start,
+            commands::mic_test_stop,
+            commands::onboarding_open,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build application")

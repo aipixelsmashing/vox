@@ -36,6 +36,8 @@ pub struct Settings {
     #[serde(default)]
     pub privacy: Privacy,
     #[serde(default)]
+    pub onboarding: Onboarding,
+    #[serde(default)]
     pub history: History,
     #[serde(default)]
     pub network: Network,
@@ -286,6 +288,15 @@ pub struct Privacy {
     pub read_focused_field: bool,
 }
 
+/// Where onboarding got to, so quitting at step three does not start over (docs/UI-SPEC.md).
+/// State, not a preference: nothing here changes how Vox behaves.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Onboarding {
+    pub completed_step: u32,
+    pub done: bool,
+}
+
 /// Bumped on every accepted `settings_set`; threads that cache a binding (the hotkey thread)
 /// compare it and rebuild, so changes apply without a restart.
 pub static SETTINGS_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -317,6 +328,7 @@ impl Default for Settings {
             long_form: LongForm::default(),
             output: Output::default(),
             privacy: Privacy::default(),
+            onboarding: Onboarding::default(),
             history: History::default(),
             network: Network::default(),
             ui: Ui::default(),

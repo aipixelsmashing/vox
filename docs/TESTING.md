@@ -139,6 +139,18 @@ Cannot be automated: real permissions, a real key capture, a real restart.
    `vocabulary.txt`, and the note names the counts.
 6. Diagnostics: the app table matches what you dictated into tonight; memory is a number.
 
+### Onboarding (M3)
+
+Cannot be automated: real prompts, a real microphone, a real key.
+
+1. Move `settings.json` aside and launch: the onboarding window opens on step 1 with the
+   "you may not need this" paragraph. Quit at step 3, relaunch: it opens on step 3.
+2. Step 2: the meter moves while you talk, before any hotkey permission exists.
+3. Step 4: each missing grant has a button that lands on the right pane; after granting,
+   "Quit and reopen" restarts Vox and the step shows both as granted.
+4. Step 6: hold right Option, speak, release: the text lands in the box and the step says
+   so. Done hides the window; Settings → Dictation → "Run setup again" brings it back.
+
 ### Context biasing (M3)
 
 1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`

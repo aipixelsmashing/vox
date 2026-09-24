@@ -152,6 +152,7 @@ export const settings: Settings = {
   history: { enabled: true, maxItems: 200, maxDays: 30 },
   network: { updateCheck: 'startup', offlineLock: false },
   ui: { theme: 'system', soundCues: true, levelOverlay: true },
+  onboarding: { completedStep: 6, done: true },
 }
 
 /** Amplitude envelope of a real 7-second utterance, for the level meter. 20 Hz. */

@@ -145,6 +145,11 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
           />
         </Row>
       </Section>
+      <Section title={copy.settings.dictation.setupTitle}>
+        <Row label={copy.settings.dictation.runAgain} hint={copy.settings.dictation.runAgainHint}>
+          <Button onClick={() => void commands.onboarding_open()}>{copy.onboarding.runAgain}</Button>
+        </Row>
+      </Section>
     </>
   )
 }
