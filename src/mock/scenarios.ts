@@ -57,7 +57,7 @@ export function currentScenario(): ScenarioId {
   return (p && p in scenarios ? p : 'history-populated') as ScenarioId
 }
 
-export function currentWindow(): 'history' | 'settings' | 'onboarding' | 'longform' | 'overlay' {
+export function currentWindow(): 'history' | 'settings' | 'onboarding' | 'longform' | 'overlay' | 'toast' {
   const w = new URLSearchParams(location.search).get('window')
   return (w as never) ?? 'history'
 }

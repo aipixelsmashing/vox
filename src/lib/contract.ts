@@ -205,6 +205,8 @@ export interface Commands {
   mic_test_stop(): Promise<void>
   /** Shows the onboarding window at its saved step ("Run setup again" in Settings). */
   onboarding_open(): Promise<void>
+  /** The toast window asks for the message it was opened with, since the event may precede it. */
+  toast_current(): Promise<{ message: string } | null>
 }
 
 /**
@@ -241,6 +243,7 @@ export const COMMAND_NAMES = [
   'mic_test_start',
   'mic_test_stop',
   'onboarding_open',
+  'toast_current',
 ] as const satisfies readonly (keyof Commands)[]
 
 type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>
@@ -258,4 +261,6 @@ export interface Events {
   'vox://permissions-changed': PermissionReport
   'vox://vocab-updated': { added: number; suspended: number }
   'vox://insertion-result': InjectionOutcome & { entryId: number }
+  /** Every failure the user must know about, in the deck's words; the toast window shows it. */
+  'vox://toast': { message: string }
 }

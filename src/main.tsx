@@ -11,6 +11,7 @@ import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'
 import { Onboarding } from './windows/Onboarding'
 import { Settings } from './windows/Settings'
+import { Toast } from './windows/Toast'
 import { DevOverlay } from './ui/DevOverlay'
 
 const isMock = !('__TAURI_INTERNALS__' in window)
@@ -36,6 +37,7 @@ function App() {
       {win === 'onboarding' && <Onboarding />}
       {win === 'longform' && <Placeholder name="Long-form session" />}
       {win === 'overlay' && <Placeholder name="Recording overlay" />}
+      {win === 'toast' && <Toast />}
       {isMock && <DevOverlay />}
     </>
   )

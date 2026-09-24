@@ -150,6 +150,17 @@ Cannot be automated: real prompts, a real microphone, a real key.
 4. Step 6: hold right Option, speak, release: the text lands in the box and the step says
    so. Done hides the window; Settings → Dictation → "Run setup again" brings it back.
 
+### Toast (M3)
+
+Cannot be automated: the assertion is about focus and placement on a real screen.
+
+1. Dictate with no text field focused (Finder in front): a toast appears at the bottom
+   centre reading "Copied. No text field was focused.", and the caret in whatever you were
+   in is untouched — the toast never takes focus.
+2. It goes away by itself after about four seconds; a click dismisses it sooner.
+3. Two failures in a row: the second message replaces the first and the timer restarts.
+4. Dictate successfully: no toast. Success is the text appearing.
+
 ### Context biasing (M3)
 
 1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`

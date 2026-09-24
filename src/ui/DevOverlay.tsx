@@ -2,7 +2,7 @@
 
 import { scenarios, currentScenario, currentWindow } from '../mock/scenarios'
 
-const windows = ['history', 'settings', 'onboarding', 'longform', 'overlay'] as const
+const windows = ['history', 'settings', 'onboarding', 'longform', 'overlay', 'toast'] as const
 
 function go(params: Record<string, string>) {
   const q = new URLSearchParams(location.search)

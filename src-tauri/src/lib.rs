@@ -177,6 +177,7 @@ pub fn run() {
             commands::mic_test_start,
             commands::mic_test_stop,
             commands::onboarding_open,
+            commands::toast_current,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build application")
@@ -195,6 +196,8 @@ pub fn run() {
 /// notification (docs/VALUES.md). Errors here are swallowed; a failed notification must not
 /// take the dictation path down with it.
 pub fn notify(app: &tauri::AppHandle, body: &str) {
+    // Vox's own toast on every build; the system channel below is the second copy.
+    panel::show_toast(app, body);
     // macOS: UserNotifications through the Swift bridge. The plugin's NSUserNotification path
     // is dropped silently by current macOS. Falls through to the plugin when running
     // unbundled (`cargo run`), where UserNotifications is unavailable.

@@ -718,6 +718,16 @@ pub fn onboarding_open(app: AppHandle) -> CmdResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+pub struct ToastMessage {
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
+    Ok(panel::toast_current().map(|message| ToastMessage { message }))
+}
+
 fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
     match (base, patch) {
         (serde_json::Value::Object(b), serde_json::Value::Object(p)) => {

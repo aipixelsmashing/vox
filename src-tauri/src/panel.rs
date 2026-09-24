@@ -13,6 +13,15 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, Webvie
 pub const HISTORY_WINDOW: &str = "history";
 pub const SETTINGS_WINDOW: &str = "settings";
 pub const ONBOARDING_WINDOW: &str = "onboarding";
+pub const TOAST_WINDOW: &str = "toast";
+const TOAST_WIDTH: f64 = 380.0;
+const TOAST_HEIGHT: f64 = 72.0;
+const TOAST_LIFETIME: std::time::Duration = std::time::Duration::from_millis(4500);
+
+/// The message the toast currently shows, for a window that was created after the event.
+static TOAST_MESSAGE: Mutex<Option<String>> = Mutex::new(None);
+/// Bumped per toast so an older hide-timer cannot take down a newer message.
+static TOAST_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 520.0;
 const GAP_BELOW_TRAY: f64 = 6.0;
@@ -201,6 +210,82 @@ pub fn show_onboarding(app: &AppHandle) {
     };
     let _ = window.show();
     let _ = window.set_focus();
+}
+
+pub fn toast_current() -> Option<String> {
+    TOAST_MESSAGE.lock().clone()
+}
+
+/// Shows `message` in Vox's own toast at the bottom of the screen for a few seconds. Never
+/// takes focus, never steals the caret from the field the user is in. Every build has this;
+/// Notification Center is the second channel on signed builds (docs/PERMISSIONS.md).
+pub fn show_toast(app: &AppHandle, message: &str) {
+    use std::sync::atomic::Ordering;
+    use tauri::Emitter;
+
+    *TOAST_MESSAGE.lock() = Some(message.to_string());
+    let generation = TOAST_GEN.fetch_add(1, Ordering::AcqRel) + 1;
+
+    let window = match app.get_webview_window(TOAST_WINDOW) {
+        Some(w) => w,
+        None => {
+            let built = WebviewWindowBuilder::new(
+                app,
+                TOAST_WINDOW,
+                WebviewUrl::App(format!("index.html?window={TOAST_WINDOW}").into()),
+            )
+            .title("Vox")
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .focusable(false)
+            .skip_taskbar(true)
+            .resizable(false)
+            .accept_first_mouse(true)
+            .visible(false)
+            .inner_size(TOAST_WIDTH, TOAST_HEIGHT)
+            .build();
+            match built {
+                Ok(w) => w,
+                Err(e) => {
+                    tracing::warn!("toast window: {e}");
+                    return;
+                }
+            }
+        }
+    };
+    if let Some(pos) = toast_position(app) {
+        let _ = window.set_position(pos);
+    }
+    let _ = app.emit_to(
+        TOAST_WINDOW,
+        "vox://toast",
+        serde_json::json!({ "message": message }),
+    );
+    let _ = window.show();
+
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(TOAST_LIFETIME);
+        if TOAST_GEN.load(Ordering::Acquire) == generation {
+            if let Some(w) = handle.get_webview_window(TOAST_WINDOW) {
+                let _ = w.hide();
+            }
+            *TOAST_MESSAGE.lock() = None;
+        }
+    });
+}
+
+/// Bottom centre of the primary monitor, above where the Dock usually is.
+fn toast_position(app: &AppHandle) -> Option<LogicalPosition<f64>> {
+    let monitor = app.primary_monitor().ok().flatten()?;
+    let scale = monitor.scale_factor();
+    let pos = monitor.position().to_logical::<f64>(scale);
+    let size = monitor.size().to_logical::<f64>(scale);
+    Some(LogicalPosition::new(
+        pos.x + (size.width - TOAST_WIDTH) / 2.0,
+        pos.y + size.height - TOAST_HEIGHT - 96.0,
+    ))
 }
 
 #[cfg(target_os = "macos")]
