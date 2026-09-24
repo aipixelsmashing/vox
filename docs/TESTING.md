@@ -91,6 +91,16 @@ outcome instead (`dictation: … outcome "clipboard_only"`, `refused: …`, `can
 9. Pause dictation from the tray: the hotkey does nothing; unpause: it works again.
 10. Quit from the tray: the process exits; nothing keeps running.
 
+### Sound cues (M3)
+
+Cannot be automated: the assertion is that a human hears it.
+
+1. Hold right Option: a short rising two-tone plays as recording starts, after the
+   microphone is open. Release: a falling one. The two are distinguishable with eyes closed.
+2. Set `ui.soundCues` to false: both are silent; dictation is otherwise unchanged.
+3. With the output routed to headphones, the cue is not audible in the room and the
+   transcript is unaffected either way.
+
 ### Context biasing (M3)
 
 1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`

@@ -24,6 +24,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - Apps where direct insertion never takes (Chromium-based ones) are remembered for the
   session, so later dictations there skip straight to the working method.
 - Project design documents, architecture, and repository scaffolding.
+- A short rising tone when recording starts and a falling one when it stops, so you know
+  the microphone is open even when the menu bar is on another screen. On by default;
+  `ui.soundCues` in settings turns it off.
 
 ### Fixed
 - Updated the audio ring-buffer dependency past a memory-safety advisory (RUSTSEC-2026-0293).
