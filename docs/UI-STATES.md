@@ -86,7 +86,17 @@ Empty states are invitations, not apologies:
 | Screen | String |
 | --- | --- |
 | History | "Nothing dictated yet. Hold right Option and speak." |
+| History, while a dictation is in progress (live row) | "Opening the microphone…" · "Listening…" · "Transcribing…" · "Placing the text…" |
+| History, any list still loading | "Loading…" |
 | Vocabulary, learning on | "No words learned yet. Vox picks them up when you correct it." |
 | Vocabulary, learning off | "Learning is off. Vox won't watch your corrections. Turn it on to teach it your words." |
 | Diagnostics, thin data | "Not enough dictations yet to show a trend." |
 | Dictionary | "No custom words. Vox learns most of these on its own — add one here if you'd rather not wait." |
+
+### Labels
+
+Buttons and short controls, sentence case, no full stops. Row actions in the history panel:
+"Copy", "Insert", "Delete" (rendered as ×, labelled for screen readers), "More" / "Less" on a
+long transcript. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
+with "Delete" and "Cancel". After Copy without closing: "Copied". Counts: "47 items",
+"34 words", singular "1 item", "1 word".

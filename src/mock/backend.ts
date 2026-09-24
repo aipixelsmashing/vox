@@ -7,7 +7,7 @@
  * where UI bugs live.
  */
 
-import type { Events, VoxError } from '../lib/contract'
+import type { Events, HistoryEntry, VoxError } from '../lib/contract'
 import * as fx from './fixtures'
 import { currentScenario, type ScenarioId } from './scenarios'
 
@@ -58,6 +58,14 @@ export async function runScriptedDictation(succeed = true) {
   await wait(380)
   emit('vox://state', { state: 'injecting' })
   await wait(40)
+  const text = 'Can you send me the link to the dashboard when you get a second.'
+  history = [{
+    id: Date.now(), createdAt: Date.now(), text, wordCount: text.split(' ').length,
+    durationMs: 3200, latencyMs: succeed ? 180 : 240, engineId: 'speechanalyzer', language: 'en',
+    targetApp: 'Slack', outcome: succeed ? 'inserted' : 'clipboardOnly',
+    outcomeNote: succeed ? null : 'window was elevated', method: succeed ? 'accessibility' : null,
+    longForm: false,
+  }, ...history]
   emit('vox://insertion-result', succeed
     ? { outcome: 'inserted', method: 'accessibility', elapsedMs: 12, entryId: 1 }
     : {
@@ -99,6 +107,25 @@ if (typeof window !== 'undefined') {
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
+/** The mock's own copy of the history, so deletes and new dictations show up like real ones. */
+let history: HistoryEntry[] = fx.historyEntries.map((e) => ({ ...e }))
+
+/**
+ * Same ordering rule as the core (docs/HISTORY.md, "Ranking, not filing"): recency, with a
+ * boost for rows dictated into the currently focused app and a larger one for failed rows,
+ * expressed as minutes of virtual recency so nothing older than an hour jumps the queue.
+ */
+const CURRENT_APP = 'Slack'
+function rank(list: HistoryEntry[], now = Date.now()): HistoryEntry[] {
+  const score = (e: HistoryEntry) => {
+    const ageMin = (now - e.createdAt) / 60_000
+    const app = e.targetApp === CURRENT_APP ? 10 : 0
+    const failed = e.outcome === 'clipboardOnly' ? 30 : 0
+    return ageMin - app - failed
+  }
+  return [...list].sort((a, b) => score(a) - score(b))
+}
+
 const impl: Record<string, (args: any) => Promise<unknown>> = {
   async history_list({ query, limit }: { query?: string; limit: number }) {
     const s = scenario()
@@ -106,24 +133,41 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     else await wait()
     if (s === 'history-empty' || s === 'history-disabled') return []
     if (s === 'history-no-match') return []
+    if (s === 'history-long') return [history[3]].filter(Boolean)
+    const q = query?.trim().toLowerCase()
+    let list = q ? history.filter((e) => e.text.toLowerCase().includes(q)) : history
     if (s === 'history-with-failures') {
-      return [...fx.historyEntries].sort((a, b) =>
-        Number(b.outcome === 'clipboardOnly') - Number(a.outcome === 'clipboardOnly'))
+      // A recent failure as well as the hour-old one, so the float is visible above
+      // successes of similar age.
+      list = list.map((e) =>
+        e.id === 2 ? { ...e, outcome: 'clipboardOnly', outcomeNote: 'No text field was focused', method: null } : e)
     }
-    if (s === 'history-long') return [fx.historyEntries[3]]
-    const list = query
-      ? fx.historyEntries.filter((e) => e.text.toLowerCase().includes(query.toLowerCase()))
-      : fx.historyEntries
-    return list.slice(0, limit)
+    return rank(list).slice(0, limit)
   },
 
-  async history_delete() { await wait(); },
-  async history_delete_all() { await wait(); return { deleted: fx.historyEntries.length } },
+  async history_delete({ id }: { id: number }) {
+    await wait()
+    history = history.filter((e) => e.id !== id)
+  },
+  async history_delete_all() {
+    await wait()
+    const deleted = history.length
+    history = []
+    return { deleted }
+  },
   async history_copy() { await wait(60); },
-  async history_reinsert() {
+  async history_reinsert({ id }: { id: number }) {
     await wait(300)
+    const e = history.find((x) => x.id === id)
+    if (e?.outcome === 'clipboardOnly' && scenario() === 'history-with-failures') {
+      return {
+        outcome: 'clipboardOnly', reason: 'noTextTarget',
+        userMessage: 'Copied. No text field was focused.',
+      }
+    }
     return { outcome: 'inserted', method: 'paste', elapsedMs: 41 }
   },
+  async panel_hide() { /* nothing to hide in a browser tab */ },
   async history_export() { await wait(600); return { path: '~/Documents/vox-export' } },
 
   async vocab_list() {
@@ -137,6 +181,10 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   async vocab_export() { await wait(300); return { path: '~/Documents/vox-vocabulary.txt' } },
 
   async settings_get() {
+    if (scenario() === 'history-disabled') {
+      await wait()
+      return { ...fx.settings, history: { ...fx.settings.history, enabled: false } }
+    }
     await wait()
     const s = scenario()
     const base = structuredClone(fx.settings)

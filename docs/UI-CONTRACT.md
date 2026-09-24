@@ -61,6 +61,11 @@ Grouped by pane. Full signatures in `contract.ts`.
 | `longform_stop` | `{ destination }` | `{ path? }` |
 | `longform_set_destination` | `{ destination }` | `void` |
 
+### Windows
+| Command | In | Out |
+| --- | --- | --- |
+| `panel_hide` | — | `void` — hides the panel window the call came from. Escape, clicking a row (copy and close) and a successful re-insert all end here; the UI never touches the window API directly |
+
 ## Events
 
 | Event | Payload | Frequency |

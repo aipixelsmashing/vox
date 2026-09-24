@@ -185,6 +185,9 @@ export interface Commands {
 
   longform_stop(a: { destination: Destination }): Promise<{ path?: string }>
   longform_set_destination(a: { destination: Destination }): Promise<void>
+
+  /** Hides the calling panel window. Escape, a row click and a successful insert all end here. */
+  panel_hide(): Promise<void>
 }
 
 /**
@@ -216,6 +219,7 @@ export const COMMAND_NAMES = [
   'export_everything',
   'longform_stop',
   'longform_set_destination',
+  'panel_hide',
 ] as const satisfies readonly (keyof Commands)[]
 
 type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>
