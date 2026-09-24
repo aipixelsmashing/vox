@@ -7,7 +7,7 @@
  * where UI bugs live.
  */
 
-import type { Events, HistoryEntry, VoxError } from '../lib/contract'
+import type { Events, HistoryEntry, Settings, VoxError } from '../lib/contract'
 import * as fx from './fixtures'
 import { currentScenario, type ScenarioId } from './scenarios'
 
@@ -107,6 +107,9 @@ if (typeof window !== 'undefined') {
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
+/** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
+let mockSettings: Settings = structuredClone(fx.settings)
+
 /** The mock's own copy of the history, so deletes and new dictations show up like real ones. */
 let history: HistoryEntry[] = fx.historyEntries.map((e) => ({ ...e }))
 
@@ -187,9 +190,9 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     }
     await wait()
     const s = scenario()
-    const base = structuredClone(fx.settings)
+    const base = structuredClone(mockSettings)
     if (s === 'offline-locked') base.network.offlineLock = true
-    if (s === 'vocab-off') base.learning.applyLearnedTerms = false
+    if (s === 'vocab-off') base.learning.captureCorrections = false
     if (s === 'vocab-populated') base.learning.applyLearnedTerms = true
     if (s === 'history-disabled') base.history.enabled = false
     if (s === 'dictionary-empty') base.output.dictionary = []
@@ -197,15 +200,25 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async settings_set(patch: Record<string, unknown>) {
     await wait()
-    return { ...structuredClone(fx.settings), ...patch }
+    const merge = (base: any, p: any): any => {
+      if (base && p && typeof base === 'object' && typeof p === 'object' && !Array.isArray(base) && !Array.isArray(p)) {
+        const out = { ...base }
+        for (const k of Object.keys(p)) out[k] = merge(base[k], p[k])
+        return out
+      }
+      return p
+    }
+    mockSettings = merge(mockSettings, patch)
+    return structuredClone(mockSettings)
   },
   async hotkey_capture_start() {
     // Resolves when the user presses something. Two seconds, so the "waiting" state is visible.
     await wait(2000)
     return scenario() === 'hotkey-altgr'
-      ? { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false }
+      ? { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false, altGr: true }
       : { keys: ['ControlRight'], mode: 'hold', minHoldMs: 120, consume: false }
   },
+  async app_relaunch() { /* a browser tab cannot relaunch */ },
 
   async models_list() {
     await wait()

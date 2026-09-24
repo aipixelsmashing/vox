@@ -115,6 +115,8 @@ export interface HotkeyBinding {
   mode: 'hold' | 'toggle' | 'double-tap-hold'
   minHoldMs: number
   consume: boolean
+  /** Set by the core when the active layout maps right Alt to AltGr (docs/HOTKEYS.md). */
+  altGr?: boolean
 }
 
 /** Mirrors src-tauri/src/settings.rs. Kept loose here; the core returns the merged truth. */
@@ -127,10 +129,15 @@ export interface Settings {
   longForm: { lockKey: string; maxSessionMin: number; defaultDestination: Destination }
   output: {
     method: 'auto' | 'accessibility' | 'paste' | 'type'
+    restoreClipboard: boolean
     trailingSpace: boolean
+    capitalizeFirst: boolean
+    collapseNewlinesInTerminals: boolean
     onFocusChange: 'clipboard' | 'insert-anyway'
     dictionary: Array<{ from: string; to: string }>
   }
+  /** docs/CONTEXT.md, adr/0017. Off by default: Vox reading your documents is opt-in. */
+  privacy: { readFocusedField: boolean }
   history: { enabled: boolean; maxItems: number; maxDays: number }
   network: { updateCheck: 'startup' | 'manual' | 'off'; offlineLock: boolean }
   ui: { theme: 'system' | 'light' | 'dark'; soundCues: boolean; levelOverlay: boolean }
@@ -188,6 +195,8 @@ export interface Commands {
 
   /** Hides the calling panel window. Escape, a row click and a successful insert all end here. */
   panel_hide(): Promise<void>
+  /** Quit and reopen, for the permissions that only take effect after a restart. */
+  app_relaunch(): Promise<void>
 }
 
 /**
@@ -220,6 +229,7 @@ export const COMMAND_NAMES = [
   'longform_stop',
   'longform_set_destination',
   'panel_hide',
+  'app_relaunch',
 ] as const satisfies readonly (keyof Commands)[]
 
 type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>
