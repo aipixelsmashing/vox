@@ -35,7 +35,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   Vocabulary, Privacy (what Vox may read, history retention and wipe, offline lock,
   update checks, export everything) and Diagnostics (your own numbers). Changes apply at
   once; nothing needs a restart except granted permissions.
-- The history panel: click the menu bar icon (or press ⌘⇧V) to see what you dictated,
+- The history panel: click the menu bar icon (or press ⌘⇧Space) to see what you dictated,
   ranked so the thing you just said into this app is at the top and anything that
   couldn't be placed floats. Click a row to copy it; Insert puts it into whatever is
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.

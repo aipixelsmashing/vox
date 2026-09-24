@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-pub const CURRENT_VERSION: u32 = 1;
+pub const CURRENT_VERSION: u32 = 2;
 
 fn current_version() -> u32 {
     CURRENT_VERSION
@@ -234,7 +234,7 @@ impl Default for History {
             enabled: true,
             max_items: 200,
             max_days: 30,
-            panel_hotkey: Some("CmdOrCtrl+Shift+V".into()),
+            panel_hotkey: Some("CmdOrCtrl+Shift+Space".into()),
             panic_wipe_hotkey: None,
             store_audio_for_debug: false,
         }
@@ -396,6 +396,7 @@ impl Settings {
 fn migrate(value: serde_json::Value, from: u32) -> anyhow::Result<serde_json::Value> {
     match from {
         CURRENT_VERSION => Ok(value),
+        1 => migrate(migrate_1_to_2(value), 2),
         v if v > CURRENT_VERSION => {
             // Newer file than this build. Read what we understand; unknown keys survive in
             // `extra` and are written back untouched.
@@ -403,6 +404,19 @@ fn migrate(value: serde_json::Value, from: u32) -> anyhow::Result<serde_json::Va
         }
         v => anyhow::bail!("settings version {v} has no migration path"),
     }
+}
+
+/// v1 shipped the history panel on ⌘⇧V, which is "Paste and Match Style" in most macOS apps;
+/// Vox observes the chord rather than swallowing it, so both fired. Files still on the old
+/// default move to ⌘⇧Space; a hotkey the user chose themselves is left alone.
+fn migrate_1_to_2(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(hk) = value.pointer_mut("/history/panelHotkey") {
+        if hk.as_str() == Some("CmdOrCtrl+Shift+V") {
+            *hk = serde_json::Value::String("CmdOrCtrl+Shift+Space".into());
+        }
+    }
+    value["version"] = serde_json::Value::from(2);
+    value
 }
 
 /// Keyed to the bundle identifier, never to the product name. A rebrand must not strand
@@ -451,7 +465,11 @@ mod tests {
     #[test]
     fn defaults_match_settings_md() {
         let s = Settings::default();
-        assert_eq!(s.version, 1);
+        assert_eq!(s.version, 2);
+        assert_eq!(
+            s.history.panel_hotkey.as_deref(),
+            Some("CmdOrCtrl+Shift+Space")
+        );
         assert_eq!(s.hotkey.keys, vec!["AltRight".to_string()]);
         assert_eq!(s.hotkey.min_hold_ms, 120);
         assert!(!s.hotkey.consume);
@@ -476,6 +494,26 @@ mod tests {
         assert_eq!(json["output"]["onFocusChange"], "clipboard");
         assert_eq!(json["longForm"]["defaultDestination"], "clipboard");
         assert_eq!(json["hotkey"]["mode"], "hold");
+    }
+
+    #[test]
+    fn v1_old_panel_hotkey_default_moves_off_paste_and_match_style() {
+        let old = r#"{"version":1,"history":{"panelHotkey":"CmdOrCtrl+Shift+V"}}"#;
+        let s = Settings::parse(old).unwrap();
+        assert_eq!(
+            s.history.panel_hotkey.as_deref(),
+            Some("CmdOrCtrl+Shift+Space")
+        );
+        assert_eq!(s.version, CURRENT_VERSION);
+        let chosen = r#"{"version":1,"history":{"panelHotkey":"CmdOrCtrl+Shift+H"}}"#;
+        let s = Settings::parse(chosen).unwrap();
+        assert_eq!(
+            s.history.panel_hotkey.as_deref(),
+            Some("CmdOrCtrl+Shift+H"),
+            "a choice is kept"
+        );
+        let off = r#"{"version":1,"history":{"panelHotkey":null}}"#;
+        assert_eq!(Settings::parse(off).unwrap().history.panel_hotkey, None);
     }
 
     #[test]

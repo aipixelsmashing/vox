@@ -36,7 +36,7 @@ microphone stream must never be invisible.
 Tray menu, native and short:
 
 ```
-Show history          ⌘⇧V
+Show history          ⌘⇧Space
 Settings…
 ─────────────────────────
 Pause dictation

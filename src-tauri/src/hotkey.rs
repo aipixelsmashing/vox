@@ -555,8 +555,14 @@ mod tests {
 
     #[test]
     fn panel_chord_parses_and_fires_once_per_press() {
-        let groups = parse_chord("CmdOrCtrl+Shift+V").unwrap();
+        let groups = parse_chord("CmdOrCtrl+Shift+Space").unwrap();
         assert_eq!(groups.len(), 3);
+        assert_eq!(
+            groups[2],
+            vec!["Space".to_string()],
+            "the shipped default parses"
+        );
+        let groups = parse_chord("CmdOrCtrl+Shift+V").unwrap();
         assert_eq!(groups[2], vec!["V".to_string()]);
         assert!(
             groups[1].contains(&"ShiftRight".to_string()),

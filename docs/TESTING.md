@@ -108,9 +108,8 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
 1. Left-click the tray icon: the panel opens under it, focused, search box ready. Click
    elsewhere: it hides. Left-click again: it toggles. Right-click: the menu, with "Show
    history" doing the same.
-2. `history.panelHotkey` (default ⌘⇧V): toggles the panel from any app. On macOS ⌘⇧V is
-   also "Paste and Match Style" in many apps, so the app underneath may paste; set the
-   hotkey to something free or to null if that bites.
+2. `history.panelHotkey` (default ⌘⇧Space): toggles the panel from any app, and the app
+   underneath does nothing with the chord.
 3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,
    Space expands a long row, Escape closes, typing filters — all without the mouse, and all
    after having clicked a button first (WebKit leaves focus on the body after a click).
