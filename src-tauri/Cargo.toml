@@ -43,7 +43,7 @@ keytap = "0.4"
 
 # ---- audio ----------------------------------------------------------------
 cpal = "0.15"
-ringbuf = "0.4"
+ringbuf = "0.5"
 rubato = "0.16"
 hound = "3"                       # fixtures and debug capture only
 # Silero VAD (voice_activity_detector) needs the ONNX runtime, which v1 does not ship

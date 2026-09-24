@@ -1,0 +1,14 @@
+# crate-ci/typos configuration. Only genuine false positives go here.
+[default.extend-identifiers]
+PNGs = "PNGs"
+
+[default.extend-words]
+# mach_timebase_info's field
+numer = "numer"
+# Core Audio Format file extension
+caf = "caf"
+# microphone brand in the mock fixtures
+Shure = "Shure"
+
+[files]
+extend-exclude = ["pnpm-lock.yaml", "src-tauri/Cargo.lock", "spikes/Cargo.lock", "dist/", ".ui-shots/"]

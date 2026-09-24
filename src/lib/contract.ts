@@ -187,6 +187,41 @@ export interface Commands {
   longform_set_destination(a: { destination: Destination }): Promise<void>
 }
 
+/**
+ * Runtime list of the commands above, so a test can check every one has a mock. The two
+ * `_exhaustive` lines fail to compile if this list and `Commands` drift apart in either
+ * direction.
+ */
+export const COMMAND_NAMES = [
+  'history_list',
+  'history_delete',
+  'history_delete_all',
+  'history_copy',
+  'history_reinsert',
+  'history_export',
+  'vocab_list',
+  'vocab_forget',
+  'vocab_export',
+  'settings_get',
+  'settings_set',
+  'hotkey_capture_start',
+  'models_list',
+  'models_download',
+  'models_import',
+  'models_remove',
+  'permissions_status',
+  'permissions_open_pane',
+  'audio_devices',
+  'diagnostics_recent',
+  'export_everything',
+  'longform_stop',
+  'longform_set_destination',
+] as const satisfies readonly (keyof Commands)[]
+
+type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>
+const _exhaustive: _MissingFromList extends never ? true : never = true
+void _exhaustive
+
 // ─── Events ──────────────────────────────────────────────────────────────────
 
 export interface Events {

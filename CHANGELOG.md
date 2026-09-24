@@ -26,6 +26,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - Project design documents, architecture, and repository scaffolding.
 
 ### Fixed
+- Updated the audio ring-buffer dependency past a memory-safety advisory (RUSTSEC-2026-0293).
+  Vox never used the affected calls.
 - Notifications use the current macOS API instead of one the system now ignores. On a
   properly signed build the first one asks for permission and Vox then appears in System
   Settings → Notifications; development builds are refused by macOS and show nothing.
