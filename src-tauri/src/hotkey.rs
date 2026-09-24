@@ -115,6 +115,71 @@ pub fn key_name(key: Key) -> String {
     format!("{key:?}")
 }
 
+/// A chord such as `CmdOrCtrl+Shift+V` as groups of keytap key names; any key in a group
+/// satisfies it, so either Shift works. The last group is the key that fires it.
+pub fn parse_chord(spec: &str) -> Option<Vec<Vec<String>>> {
+    let mut groups = Vec::new();
+    for part in spec.split('+').map(str::trim).filter(|p| !p.is_empty()) {
+        let g: Vec<&str> = match part {
+            "CmdOrCtrl" | "CommandOrControl" => {
+                if cfg!(target_os = "macos") {
+                    vec!["MetaLeft", "MetaRight"]
+                } else {
+                    vec!["ControlLeft", "ControlRight"]
+                }
+            }
+            "Cmd" | "Command" | "Meta" | "Super" => vec!["MetaLeft", "MetaRight"],
+            "Ctrl" | "Control" => vec!["ControlLeft", "ControlRight"],
+            "Shift" => vec!["ShiftLeft", "ShiftRight"],
+            "Alt" | "Option" => vec!["AltLeft", "AltRight"],
+            other => vec![other],
+        };
+        groups.push(
+            g.into_iter()
+                .map(|k| {
+                    if k.len() == 1 {
+                        k.to_ascii_uppercase()
+                    } else {
+                        k.to_string()
+                    }
+                })
+                .collect(),
+        );
+    }
+    (groups.len() >= 2).then_some(groups)
+}
+
+/// Fires once per press of the chord's final key while every other group is held.
+pub struct ChordWatch {
+    groups: Vec<Vec<String>>,
+    held: HashSet<String>,
+}
+
+impl ChordWatch {
+    pub fn new(groups: Vec<Vec<String>>) -> Self {
+        Self {
+            groups,
+            held: HashSet::new(),
+        }
+    }
+
+    pub fn feed(&mut self, name: &str, down: bool) -> bool {
+        if !down {
+            self.held.remove(name);
+            return false;
+        }
+        self.held.insert(name.to_string());
+        let Some(last) = self.groups.last() else {
+            return false;
+        };
+        last.iter().any(|k| k == name)
+            && self
+                .groups
+                .iter()
+                .all(|g| g.iter().any(|k| self.held.contains(k)))
+    }
+}
+
 /// Creates the tap synchronously so a permission failure is reported to the caller, then
 /// listens on its own thread. keytap fails fast with a typed error when the OS denies
 /// permission rather than silently producing no events — the caller badges the tray.
@@ -122,9 +187,17 @@ pub fn spawn(
     settings: Arc<RwLock<settings::Settings>>,
     pipeline: Arc<pipeline::Handle>,
     paused: Arc<AtomicBool>,
+    on_panel: Arc<dyn Fn() + Send + Sync>,
 ) -> anyhow::Result<()> {
     let tap = Tap::new().map_err(|e| anyhow::anyhow!("keytap: {e}"))?;
     let hotkey = settings.read().hotkey.clone();
+    let mut panel_chord = settings
+        .read()
+        .history
+        .panel_hotkey
+        .as_deref()
+        .and_then(parse_chord)
+        .map(ChordWatch::new);
     // True from Start to End. The cancel tap reads it to decide whether the cancel key belongs
     // to us (swallow it, send Cancel) or to the foreground app (let it through).
     let dictating = Arc::new(AtomicBool::new(false));
@@ -152,6 +225,12 @@ pub fn spawn(
                     EventKind::KeyUp(k) => (key_name(k), false),
                     EventKind::KeyRepeat(_) => continue,
                 };
+                if let Some(chord) = panel_chord.as_mut() {
+                    if chord.feed(&name, down) && !matcher.is_active() {
+                        on_panel();
+                        continue;
+                    }
+                }
                 // The cancel tap ended the session without this thread seeing the key.
                 if matcher.is_active() && !dictating.load(Ordering::Acquire) {
                     matcher.reset();
@@ -422,6 +501,31 @@ mod tests {
         m.reset();
         // The physical key is still down; releasing it must not produce a stray End.
         assert_eq!(m.feed("AltRight", false), None);
+    }
+
+    #[test]
+    fn panel_chord_parses_and_fires_once_per_press() {
+        let groups = parse_chord("CmdOrCtrl+Shift+V").unwrap();
+        assert_eq!(groups.len(), 3);
+        assert_eq!(groups[2], vec!["V".to_string()]);
+        assert!(
+            groups[1].contains(&"ShiftRight".to_string()),
+            "either shift"
+        );
+        let mut w = ChordWatch::new(groups);
+        let meta = if cfg!(target_os = "macos") {
+            "MetaLeft"
+        } else {
+            "ControlLeft"
+        };
+        assert!(!w.feed(meta, true));
+        assert!(!w.feed("ShiftLeft", true));
+        assert!(w.feed("V", true), "all held, final key down");
+        assert!(!w.feed("V", false));
+        assert!(w.feed("V", true), "again while modifiers stay held");
+        w.feed("ShiftLeft", false);
+        assert!(!w.feed("V", true), "shift released");
+        assert!(parse_chord("V").is_none(), "a lone key is not a chord");
     }
 
     #[test]

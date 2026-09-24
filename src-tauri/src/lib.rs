@@ -12,6 +12,7 @@
 
 pub mod audio;
 pub mod clipboard;
+pub mod commands;
 pub mod cues;
 pub mod engine;
 pub mod export;
@@ -21,6 +22,7 @@ pub mod inject;
 pub mod learning;
 pub mod longform;
 pub mod models;
+pub mod panel;
 pub mod permissions;
 pub mod pipeline;
 pub mod settings;
@@ -40,14 +42,17 @@ pub struct AppState {
     pub history: Arc<history::Store>,
     pub pipeline: Arc<pipeline::Handle>,
     pub paused: Arc<AtomicBool>,
+    /// Shared with the pipeline; the history panel's "Insert" re-runs it.
+    pub injector: Arc<dyn inject::TextInjector>,
 }
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
 
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|_app, _argv, _cwd| {
-            // A second launch is a no-op until the history panel exists (M3).
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // A second launch is the user asking to see the app: show the history panel.
+            panel::show_history(app);
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -98,16 +103,24 @@ pub fn run() {
                 });
             }
 
+            let injector: Arc<dyn inject::TextInjector> =
+                Arc::from(inject::platform_injector(settings.clone()));
             let pipeline = pipeline::spawn(pipeline::Deps {
                 settings: settings.clone(),
                 history: history.clone(),
                 engine,
-                injector: inject::platform_injector(settings.clone()),
+                injector: injector.clone(),
                 app: app.handle().clone(),
                 paused: paused.clone(),
             })?;
 
-            if let Err(e) = hotkey::spawn(settings.clone(), pipeline.clone(), paused.clone()) {
+            let on_panel: Arc<dyn Fn() + Send + Sync> = Arc::new({
+                let handle = app.handle().clone();
+                move || panel::toggle_history(&handle)
+            });
+            if let Err(e) =
+                hotkey::spawn(settings.clone(), pipeline.clone(), paused.clone(), on_panel)
+            {
                 // keytap fails fast when Input Monitoring is missing: badge, never a dead key.
                 tracing::warn!("hotkey unavailable: {e}");
                 tray::set_state(app.handle(), tray::IconState::Attention);
@@ -119,10 +132,21 @@ pub fn run() {
                 history,
                 pipeline,
                 paused,
+                injector,
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![
+            commands::history_list,
+            commands::history_delete,
+            commands::history_delete_all,
+            commands::history_copy,
+            commands::history_reinsert,
+            commands::history_export,
+            commands::settings_get,
+            commands::settings_set,
+            commands::panel_hide,
+        ])
         .build(tauri::generate_context!())
         .expect("failed to build application")
         .run(|_app, event| {

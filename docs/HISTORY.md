@@ -6,8 +6,10 @@ Every completed dictation is kept locally so the user can retrieve it after the 
 insertion can go to the wrong window, get pasted over, or land in a field that then got closed.
 The history is the safety net that makes the rest of the product safe to trust.
 
-It is reached from the tray: **Show history**, or a global shortcut (default
-Cmd/Ctrl+Shift+V, configurable, off if it conflicts).
+It is reached from the tray: a left click on the icon, or **Show history** in its menu, or
+a global shortcut (default Cmd/Ctrl+Shift+V, configurable, off if it conflicts — and on
+macOS it does conflict with "Paste and Match Style" in many apps, because Vox observes the
+chord rather than consuming it; see [HOTKEYS.md](HOTKEYS.md)).
 
 ## The panel
 

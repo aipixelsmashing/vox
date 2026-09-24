@@ -11,6 +11,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::cues;
+use tauri::Emitter;
+
+use crate::commands::{InsertionResultEvent, PipelineStateDto};
 use crate::{audio, clipboard, engine, history, inject, settings, tray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,7 +104,7 @@ pub struct Deps {
     pub settings: Arc<parking_lot::RwLock<settings::Settings>>,
     pub history: Arc<history::Store>,
     pub engine: engine::Handle,
-    pub injector: Box<dyn inject::TextInjector>,
+    pub injector: Arc<dyn inject::TextInjector>,
     pub app: tauri::AppHandle,
     pub paused: Arc<AtomicBool>,
 }
@@ -188,6 +191,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     let mut started: Option<Instant> = None;
     // True while the engine has a live streaming session for this recording.
     let mut streaming = false;
+    let mut last_state_emit = Instant::now();
 
     loop {
         // While recording, poll so audio is drained and the cap is enforced.
@@ -200,6 +204,18 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         if streaming && !fresh.is_empty() {
                             deps.engine.stream_push(fresh);
                         }
+                    }
+                    if last_state_emit.elapsed() >= Duration::from_millis(500) {
+                        last_state_emit = Instant::now();
+                        emit_state(
+                            &deps.app,
+                            PipelineStateDto::Recording {
+                                elapsed_ms: started
+                                    .map(|s| s.elapsed().as_millis() as u64)
+                                    .unwrap_or(0),
+                                long_form: false,
+                            },
+                        );
                     }
                     let cap = deps.settings.read().audio.max_recording_sec;
                     let over = started
@@ -239,12 +255,20 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     Ok(c) => {
                         capture = Some(c);
                         started = Some(Instant::now());
+                        last_state_emit = Instant::now();
                         tray::set_state(&deps.app, tray::IconState::Recording);
                         // After the microphone is open, never before: the cue must not
                         // delay the first syllable (docs/HOTKEYS.md, recording feedback).
                         if deps.settings.read().ui.sound_cues {
                             cues::play(cues::Cue::Start);
                         }
+                        emit_state(
+                            &deps.app,
+                            PipelineStateDto::Recording {
+                                elapsed_ms: 0,
+                                long_form: false,
+                            },
+                        );
                     }
                     Err(e) => {
                         tracing::warn!("audio start failed: {e}");
@@ -284,6 +308,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 target = None;
                 started = None;
                 tray::set_state(&deps.app, tray::IconState::Idle);
+                emit_state(&deps.app, PipelineStateDto::Idle);
             }
             Action::Finish { capped } => {
                 let held_ms = started.map(|s| s.elapsed().as_millis() as u32).unwrap_or(0);
@@ -300,12 +325,14 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     }
                     state = State::Idle;
                     tray::set_state(&deps.app, tray::IconState::Idle);
+                    emit_state(&deps.app, PipelineStateDto::Idle);
                     continue;
                 }
                 tray::set_state(&deps.app, tray::IconState::Transcribing);
                 if deps.settings.read().ui.sound_cues {
                     cues::play(cues::Cue::Stop);
                 }
+                emit_state(&deps.app, PipelineStateDto::Transcribing);
                 if capped {
                     let minutes = deps.settings.read().audio.max_recording_sec / 60;
                     notify(
@@ -318,6 +345,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 streaming = false;
                 state = State::Idle;
                 tray::set_state(&deps.app, tray::IconState::Idle);
+                emit_state(&deps.app, PipelineStateDto::Idle);
             }
         }
     }
@@ -404,6 +432,7 @@ fn finish(
     let is_terminal = target.as_ref().map(|t| t.is_terminal()).unwrap_or(false);
     let text = postprocess(&transcript.text, &output, is_terminal);
     tray::set_state(&deps.app, tray::IconState::Transcribing);
+    emit_state(&deps.app, PipelineStateDto::Injecting);
 
     // Revalidate: has focus moved to another application since key-down?
     let outcome = match target {
@@ -461,6 +490,7 @@ fn finish(
         }
     };
 
+    let mut entry_id = 0;
     if history_cfg.enabled {
         let entry = history::Entry {
             id: 0,
@@ -476,13 +506,21 @@ fn finish(
             outcome_note: note,
             method,
         };
-        if let Err(e) = deps.history.insert(&entry) {
-            tracing::warn!("history insert failed: {e}");
+        match deps.history.insert(&entry) {
+            Ok(id) => entry_id = id,
+            Err(e) => tracing::warn!("history insert failed: {e}"),
         }
         let _ = deps
             .history
             .prune(history_cfg.max_items, history_cfg.max_days);
     }
+    let _ = deps.app.emit(
+        "vox://insertion-result",
+        InsertionResultEvent {
+            outcome: crate::commands::outcome_dto(&outcome, latency_ms),
+            entry_id,
+        },
+    );
     tracing::info!(
         "dictation: {} ms audio, inference {} ms, release-to-text {} ms, outcome {:?}",
         duration_ms,
@@ -498,6 +536,12 @@ fn finish(
 
 pub fn notify(app: &tauri::AppHandle, body: &str) {
     crate::notify(app, body);
+}
+
+/// `vox://state`, for the history panel's live row. Cheap and fire-and-forget; the UI is
+/// never on the dictation path.
+fn emit_state(app: &tauri::AppHandle, state: PipelineStateDto) {
+    let _ = app.emit("vox://state", state);
 }
 
 #[cfg(test)]
