@@ -123,6 +123,22 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
    (file size drops).
 7. `history.enabled` false: the panel says history is off and offers nothing else.
 
+### Settings window (M3)
+
+Cannot be automated: real permissions, a real key capture, a real restart.
+
+1. Tray → Settings…: the window opens on Dictation. Close it: it hides and reopens on the
+   same pane with its state intact.
+2. With a permission missing, the strip at the top names it in the deck's words and "Open
+   System Settings" lands on the right pane. After granting: "Quit and reopen" restarts Vox.
+3. Dictation → Change…: press a key; the row shows it and dictation uses it at once, without
+   a restart. Set it back.
+4. Turn off sound cues, dictate: silent. Turn history off: the panel says so and nothing new
+   is stored. Turn both back on.
+5. Privacy → Export everything: the folder holds `history.md`, `history.json` and
+   `vocabulary.txt`, and the note names the counts.
+6. Diagnostics: the app table matches what you dictated into tonight; memory is a number.
+
 ### Context biasing (M3)
 
 1. Put a rare name on screen in the field, say it: wrong with `privacy.readFocusedField`

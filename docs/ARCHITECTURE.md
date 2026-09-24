@@ -99,6 +99,8 @@ src-tauri/src/
 │   ├── macos.rs         AX insert → clipboard paste → unicode events
 │   ├── windows.rs       win-text-inject: delayed-render clipboard → paste → unicode
 │   └── linux.rs         X11 XTEST / Wayland libei / wtype / ydotool / clipboard-only
+├── commands.rs          the Tauri command surface (src/lib/contract.ts is the truth)
+├── panel.rs             history panel and settings windows, created lazily, hidden not closed
 ├── clipboard.rs         private clipboard writes, save/restore with change detection
 ├── history.rs           SQLite store, retention, search, wipe
 ├── models.rs            registry, resumable download, SHA-256 verify, sideload

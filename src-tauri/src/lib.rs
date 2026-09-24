@@ -44,6 +44,14 @@ pub struct AppState {
     pub paused: Arc<AtomicBool>,
     /// Shared with the pipeline; the history panel's "Insert" re-runs it.
     pub injector: Arc<dyn inject::TextInjector>,
+    pub engine: engine::Handle,
+}
+
+impl AppState {
+    /// Whether the engine loaded; the Model pane's "installed" for the built-in engine.
+    pub fn pipeline_engine_ok(&self) -> bool {
+        self.engine.status().is_ok()
+    }
 }
 
 static LOG_GUARD: OnceLock<tracing_appender::non_blocking::WorkerGuard> = OnceLock::new();
@@ -108,7 +116,7 @@ pub fn run() {
             let pipeline = pipeline::spawn(pipeline::Deps {
                 settings: settings.clone(),
                 history: history.clone(),
-                engine,
+                engine: engine.clone(),
                 injector: injector.clone(),
                 app: app.handle().clone(),
                 paused: paused.clone(),
@@ -133,6 +141,7 @@ pub fn run() {
                 pipeline,
                 paused,
                 injector,
+                engine,
             });
             Ok(())
         })
@@ -145,7 +154,21 @@ pub fn run() {
             commands::history_export,
             commands::settings_get,
             commands::settings_set,
+            commands::hotkey_capture_start,
+            commands::permissions_status,
+            commands::permissions_open_pane,
+            commands::audio_devices,
+            commands::models_list,
+            commands::models_download,
+            commands::models_import,
+            commands::models_remove,
+            commands::vocab_list,
+            commands::vocab_forget,
+            commands::vocab_export,
+            commands::diagnostics_recent,
+            commands::export_everything,
             commands::panel_hide,
+            commands::app_relaunch,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build application")

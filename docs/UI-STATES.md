@@ -102,3 +102,13 @@ Buttons and short controls, sentence case, no full stops. Row actions in the his
 long transcript. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
 with "Delete" and "Cancel". After Copy without closing: "Copied". Counts: "47 items",
 "34 words", singular "1 item", "1 word".
+
+### Settings copy
+
+The panes' labels and hints live in `src/lib/copy.ts` under `settings`, one block per pane,
+and are the deck for that window; the situations that also surface elsewhere (permissions,
+offline lock, empty states, wipe confirmation) reuse the strings above verbatim. Two strings
+worth quoting because they carry a promise: the Model pane's "No memory-versus-speed
+setting: Vox decides. If that ever feels wrong, that is a bug to report, not a knob to turn"
+([adr/0010](adr/0010-adaptive-residency.md)), and the Privacy pane's "Vox makes one request:
+the update check, which sends nothing but the request itself." ([PRIVACY.md](../PRIVACY.md)).

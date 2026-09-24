@@ -9,6 +9,7 @@ import '@fontsource/literata/400.css'
 import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'
+import { Settings } from './windows/Settings'
 import { DevOverlay } from './ui/DevOverlay'
 
 const isMock = !('__TAURI_INTERNALS__' in window)
@@ -30,7 +31,7 @@ function App() {
   return (
     <>
       {win === 'history' && <HistoryPanel />}
-      {win === 'settings' && <Placeholder name="Settings" />}
+      {win === 'settings' && <Settings />}
       {win === 'onboarding' && <Placeholder name="Onboarding" />}
       {win === 'longform' && <Placeholder name="Long-form session" />}
       {win === 'overlay' && <Placeholder name="Recording overlay" />}

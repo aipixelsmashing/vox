@@ -43,6 +43,23 @@ pub struct Finished {
     pub total_samples: usize,
 }
 
+/// Input devices as (id, name, is_default). The id is the device name, which is what
+/// `Capture::start` matches on; "default" follows the OS.
+pub fn input_devices() -> Vec<(String, String, bool)> {
+    let host = cpal::default_host();
+    let default_name = host.default_input_device().and_then(|d| d.name().ok());
+    host.input_devices()
+        .map(|it| {
+            it.filter_map(|d| d.name().ok())
+                .map(|n| {
+                    let is_default = default_name.as_deref() == Some(n.as_str());
+                    (n.clone(), n, is_default)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 impl Capture {
     /// Opens the input stream. Device start costs 20–80 ms depending on platform, which is
     /// why pre-roll exists as an option (docs/LATENCY.md).

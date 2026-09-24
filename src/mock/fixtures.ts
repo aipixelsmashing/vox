@@ -144,9 +144,11 @@ export const settings: Settings = {
   learning: { captureCorrections: true, applyLearnedTerms: false, minOccurrences: 3 },
   longForm: { lockKey: 'KeyL', maxSessionMin: 30, defaultDestination: 'clipboard' },
   output: {
-    method: 'auto', trailingSpace: true, onFocusChange: 'clipboard',
+    method: 'auto', restoreClipboard: true, trailingSpace: true, capitalizeFirst: false,
+    collapseNewlinesInTerminals: true, onFocusChange: 'clipboard',
     dictionary: [{ from: 'our company name', to: 'OurCompany' }],
   },
+  privacy: { readFocusedField: false },
   history: { enabled: true, maxItems: 200, maxDays: 30 },
   network: { updateCheck: 'startup', offlineLock: false },
   ui: { theme: 'system', soundCues: true, levelOverlay: true },

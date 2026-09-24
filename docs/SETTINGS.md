@@ -138,6 +138,10 @@ One window, four panes, no search, no nesting deeper than one level:
    timings, memory. The user's own numbers, computed locally, so they can judge whether this
    is earning its place.
 
+Every change applies at once: the hotkey thread rebuilds its binding when settings change,
+and the pipeline reads settings per dictation. Only a newly granted OS permission needs a
+restart, and the strip says so.
+
 Permissions status is a persistent strip at the top of the window when anything is missing,
 with a button that opens the exact OS settings pane. Errors say what happened and what to do:
 "Vox can't see the hotkey. Grant Input Monitoring, then quit and reopen Vox." — not

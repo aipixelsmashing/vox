@@ -34,6 +34,8 @@ pub struct Settings {
     #[serde(default)]
     pub output: Output,
     #[serde(default)]
+    pub privacy: Privacy,
+    #[serde(default)]
     pub history: History,
     #[serde(default)]
     pub network: Network,
@@ -277,6 +279,17 @@ impl Default for Ui {
     }
 }
 
+/// docs/CONTEXT.md, adr/0017. Off by default: Vox reading the user's documents is opt-in.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Privacy {
+    pub read_focused_field: bool,
+}
+
+/// Bumped on every accepted `settings_set`; threads that cache a binding (the hotkey thread)
+/// compare it and rebuild, so changes apply without a restart.
+pub static SETTINGS_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Advanced {
@@ -303,6 +316,7 @@ impl Default for Settings {
             learning: Learning::default(),
             long_form: LongForm::default(),
             output: Output::default(),
+            privacy: Privacy::default(),
             history: History::default(),
             network: Network::default(),
             ui: Ui::default(),

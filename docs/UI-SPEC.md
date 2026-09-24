@@ -54,7 +54,7 @@ Specified in [HISTORY.md](HISTORY.md).
 
 ## Settings
 
-Specified in [SETTINGS.md](SETTINGS.md). Four panes: Dictation, Model, Text, Privacy.
+Specified in [SETTINGS.md](SETTINGS.md). Six panes: Dictation, Model, Text, Vocabulary, Privacy, Diagnostics.
 
 ## Onboarding
 

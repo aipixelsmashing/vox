@@ -28,6 +28,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   the microphone is open even when the menu bar is on another screen. On by default;
   `ui.soundCues` in settings turns it off.
 
+- Settings: six panes from the menu bar — Dictation (change the key by pressing it, mode,
+  microphone, recording cap), Model, Text (how text is placed, spacing, custom words),
+  Vocabulary, Privacy (what Vox may read, history retention and wipe, offline lock,
+  update checks, export everything) and Diagnostics (your own numbers). Changes apply at
+  once; nothing needs a restart except granted permissions.
 - The history panel: click the menu bar icon (or press ⌘⇧V) to see what you dictated,
   ranked so the thing you just said into this app is at the top and anything that
   couldn't be placed floats. Click a row to copy it; Insert puts it into whatever is

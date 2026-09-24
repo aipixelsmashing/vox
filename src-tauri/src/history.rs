@@ -214,6 +214,120 @@ impl Store {
     }
 }
 
+/// A learned-vocabulary row (docs/LEARNING.md). Read here because it lives in the same
+/// database; capture itself is M4.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabTerm {
+    pub id: i64,
+    pub wrong_form: String,
+    pub right_form: String,
+    pub count: u32,
+    pub first_seen: i64,
+    pub last_seen: i64,
+    pub source_apps: Vec<String>,
+    pub reversals: u32,
+    pub state: String,
+}
+
+/// What Diagnostics shows: outcomes by app and the median release-to-text.
+#[derive(Debug, Clone, Default)]
+pub struct Stats {
+    pub by_app: Vec<(String, u32, u32)>,
+    pub median_latency_ms: u32,
+    pub total: u32,
+}
+
+impl Store {
+    pub fn vocab_list(&self) -> anyhow::Result<Vec<VocabTerm>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state
+             FROM vocab_candidates ORDER BY last_seen DESC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let apps: Option<String> = r.get(6)?;
+            Ok(VocabTerm {
+                id: r.get(0)?,
+                wrong_form: r.get(1)?,
+                right_form: r.get(2)?,
+                count: r.get(3)?,
+                first_seen: r.get(4)?,
+                last_seen: r.get(5)?,
+                source_apps: apps
+                    .map(|a| {
+                        a.split(',')
+                            .filter(|x| !x.is_empty())
+                            .map(str::to_string)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                reversals: r.get(7)?,
+                state: r.get(8)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Deletes the term and the evidence behind it: one row holds both (docs/LEARNING.md).
+    pub fn vocab_forget(&self, id: i64) -> anyhow::Result<bool> {
+        let conn = self.conn.lock();
+        Ok(conn.execute("DELETE FROM vocab_candidates WHERE id = ?1", params![id])? > 0)
+    }
+
+    /// `vocabulary.txt`: one `wrong → right` per line, applied terms first.
+    pub fn vocab_export_to(&self, dir: &Path) -> anyhow::Result<(PathBuf, usize)> {
+        let mut terms = self.vocab_list()?;
+        terms.sort_by_key(|t| (t.state != "applied", t.right_form.to_lowercase()));
+        let body: String = terms
+            .iter()
+            .map(|t| {
+                format!(
+                    "{} → {} ({}, {}×)\n",
+                    t.wrong_form, t.right_form, t.state, t.count
+                )
+            })
+            .collect();
+        let path = dir.join("vocabulary.txt");
+        std::fs::write(&path, body)?;
+        Ok((path, terms.len()))
+    }
+
+    pub fn stats(&self) -> anyhow::Result<Stats> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT COALESCE(target_app, ''),
+                    SUM(CASE WHEN outcome = 'inserted' THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN outcome <> 'inserted' THEN 1 ELSE 0 END)
+             FROM transcripts GROUP BY target_app ORDER BY 2 DESC",
+        )?;
+        let by_app = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, u32>(1)?,
+                    r.get::<_, u32>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let total: u32 = conn.query_row("SELECT COUNT(*) FROM transcripts", [], |r| r.get(0))?;
+        let median_latency_ms: u32 = if total == 0 {
+            0
+        } else {
+            conn.query_row(
+                "SELECT latency_ms FROM transcripts ORDER BY latency_ms LIMIT 1 OFFSET ?1",
+                params![total / 2],
+                |r| r.get(0),
+            )?
+        };
+        Ok(Stats {
+            by_app,
+            median_latency_ms,
+            total,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportFormat {
     Markdown,
@@ -448,6 +562,51 @@ mod tests {
         assert!(std::fs::read_to_string(md)
             .unwrap()
             .contains("keep \"quotes\" & all"));
+    }
+
+    #[test]
+    fn stats_group_by_app_and_take_the_median() {
+        let store = Store::open_in_memory().unwrap();
+        let now = now_millis();
+        for (i, lat) in [100u32, 300, 200].iter().enumerate() {
+            let mut e = entry("x", now - i as i64);
+            e.latency_ms = *lat;
+            store.insert(&e).unwrap();
+        }
+        let mut f = entry("y", now);
+        f.outcome = "clipboard_only".into();
+        f.target_app = Some("com.other".into());
+        store.insert(&f).unwrap();
+        let s = store.stats().unwrap();
+        assert_eq!(s.total, 4);
+        assert_eq!(s.median_latency_ms, 200);
+        assert_eq!(s.by_app[0], ("com.apple.Notes".into(), 3, 0));
+        assert_eq!(s.by_app[1], ("com.other".into(), 0, 1));
+    }
+
+    #[test]
+    fn vocab_reads_forgets_and_exports() {
+        let store = Store::open_in_memory().unwrap();
+        {
+            let conn = store.conn.lock();
+            conn.execute(
+                "INSERT INTO vocab_candidates (wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state)
+                 VALUES ('cuber netties', 'Kubernetes', 3, 1, 2, 'Slack,Code', 0, 'applied')",
+                [],
+            )
+            .unwrap();
+        }
+        let terms = store.vocab_list().unwrap();
+        assert_eq!(terms.len(), 1);
+        assert_eq!(terms[0].source_apps, vec!["Slack", "Code"]);
+        let dir = tempfile::tempdir().unwrap();
+        let (path, n) = store.vocab_export_to(dir.path()).unwrap();
+        assert_eq!(n, 1);
+        assert!(std::fs::read_to_string(path)
+            .unwrap()
+            .contains("cuber netties → Kubernetes"));
+        assert!(store.vocab_forget(terms[0].id).unwrap());
+        assert!(store.vocab_list().unwrap().is_empty());
     }
 
     #[test]
