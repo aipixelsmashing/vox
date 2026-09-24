@@ -107,6 +107,8 @@ if (typeof window !== 'undefined') {
 
 // ─── Commands ────────────────────────────────────────────────────────────────
 
+let micTest = false
+
 /** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
 let mockSettings: Settings = structuredClone(fx.settings)
 
@@ -196,6 +198,8 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     if (s === 'vocab-populated') base.learning.applyLearnedTerms = true
     if (s === 'history-disabled') base.history.enabled = false
     if (s === 'dictionary-empty') base.output.dictionary = []
+    if (s === 'onboarding-fresh') base.onboarding = { completedStep: 0, done: false }
+    if (s === 'onboarding-ready') base.onboarding = { completedStep: 5, done: false }
     return base
   },
   async settings_set(patch: Record<string, unknown>) {
@@ -219,6 +223,18 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
       : { keys: ['ControlRight'], mode: 'hold', minHoldMs: 120, consume: false }
   },
   async app_relaunch() { /* a browser tab cannot relaunch */ },
+  async mic_test_start() {
+    micTest = true
+    let i = 0
+    const tick = () => {
+      if (!micTest) return
+      emit('vox://level', { rms: fx.levelEnvelope[i++ % fx.levelEnvelope.length] ?? 0 })
+      setTimeout(tick, 50)
+    }
+    tick()
+  },
+  async mic_test_stop() { micTest = false },
+  async onboarding_open() { /* already looking at it in a browser tab */ },
 
   async models_list() {
     await wait()
@@ -246,6 +262,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     await wait(80)
     const s = scenario()
     if (s === 'permissions-missing') return fx.permissionsMissing
+    if (s === 'onboarding-fresh') return { microphone: 'denied', inputMonitoring: 'denied', accessibility: 'denied', inputGroup: 'notApplicable' }
     if (s === 'permissions-restart') return { ...fx.permissionsAllGranted, accessibility: 'needsRestart' }
     return fx.permissionsAllGranted
   },

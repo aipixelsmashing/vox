@@ -9,6 +9,7 @@ import '@fontsource/literata/400.css'
 import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'
+import { Onboarding } from './windows/Onboarding'
 import { Settings } from './windows/Settings'
 import { DevOverlay } from './ui/DevOverlay'
 
@@ -32,7 +33,7 @@ function App() {
     <>
       {win === 'history' && <HistoryPanel />}
       {win === 'settings' && <Settings />}
-      {win === 'onboarding' && <Placeholder name="Onboarding" />}
+      {win === 'onboarding' && <Onboarding />}
       {win === 'longform' && <Placeholder name="Long-form session" />}
       {win === 'overlay' && <Placeholder name="Recording overlay" />}
       {isMock && <DevOverlay />}

@@ -660,6 +660,64 @@ pub fn app_relaunch(app: AppHandle) {
     app.restart();
 }
 
+// ─── Microphone test and onboarding ──────────────────────────────────────────
+
+static MIC_TEST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Opens the input device and streams `vox://level` at ~20 Hz until `mic_test_stop`. Only
+/// onboarding's "say something" uses it; dictation has its own capture. Audio is measured
+/// and dropped, never kept.
+#[tauri::command]
+pub fn mic_test_start(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    use std::sync::atomic::Ordering;
+    use tauri::Emitter;
+    if MIC_TEST.swap(true, Ordering::AcqRel) {
+        return Ok(());
+    }
+    let device = state.settings.read().audio.input_device.clone();
+    std::thread::Builder::new()
+        .name("vox-mic-test".into())
+        .spawn(move || {
+            let mut capture = match audio::Capture::start(&device) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::info!("mic test could not open the device: {e}");
+                    MIC_TEST.store(false, Ordering::Release);
+                    return;
+                }
+            };
+            let deadline = Instant::now() + Duration::from_secs(120);
+            while MIC_TEST.load(Ordering::Acquire) && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(50));
+                let pcm = capture.drain();
+                if pcm.is_empty() {
+                    continue;
+                }
+                let rms = (pcm.iter().map(|x| x * x).sum::<f32>() / pcm.len() as f32).sqrt();
+                // Scaled so ordinary speech fills most of the meter.
+                let _ = app.emit(
+                    "vox://level",
+                    serde_json::json!({ "rms": (rms * 6.0).min(1.0) }),
+                );
+            }
+            MIC_TEST.store(false, Ordering::Release);
+        })
+        .map_err(VoxError::io)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn mic_test_stop() -> CmdResult<()> {
+    MIC_TEST.store(false, std::sync::atomic::Ordering::Release);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn onboarding_open(app: AppHandle) -> CmdResult<()> {
+    panel::show_onboarding(&app);
+    Ok(())
+}
+
 fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
     match (base, patch) {
         (serde_json::Value::Object(b), serde_json::Value::Object(p)) => {

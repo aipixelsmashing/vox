@@ -28,6 +28,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   the microphone is open even when the menu bar is on another screen. On by default;
   `ui.soundCues` in settings turns it off.
 
+- First-launch setup in six short steps, including the one that says you may not need
+  this. It remembers where you got to, and Settings → Dictation can run it again.
 - Settings: six panes from the menu bar — Dictation (change the key by pressing it, mode,
   microphone, recording cap), Model, Text (how text is placed, spacing, custom words),
   Vocabulary, Privacy (what Vox may read, history retention and wipe, offline lock,

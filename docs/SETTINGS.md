@@ -92,6 +92,11 @@ drives migrations; each migration is a pure function with a test.
   "advanced": {
     "logLevel": "warn",
     "diagnosticsPanel": false
+  },
+
+  "onboarding": {
+    "completedStep": 0,            // state, not a preference: where first-launch setup got to
+    "done": false
   }
 }
 ```

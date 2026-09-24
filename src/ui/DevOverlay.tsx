@@ -13,7 +13,7 @@ function go(params: Record<string, string>) {
 export function DevOverlay() {
   return (
     <div style={{
-      position: 'fixed', bottom: 12, right: 12, zIndex: 9999,
+      position: 'fixed', top: 12, right: 12, zIndex: 9999,
       background: 'var(--panel)', border: '1px solid var(--rule)',
       borderRadius: 'var(--radius-panel)', padding: 'var(--s-2)',
       display: 'flex', gap: 'var(--s-2)', boxShadow: '0 4px 16px #00000022',

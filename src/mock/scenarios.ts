@@ -38,6 +38,10 @@ export const scenarios = {
   'offline-locked':        { label: 'Offline lock on — network controls disabled' },
   'contract-mismatch':     { label: 'Contract version mismatch' },
 
+  // Onboarding
+  'onboarding-fresh':      { label: 'Onboarding — first launch, nothing granted yet' },
+  'onboarding-ready':      { label: 'Onboarding — everything granted, at "Try it"' },
+
   // Other
   'hotkey-capturing':      { label: 'Hotkey — waiting for a key' },
   'hotkey-altgr':          { label: 'Hotkey — AltGr layout warning' },

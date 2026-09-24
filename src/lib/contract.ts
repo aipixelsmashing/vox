@@ -141,6 +141,8 @@ export interface Settings {
   history: { enabled: boolean; maxItems: number; maxDays: number }
   network: { updateCheck: 'startup' | 'manual' | 'off'; offlineLock: boolean }
   ui: { theme: 'system' | 'light' | 'dark'; soundCues: boolean; levelOverlay: boolean }
+  /** Where onboarding got to, so quitting at step three does not start over. */
+  onboarding: { completedStep: number; done: boolean }
 }
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
@@ -197,6 +199,12 @@ export interface Commands {
   panel_hide(): Promise<void>
   /** Quit and reopen, for the permissions that only take effect after a restart. */
   app_relaunch(): Promise<void>
+
+  /** Opens the microphone and streams `vox://level` until stopped: onboarding's "say something". */
+  mic_test_start(): Promise<void>
+  mic_test_stop(): Promise<void>
+  /** Shows the onboarding window at its saved step ("Run setup again" in Settings). */
+  onboarding_open(): Promise<void>
 }
 
 /**
@@ -230,6 +238,9 @@ export const COMMAND_NAMES = [
   'longform_set_destination',
   'panel_hide',
   'app_relaunch',
+  'mic_test_start',
+  'mic_test_stop',
+  'onboarding_open',
 ] as const satisfies readonly (keyof Commands)[]
 
 type _MissingFromList = Exclude<keyof Commands, (typeof COMMAND_NAMES)[number]>
