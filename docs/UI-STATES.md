@@ -11,7 +11,7 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | Screen | Window | Reached by |
 | --- | --- | --- |
 | Tray menu | Native, not web | Click the tray icon |
-| History panel | Frameless, always-on-top, 380px | Tray, or `Cmd/Ctrl+Shift+V` |
+| History panel | Frameless, always-on-top, 380px | Tray, or `Cmd/Ctrl+Shift+Space` |
 | Long-form panel | Frameless, resizable | Locking the hotkey |
 | Recording overlay | Click-through, near the caret | Automatic while recording |
 | Settings | Ordinary window, 6 panes | Tray |

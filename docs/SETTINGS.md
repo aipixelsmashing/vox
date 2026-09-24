@@ -10,7 +10,7 @@ drives migrations; each migration is a pure function with a test.
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,                    // 1 → 2 moved the panel hotkey off ⌘⇧V
 
   "hotkey": {
     "keys": ["AltRight"],          // keytap key names; multiple = chord
@@ -71,7 +71,7 @@ drives migrations; each migration is a pure function with a test.
     "enabled": true,
     "maxItems": 200,
     "maxDays": 30,
-    "panelHotkey": "CmdOrCtrl+Shift+V",
+    "panelHotkey": "CmdOrCtrl+Shift+Space", // not ⌘⇧V: that is Paste and Match Style, and Vox observes chords rather than swallowing them
     "panicWipeHotkey": null,
     "storeAudioForDebug": false
   },
