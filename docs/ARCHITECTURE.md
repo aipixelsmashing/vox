@@ -83,6 +83,7 @@ src-tauri/src/
 ├── pipeline.rs          the state machine above
 ├── hotkey.rs            keytap wrapper, binding parsing, hold/toggle/double-tap modes
 ├── audio.rs             cpal capture, ring buffer, resample to 16 kHz mono f32, VAD
+├── cues.rs              start/stop sound cues, synthesised, played via cpal output
 ├── engine/
 │   ├── mod.rs           `SpeechEngine` trait + registry
 │   ├── residency.rs     adaptive unload/preload, mmap weights (docs/FOOTPRINT.md)

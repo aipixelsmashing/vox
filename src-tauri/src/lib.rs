@@ -12,6 +12,7 @@
 
 pub mod audio;
 pub mod clipboard;
+pub mod cues;
 pub mod engine;
 pub mod export;
 pub mod history;

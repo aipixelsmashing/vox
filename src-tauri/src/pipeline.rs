@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::cues;
 use crate::{audio, clipboard, engine, history, inject, settings, tray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,6 +240,11 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         capture = Some(c);
                         started = Some(Instant::now());
                         tray::set_state(&deps.app, tray::IconState::Recording);
+                        // After the microphone is open, never before: the cue must not
+                        // delay the first syllable (docs/HOTKEYS.md, recording feedback).
+                        if deps.settings.read().ui.sound_cues {
+                            cues::play(cues::Cue::Start);
+                        }
                     }
                     Err(e) => {
                         tracing::warn!("audio start failed: {e}");
@@ -297,6 +303,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     continue;
                 }
                 tray::set_state(&deps.app, tray::IconState::Transcribing);
+                if deps.settings.read().ui.sound_cues {
+                    cues::play(cues::Cue::Stop);
+                }
                 if capped {
                     let minutes = deps.settings.read().audio.max_recording_sec / 60;
                     notify(
