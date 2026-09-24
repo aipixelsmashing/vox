@@ -436,6 +436,10 @@ fn finish(
         inject::InjectionOutcome::ClipboardOnly { reason } => {
             if reason.is_secret_context() {
                 // Never on the clipboard, never in history.
+                tracing::info!(
+                    "refused: {}; nothing on the clipboard, nothing stored",
+                    reason.code()
+                );
                 notify(&deps.app, &reason.user_message());
                 return false;
             }

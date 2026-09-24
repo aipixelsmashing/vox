@@ -446,6 +446,18 @@ public func vox_sa_stream_cancel(_ handle: Int32) {
 @_cdecl("vox_sa_free")
 public func vox_sa_free(_ p: UnsafeMutablePointer<CChar>?) { free(p) }
 
+// MARK: - Bridge logging
+
+/// Writes into Vox's own log through Rust's tracing (src-tauri/src/lib.rs), so bridge
+/// diagnostics land next to the pipeline's and are not redacted as `<private>` the way NSLog
+/// arguments are in the unified log. Never called with transcript text.
+@_silgen_name("vox_bridge_log")
+private func vox_bridge_log(_ message: UnsafePointer<CChar>)
+
+private func blog(_ message: String) {
+    message.withCString { vox_bridge_log($0) }
+}
+
 // MARK: - Notifications
 
 /// Posts a user notification through UserNotifications. tauri-plugin-notification goes through
@@ -459,6 +471,7 @@ public func vox_sa_free(_ p: UnsafeMutablePointer<CChar>?) { free(p) }
 @_cdecl("vox_notify")
 public func vox_notify(_ cTitle: UnsafePointer<CChar>, _ cBody: UnsafePointer<CChar>) -> Bool {
     guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else {
+        blog("notify: not running from an app bundle (\(Bundle.main.bundleURL.path))")
         return false
     }
     let title = String(cString: cTitle)
@@ -470,21 +483,27 @@ public func vox_notify(_ cTitle: UnsafePointer<CChar>, _ cBody: UnsafePointer<CC
         content.body = body
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         center.add(request) { error in
-            if let error { NSLog("vox: notification not delivered: %@", error.localizedDescription) }
+            if let error {
+                blog("notification not delivered: \(error.localizedDescription)")
+            } else {
+                blog("notification posted")
+            }
         }
     }
     center.getNotificationSettings { settings in
+        let status = settings.authorizationStatus.rawValue
+        blog("notify: authorization status \(status) (0 not determined, 1 denied, 2 authorized)")
         switch settings.authorizationStatus {
         case .notDetermined:
             center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                 if granted {
                     deliver()
                 } else {
-                    NSLog("vox: notifications not authorised: %@", error?.localizedDescription ?? "declined")
+                    blog("notifications not authorised: \(error?.localizedDescription ?? "declined")")
                 }
             }
         case .denied:
-            NSLog("vox: notifications are turned off for Vox in System Settings")
+            blog("notifications denied: turned off in System Settings, or the app signature is not trusted by Notification Center")
         default:
             deliver()
         }

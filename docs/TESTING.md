@@ -64,7 +64,9 @@ insertion into third-party applications.
 ### M1 loop (run before calling M1 done)
 
 Cannot be automated: every step involves a real key tap, a real microphone, or a real
-application's text field.
+application's text field. Notifications only appear on an Apple-signed build
+([PERMISSIONS.md](PERMISSIONS.md#macos)); on a dev build, check the log line for the same
+outcome instead (`dictation: … outcome "clipboard_only"`, `refused: …`, `cancelled …`).
 
 1. Fresh launch with no permissions granted: three prompts appear (Input Monitoring,
    Accessibility, microphone), each notification uses the deck wording, the tray shows the

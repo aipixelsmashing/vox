@@ -149,8 +149,10 @@ pub fn notify(app: &tauri::AppHandle, body: &str) {
             // SAFETY: both pointers are valid NUL-terminated strings for the duration of the
             // call; the bridge copies them.
             if unsafe { mac::vox_notify(title.as_ptr(), body_c.as_ptr()) } {
+                tracing::info!("notification handed to UserNotifications");
                 return;
             }
+            tracing::warn!("UserNotifications unavailable (unbundled run); using the plugin");
         }
     }
     if let Err(e) = app.notification().builder().title("Vox").body(body).show() {
@@ -164,6 +166,22 @@ mod mac {
         // swift/SpeechAnalyzerBridge.swift
         pub fn vox_notify(title: *const std::ffi::c_char, body: *const std::ffi::c_char) -> bool;
     }
+}
+
+/// Called by the Swift bridge to write into this process's log. The bridge never passes
+/// transcript text; its call sites are the notification and permission paths only.
+///
+/// # Safety
+/// `message` must be a valid NUL-terminated string for the duration of the call.
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn vox_bridge_log(message: *const std::ffi::c_char) {
+    if message.is_null() {
+        return;
+    }
+    // SAFETY: the caller guarantees a valid NUL-terminated string.
+    let msg = unsafe { std::ffi::CStr::from_ptr(message) }.to_string_lossy();
+    tracing::info!("bridge: {msg}");
 }
 
 /// Rolling file log under the OS log directory. Transcripts are never logged, at any level;

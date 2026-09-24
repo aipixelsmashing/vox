@@ -26,8 +26,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - Project design documents, architecture, and repository scaffolding.
 
 ### Fixed
-- Notifications now actually appear on macOS. The first one asks for permission; Vox then
-  shows up in System Settings → Notifications like any other app.
+- Notifications use the current macOS API instead of one the system now ignores. On a
+  properly signed build the first one asks for permission and Vox then appears in System
+  Settings → Notifications; development builds are refused by macOS and show nothing.
 - Cancelled, too-short and silent dictations are recorded in the log (never the words), so a
   "nothing happened" can be told apart from "nothing arrived".
 
