@@ -13,6 +13,7 @@ import AVFoundation
 import CoreMedia
 import Foundation
 import Speech
+import UserNotifications
 
 // MARK: - JSON plumbing
 
@@ -444,6 +445,52 @@ public func vox_sa_stream_cancel(_ handle: Int32) {
 
 @_cdecl("vox_sa_free")
 public func vox_sa_free(_ p: UnsafeMutablePointer<CChar>?) { free(p) }
+
+// MARK: - Notifications
+
+/// Posts a user notification through UserNotifications. tauri-plugin-notification goes through
+/// the deprecated NSUserNotification API, which current macOS drops silently: the app never
+/// even appears in System Settings → Notifications. Authorization is requested on first use,
+/// so the system prompt appears with the first failure notification, not at launch.
+///
+/// Returns false when the process is not running from an .app bundle (a bare `cargo run`),
+/// where UNUserNotificationCenter would abort; the caller falls back to the plugin.
+/// Bodies are fixed copy-deck strings; nothing here logs them.
+@_cdecl("vox_notify")
+public func vox_notify(_ cTitle: UnsafePointer<CChar>, _ cBody: UnsafePointer<CChar>) -> Bool {
+    guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else {
+        return false
+    }
+    let title = String(cString: cTitle)
+    let body = String(cString: cBody)
+    let center = UNUserNotificationCenter.current()
+    let deliver: @Sendable () -> Void = {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        center.add(request) { error in
+            if let error { NSLog("vox: notification not delivered: %@", error.localizedDescription) }
+        }
+    }
+    center.getNotificationSettings { settings in
+        switch settings.authorizationStatus {
+        case .notDetermined:
+            center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                if granted {
+                    deliver()
+                } else {
+                    NSLog("vox: notifications not authorised: %@", error?.localizedDescription ?? "declined")
+                }
+            }
+        case .denied:
+            NSLog("vox: notifications are turned off for Vox in System Settings")
+        default:
+            deliver()
+        }
+    }
+    return true
+}
 
 // MARK: - Microphone permission (AVCaptureDevice is the only API for it)
 

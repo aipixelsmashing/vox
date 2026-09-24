@@ -265,6 +265,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 };
             }
             Action::Discard => {
+                tracing::info!(
+                    "cancelled after {} ms; nothing transcribed or stored",
+                    started.map(|s| s.elapsed().as_millis()).unwrap_or(0)
+                );
                 if streaming {
                     deps.engine.stream_cancel();
                     streaming = false;
@@ -282,6 +286,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 started = None;
                 if held_ms < min_hold || cap.is_none() {
                     // A brush of the key. Nothing recorded, nothing written.
+                    tracing::info!("discarded: held {held_ms} ms, under the {min_hold} ms minimum");
                     if streaming {
                         deps.engine.stream_cancel();
                         streaming = false;
@@ -348,7 +353,7 @@ fn finish(
     };
     let Some(pcm) = fin.speech else {
         // No speech: silent no-op, no history entry (docs/ARCHITECTURE.md#failure-handling).
-        tracing::debug!("no speech detected in {held_ms} ms");
+        tracing::info!("no speech in {held_ms} ms of audio; nothing stored");
         if streaming {
             deps.engine.stream_cancel();
         }

@@ -139,8 +139,30 @@ pub fn run() {
 /// notification (docs/VALUES.md). Errors here are swallowed; a failed notification must not
 /// take the dictation path down with it.
 pub fn notify(app: &tauri::AppHandle, body: &str) {
+    // macOS: UserNotifications through the Swift bridge. The plugin's NSUserNotification path
+    // is dropped silently by current macOS. Falls through to the plugin when running
+    // unbundled (`cargo run`), where UserNotifications is unavailable.
+    #[cfg(target_os = "macos")]
+    {
+        let title = std::ffi::CString::new("Vox").unwrap_or_default();
+        if let Ok(body_c) = std::ffi::CString::new(body) {
+            // SAFETY: both pointers are valid NUL-terminated strings for the duration of the
+            // call; the bridge copies them.
+            if unsafe { mac::vox_notify(title.as_ptr(), body_c.as_ptr()) } {
+                return;
+            }
+        }
+    }
     if let Err(e) = app.notification().builder().title("Vox").body(body).show() {
         tracing::warn!("notification failed: {e}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    extern "C" {
+        // swift/SpeechAnalyzerBridge.swift
+        pub fn vox_notify(title: *const std::ffi::c_char, body: *const std::ffi::c_char) -> bool;
     }
 }
 

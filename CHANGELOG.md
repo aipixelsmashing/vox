@@ -25,6 +25,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   session, so later dictations there skip straight to the working method.
 - Project design documents, architecture, and repository scaffolding.
 
+### Fixed
+- Notifications now actually appear on macOS. The first one asks for permission; Vox then
+  shows up in System Settings → Notifications like any other app.
+- Cancelled, too-short and silent dictations are recorded in the log (never the words), so a
+  "nothing happened" can be told apart from "nothing arrived".
+
 <!--
 Release entries are written for users, not for git. Each entry says what changed for the
 person using the app. "Fixed clipboard restore race" — not "refactor PasteService".

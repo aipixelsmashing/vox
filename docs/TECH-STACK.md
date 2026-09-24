@@ -29,7 +29,11 @@ The cost, stated plainly: WebKitGTK on Linux is the weakest of the three webview
 Linux story generally needs more testing effort than the other two platforms.
 
 Plugins used: `tauri-plugin-single-instance`, `tauri-plugin-autostart`,
-`tauri-plugin-updater`, `tauri-plugin-opener`, `tauri-plugin-notification`.
+`tauri-plugin-updater`, `tauri-plugin-opener`, `tauri-plugin-notification`. On macOS the
+notification plugin is bypassed: it posts through the deprecated `NSUserNotification` API,
+which current macOS drops without registering the app, so `notify()` goes through
+`UNUserNotificationCenter` in the Swift bridge instead and the plugin serves the other
+platforms and unbundled dev runs.
 
 ## Push-to-talk key capture
 

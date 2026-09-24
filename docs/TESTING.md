@@ -68,7 +68,9 @@ application's text field.
 
 1. Fresh launch with no permissions granted: three prompts appear (Input Monitoring,
    Accessibility, microphone), each notification uses the deck wording, the tray shows the
-   attention badge, and after granting and relaunching the badge clears.
+   attention badge, and after granting and relaunching the badge clears. The first
+   notification also brings the macOS notification-permission prompt; after allowing, Vox is
+   listed in System Settings → Notifications.
 2. Hold right Option in Notes, say a sentence, release: the tray goes recording → working →
    idle and the text appears at the caret with a trailing space.
 3. Same in Terminal: text appears via paste (check the history row's `method`).

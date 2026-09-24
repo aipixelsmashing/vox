@@ -58,6 +58,7 @@ fn build_swift_bridge() {
         "AVFoundation",
         "CoreMedia",
         "Speech",
+        "UserNotifications",
         "Carbon",
         "IOKit",
     ] {
