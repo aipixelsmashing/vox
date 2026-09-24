@@ -58,30 +58,26 @@ Specified in [SETTINGS.md](SETTINGS.md). Six panes: Dictation, Model, Text, Voca
 
 ## Onboarding
 
-Six steps, each of which can be revisited later from Settings. Progress is saved, so a user who
-quits at step three doesn't start over.
+Three steps, each revisitable later from Settings. Progress is saved, so a user who quits
+part-way doesn't start over. (It began as six; most of them only told the user something,
+and telling is not a step.)
 
-1. **What this does — and whether you need it.** One screen, three sentences, the statement
-   that audio never leaves the machine, and on macOS the honest paragraph: *your Mac already
-   has dictation built in, and for short messages it's probably enough — here's how to turn it
+1. **What this does — and whether you need it.** Three sentences, the statement that audio
+   never leaves the machine, and on macOS the honest paragraph: *your Mac already has
+   dictation built in, and for short messages it's probably enough — here's how to turn it
    on.* Then what Vox adds that it doesn't: minutes-long sessions, your own vocabulary, a
    history, and the same key on your other machines. No marketing. See
    [VALUES.md](VALUES.md#we-tell-people-when-they-dont-need-this).
-2. **Microphone** — request permission, then show a live level meter and ask the user to say
-   something. A meter that visibly moves is the fastest way to prove the right device is
-   selected.
-3. **Model** — recommend one based on detected RAM and language, show the size, download with
-   visible progress and a byte count. Offer "import from folder" for offline installs.
-4. **Permissions** — Accessibility and Input Monitoring on macOS, input group on Linux, with
-   a direct link or the exact command, and a "Quit and reopen" button where a restart is
-   required.
-5. **Learning** — one card explaining that Vox can watch the corrections you make and learn
-   your words, what it stores, and that every term is visible and deletable. Off by default;
-   this card is where someone turns it on knowingly.
-6. **Try it** — a text box in the app itself. "Hold right Option and say something." On
-   success: the transcript appears in the box and the step completes itself. If the layout
-   maps right Alt to AltGr, this step opens with the alternative binding pre-selected and one
-   sentence explaining why.
+2. **Set up.** One page, four rows: microphone (request, then a live level meter — a meter
+   that visibly moves is the fastest proof the right device is selected), Input Monitoring
+   and Accessibility (a direct link to each pane, and "Quit and reopen" where a restart is
+   required), and the speech engine's status. On macOS 26+ there is nothing to download;
+   the M8 engines add a download with progress and "import from folder" here.
+3. **Two choices, then try it.** The learning card and the read-the-field card, off by
+   default — this is where someone turns them on knowingly — and a text box in the app
+   itself: "Hold right Option and say something." On success the transcript appears in the
+   box and the step completes itself. If the layout maps right Alt to AltGr, the step opens
+   with the alternative binding suggested and one sentence explaining why.
 
 ## Vocabulary pane
 

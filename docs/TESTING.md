@@ -143,12 +143,13 @@ Cannot be automated: real permissions, a real key capture, a real restart.
 Cannot be automated: real prompts, a real microphone, a real key.
 
 1. Move `settings.json` aside and launch: the onboarding window opens on step 1 with the
-   "you may not need this" paragraph. Quit at step 3, relaunch: it opens on step 3.
-2. Step 2: the meter moves while you talk, before any hotkey permission exists.
-3. Step 4: each missing grant has a button that lands on the right pane; after granting,
-   "Quit and reopen" restarts Vox and the step shows both as granted.
-4. Step 6: hold right Option, speak, release: the text lands in the box and the step says
-   so. Done hides the window; Settings → Dictation → "Run setup again" brings it back.
+   "you may not need this" paragraph. Quit at step 2, relaunch: it opens on step 2.
+2. Step 2: the meter moves while you talk, before any hotkey permission exists; each missing
+   grant has a button that lands on the right pane; after granting, "Quit and reopen"
+   restarts Vox and the rows read "Granted".
+3. Step 3: toggle a choice and see it stick in `settings.json`; hold right Option, speak,
+   release: the text lands in the box and the step says so. Done hides the window;
+   Settings → Dictation → "Run setup again" brings it back.
 
 ### Toast (M3)
 

@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal surface for the settings and history windows. The dictation path lives entirely in Rust and needs no capability here.",
-  "windows": ["settings", "history"],
+  "description": "Minimal surface for every Vox window (history, settings, onboarding, toast). The dictation path lives entirely in Rust and needs no capability here.",
+  "windows": ["*"],
   "permissions": [
     "core:default",
     "core:window:allow-close",
