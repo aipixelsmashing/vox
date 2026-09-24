@@ -220,6 +220,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
         };
 
         if event == Event::HotkeyDown && deps.paused.load(Ordering::Relaxed) {
+            tracing::info!("hotkey ignored: dictation is paused");
             continue;
         }
 
