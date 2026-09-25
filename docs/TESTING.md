@@ -19,7 +19,7 @@ a recording that hits the cap, and non-English input.
 with the real command handlers and drives `settings_set` and `settings_get` through the
 IPC layer, argument deserialisation included, with the argument shaped exactly as
 `src/lib/contract.ts` declares it. It asserts the write comes back merged, reads back, is
-on disk in `settings.json`, and survives a reload; and that a mis-shaped call (the patch
+on disk in `settings.json`, and survives a reload; and that a misshapen call (the patch
 wrapped in a key, a wrong value type) is an error the caller sees, never a silent no-op.
 That is the class of bug that once rejected every settings call for days without a log
 line. The test sets `VOX_HOME` to a temporary directory so it never touches the real file.

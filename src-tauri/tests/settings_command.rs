@@ -5,7 +5,7 @@
 //! command ran: the contract passes the patch as the whole argument, the Rust signature
 //! expected it under a key, and nothing logged the mismatch. This test invokes the real
 //! handlers on the mock runtime with the argument shaped exactly as `src/lib/contract.ts`
-//! declares it, so that gap cannot reopen silently, and asserts a mis-shaped call is an
+//! declares it, so that gap cannot reopen silently, and asserts a misshapen call is an
 //! error the caller sees rather than a no-op.
 //!
 //! One test function: `VOX_HOME` is process-wide, and the phases share one settings file.
