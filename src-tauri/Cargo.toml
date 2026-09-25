@@ -91,6 +91,9 @@ enigo = "0.3"
 ashpd = "0.9"                     # XDG portals: RemoteDesktop / libei path on Wayland
 
 [dev-dependencies]
+# The mock runtime, so tests/settings_command.rs can drive commands through the real IPC
+# argument layer without a webview (docs/TESTING.md, "Command surface").
+tauri = { version = "2", features = ["test"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 insta = { version = "1", features = ["json"] }
 proptest = "1"

@@ -356,6 +356,16 @@ pub fn settings_set(
     patch: SettingsPatch,
 ) -> CmdResult<settings::Settings> {
     let patch = patch.0;
+    // A patch is `Partial<Settings>`: every top-level key is one the schema knows. Anything
+    // else is the UI and the core disagreeing about the call's shape, which is exactly the
+    // bug that once made every call fail silently; it errors loudly now instead of being
+    // absorbed into the file as an unknown key.
+    if let Some(unknown) = unknown_top_level_key(&patch) {
+        tracing::warn!("settings_set rejected: unknown key {unknown:?}");
+        return Err(VoxError::unsupported(&format!(
+            "settings_set: {unknown:?} is not a settings section"
+        )));
+    }
     let mut current = serde_json::to_value(&*state.settings.read()).map_err(VoxError::io)?;
     let touched = patch_keys(&patch);
     deep_merge(&mut current, patch);
@@ -791,6 +801,18 @@ pub fn toast_fit(app: AppHandle, height: f64) -> CmdResult<()> {
     Ok(())
 }
 
+/// The first top-level key of `patch` that `Settings` has no field for, if any. The known
+/// keys are read off the schema itself rather than listed here, so a new section needs no
+/// change in this file. A non-object patch counts as unknown.
+fn unknown_top_level_key(patch: &serde_json::Value) -> Option<String> {
+    let Some(map) = patch.as_object() else {
+        return Some("<not an object>".into());
+    };
+    let known = serde_json::to_value(settings::Settings::default()).ok()?;
+    let known = known.as_object()?;
+    map.keys().find(|k| !known.contains_key(*k)).cloned()
+}
+
 /// "history.enabled, privacy.readFocusedField" — the paths a patch touched, for the log.
 /// Keys only, never values.
 fn patch_keys(patch: &serde_json::Value) -> String {
@@ -895,6 +917,22 @@ mod tests {
         assert_eq!(
             serde_json::to_value(PipelineStateDto::Idle).unwrap(),
             json!({ "state": "idle" })
+        );
+    }
+
+    #[test]
+    fn unknown_sections_are_named_known_ones_pass() {
+        assert_eq!(
+            unknown_top_level_key(&json!({ "history": { "enabled": false } })),
+            None
+        );
+        assert_eq!(
+            unknown_top_level_key(&json!({ "patch": { "history": { "enabled": false } } })),
+            Some("patch".into())
+        );
+        assert_eq!(
+            unknown_top_level_key(&json!(7)),
+            Some("<not an object>".into())
         );
     }
 
