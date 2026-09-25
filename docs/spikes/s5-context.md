@@ -70,4 +70,23 @@ to be confirmed when the module is switched.
   result when nothing after it was finalised, and the transcript was complete and identical
   to the file run above (2/5 terms recovered). That rule is load-bearing and the log says
   "volatile tail used" whenever it fires.
+- **Is the volatile tail worse than a finalised result?** Measured 2026-09-25
+  (`cargo test -- --ignored tail_experiment`, same machine, three runs each, WER against
+  the fixture's sentence):
+
+  | Condition | WER | Release-to-text | Last phrase |
+  | --- | --- | --- | --- |
+  | Speech module, streamed | 40.0% ×3 | 402–485 ms | "still build in the Tory app." |
+  | Speech module, one pass | 40.0% ×3 | 257–381 ms | identical, word for word |
+  | Dictation + 5 hints, streamed | **40.0% ×3** | 259–450 ms | "still built the Tauri app" / "Still building the Tauri app." |
+  | Dictation + 5 hints, one pass | **35.0% ×3** | 875–904 ms | "still built in the Tauri app" |
+
+  The streamed dictation tail loses one function word ("in") every time; the one-pass run
+  keeps it. Two cheap remedies did not fix it: 500 ms of silence pushed before finishing
+  recovered the word in one run of three, and skipping the mid-stream `finalize(through:)`
+  for the dictation module changed nothing. A one-pass run of the dictation module costs
+  333 ms for 2 s of audio, 466 ms for 4 s, 853 ms for 7 s (best of three): ~250 ms fixed
+  plus ~80 ms per second of audio, so a finalising re-pass at release cannot stay within
+  80 ms of the streamed result beyond about two seconds of speech. Whether to pay it is
+  open; the real-voice recordings will say how often the tail error happens on a human.
 - Custom LM with `CustomPronunciation` and the `weight` parameter, if ever needed.

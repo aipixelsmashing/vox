@@ -131,7 +131,16 @@ What shipped in M3, where it departs from or sharpens the design above:
 - **Finalisation.** `DictationTranscriber` may leave the tail of a session as a volatile
   result; the bridge appends the last volatile result when it covers audio after the last
   final one, and the log line says "volatile tail used" when that happened.
-- **The batch path** (used only when streaming fails to start) has no hints.
+- **The batch path** (used only when streaming fails to start) takes the same hints and
+  chooses its module the same way.
+- **The volatile tail costs about one word** on the S5 fixture: streamed, the dictation
+  module drops the last function word in three runs of three (WER 40% against 35% for a
+  one-pass run of the whole clip, which does not drop it). A one-pass at release costs
+  ~250 ms plus ~80 ms per second of audio, measured, so it cannot fit an 80 ms budget
+  beyond two seconds of speech; pushing 500 ms of silence before finishing or skipping
+  the mid-stream finalize made no reliable difference. `cargo test -- --ignored
+  tail_experiment` reproduces all of it. Whether to trade the latency for the tail is an
+  open decision ([spikes/s5-context.md](spikes/s5-context.md)).
 - **Diagnostics and history carry the count.** Each history row stores how many hints its
   dictation was given (`context_terms`, [HISTORY.md](HISTORY.md#storage)) and shows it as
   "· 6 hints"; Diagnostics shows "Sent for N of M dictations". The terms are in neither.

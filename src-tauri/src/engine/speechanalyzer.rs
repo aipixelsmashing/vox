@@ -19,6 +19,7 @@ extern "C" {
         len: usize,
         sample_rate: f64,
         locale: *const c_char,
+        context: *const c_char,
     ) -> *mut c_char;
     fn vox_sa_free(p: *mut c_char);
     fn vox_sa_stream_start(
@@ -76,10 +77,30 @@ struct PrepareReport {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct TranscribeReport {
     text: String,
     ms: f64,
+    #[serde(default)]
+    finals: usize,
+    #[serde(default)]
+    volatiles: usize,
+    #[serde(default)]
+    used_volatile_tail: bool,
+    module: Option<String>,
+    #[serde(default)]
+    hints_dropped: bool,
     error: Option<String>,
+}
+
+/// One term per line for the bridge. Never logged here or there (tests/guards.rs).
+fn context_cstring(context: &[String]) -> CString {
+    let joined: String = context
+        .iter()
+        .map(|t| t.replace(['\n', '\0'], " "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    CString::new(joined).unwrap_or_default()
 }
 
 /// Calls a bridge function that returns a strdup'd JSON string and frees it.
@@ -163,7 +184,12 @@ impl SpeechEngine for SpeechAnalyzerEngine {
         self.loaded
     }
 
-    fn transcribe(&mut self, pcm: &[f32], hint: &LanguageHint) -> Result<Transcript, Error> {
+    fn transcribe(
+        &mut self,
+        pcm: &[f32],
+        hint: &LanguageHint,
+        context: &[String],
+    ) -> Result<Transcript, Error> {
         if !self.loaded {
             return Err(Error::NotLoaded);
         }
@@ -172,19 +198,38 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             LanguageHint::Auto => self.locale.clone(),
         };
         let c_locale = CString::new(locale.clone()).unwrap_or_default();
+        let c_context = context_cstring(context);
         // SAFETY: pcm is valid for len samples for the duration of the call; the bridge
-        // copies it before returning.
+        // copies it before returning. The strings are valid for the call.
         let rep: TranscribeReport = call_json(|| unsafe {
             vox_sa_transcribe(
                 pcm.as_ptr(),
                 pcm.len(),
                 f64::from(crate::audio::TARGET_SAMPLE_RATE),
                 c_locale.as_ptr(),
+                c_context.as_ptr(),
             )
         })?;
         if let Some(e) = rep.error {
             return Err(Error::Inference(e));
         }
+        tracing::info!(
+            "transcribe: {:.0} ms on the {} module, {} final / {} volatile results{}{}",
+            rep.ms,
+            rep.module.as_deref().unwrap_or("?"),
+            rep.finals,
+            rep.volatiles,
+            if rep.used_volatile_tail {
+                ", volatile tail used"
+            } else {
+                ""
+            },
+            if rep.hints_dropped {
+                ", hints dropped"
+            } else {
+                ""
+            }
+        );
         Ok(Transcript {
             text: rep.text,
             language: Some(locale),
@@ -206,13 +251,7 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             LanguageHint::Auto => self.locale.clone(),
         };
         let c_locale = CString::new(locale).unwrap_or_default();
-        // One term per line. Never logged here or in the bridge (tests/guards.rs).
-        let joined: String = context
-            .iter()
-            .map(|t| t.replace(['\n', '\0'], " "))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let c_context = CString::new(joined).unwrap_or_default();
+        let c_context = context_cstring(context);
         // SAFETY: valid C strings for the call; the bridge copies them.
         let rep: StreamStartReport = call_json(|| unsafe {
             vox_sa_stream_start(
@@ -384,4 +423,137 @@ mod tests {
     }
 
     use std::time::Duration;
+
+    /// Word error rate of `hyp` against `reference`, on lower-cased words with punctuation
+    /// stripped: substitutions + insertions + deletions over the reference length.
+    fn wer(reference: &str, hyp: &str) -> f64 {
+        let norm = |s: &str| -> Vec<String> {
+            s.split_whitespace()
+                .map(|w| {
+                    w.chars()
+                        .filter(|c| c.is_alphanumeric())
+                        .collect::<String>()
+                        .to_lowercase()
+                })
+                .filter(|w| !w.is_empty())
+                .collect()
+        };
+        let (r, h) = (norm(reference), norm(hyp));
+        let mut d = vec![vec![0usize; h.len() + 1]; r.len() + 1];
+        for (i, row) in d.iter_mut().enumerate() {
+            row[0] = i;
+        }
+        for (j, cell) in d[0].iter_mut().enumerate() {
+            *cell = j;
+        }
+        for i in 1..=r.len() {
+            for j in 1..=h.len() {
+                let sub = d[i - 1][j - 1] + usize::from(r[i - 1] != h[j - 1]);
+                d[i][j] = sub.min(d[i - 1][j] + 1).min(d[i][j - 1] + 1);
+            }
+        }
+        d[r.len()][h.len()] as f64 / r.len().max(1) as f64
+    }
+
+    /// Streamed against one-pass, on both modules, with and without hints, three runs each,
+    /// scored against what the fixture says. Answers whether the dictation module's volatile
+    /// tail (docs/spikes/s5-context.md) costs accuracy compared with a whole-clip pass, and
+    /// what a whole-clip pass at release would cost in time.
+    /// `cargo test -- --ignored tail_experiment --nocapture`
+    #[test]
+    #[ignore = "needs macOS 26, Apple's speech assets and fixtures/audio/context-6s.wav"]
+    fn tail_experiment_streamed_against_one_pass() {
+        const REFERENCE: &str = "Please ask Orsolya Csernák about the Kubestrix migration, and check that keytap and axuielement still build in the Tauri app.";
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../fixtures/audio/context-6s.wav"
+        );
+        let mut reader = hound::WavReader::open(path).expect("fixture");
+        let pcm: Vec<f32> = reader
+            .samples::<i16>()
+            .map(|s| s.unwrap() as f32 / 32768.0)
+            .collect();
+        let mut e = SpeechAnalyzerEngine::new();
+        e.load(&EngineOptions {
+            model_dir: std::env::temp_dir(),
+            device: super::super::Device::Auto,
+            language: "en-US".into(),
+        })
+        .expect("engine loads");
+        e.prepare_context();
+        let t0 = std::time::Instant::now();
+        while !unsafe { vox_sa_dictation_ready() } {
+            assert!(t0.elapsed() < Duration::from_secs(120));
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let hints: Vec<String> = [
+            "Orsolya Csernák",
+            "Kubestrix",
+            "keytap",
+            "axuielement",
+            "Tauri",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let none: Vec<String> = Vec::new();
+
+        let streamed = |e: &mut SpeechAnalyzerEngine, hints: &[String]| -> (Transcript, u128) {
+            e.stream_start(&LanguageHint::Auto, hints)
+                .expect("stream starts");
+            for chunk in pcm.chunks(320) {
+                e.stream_push(chunk).expect("push");
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            let t = std::time::Instant::now();
+            let tr = e.stream_finish().expect("finish");
+            (tr, t.elapsed().as_millis())
+        };
+        let one_pass = |e: &mut SpeechAnalyzerEngine, hints: &[String]| -> (Transcript, u128) {
+            let t = std::time::Instant::now();
+            let tr = e
+                .transcribe(&pcm, &LanguageHint::Auto, hints)
+                .expect("transcribe");
+            (tr, t.elapsed().as_millis())
+        };
+
+        eprintln!();
+        eprintln!("{:<26} {:>6} {:>8}  text", "condition", "WER", "release");
+        for (label, ctx) in [("speech, no hints", &none), ("dictation + 5 hints", &hints)] {
+            for run in 1..=3 {
+                let (s, s_ms) = streamed(&mut e, ctx);
+                let (b, b_ms) = one_pass(&mut e, ctx);
+                eprintln!(
+                    "{:<26} {:>5.1}% {:>5} ms  {:?}",
+                    format!("{label} streamed #{run}"),
+                    wer(REFERENCE, &s.text) * 100.0,
+                    s_ms,
+                    s.text
+                );
+                eprintln!(
+                    "{:<26} {:>5.1}% {:>5} ms  {:?}",
+                    format!("{label} one-pass #{run}"),
+                    wer(REFERENCE, &b.text) * 100.0,
+                    b_ms,
+                    b.text
+                );
+            }
+        }
+        // What a one-pass at release would cost as the clip gets shorter: the first N
+        // seconds of the fixture (cut mid-word; timing only).
+        eprintln!();
+        for secs in [2usize, 4, 7] {
+            let slice = &pcm[..(16_000 * secs).min(pcm.len())];
+            let mut best = u128::MAX;
+            for _ in 0..3 {
+                let t = std::time::Instant::now();
+                let _ = e
+                    .transcribe(slice, &LanguageHint::Auto, &hints)
+                    .expect("transcribe");
+                best = best.min(t.elapsed().as_millis());
+            }
+            eprintln!("dictation one-pass, first {secs} s of audio: best of 3 = {best} ms");
+        }
+        eprintln!();
+    }
 }
