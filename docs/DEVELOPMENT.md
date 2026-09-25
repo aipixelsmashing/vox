@@ -36,6 +36,13 @@ The engine bridge needs `swiftc` (Xcode Command Line Tools are enough; Xcode.app
 required). The pinned Rust toolchain in `rust-toolchain.toml` is installed by rustup on the
 first build.
 
+## A second profile
+
+`VOX_HOME=/some/dir` moves the config, data and log directories under that directory
+(`config/`, `data/`, `logs/`) instead of the user's. The integration tests use it so they
+never write the real `settings.json`; it also runs a scratch profile beside the installed
+one without touching its history.
+
 ## Platform notes that will otherwise waste your afternoon
 
 **macOS.** Accessibility and Input Monitoring grants are keyed to the code signature, and a

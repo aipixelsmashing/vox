@@ -114,6 +114,14 @@ pub struct Handle {
 }
 
 impl Handle {
+    /// A handle with no thread behind it, for tests that need an `AppState` but never
+    /// dictate. Every `send` is dropped with the usual warning.
+    #[doc(hidden)]
+    pub fn disconnected() -> Self {
+        let (tx, _rx) = crossbeam_channel::bounded(1);
+        Self { tx }
+    }
+
     pub fn send(&self, event: Event) {
         // Never block the hotkey thread. A full channel means we are wedged; drop and warn.
         if self.tx.try_send(event).is_err() {

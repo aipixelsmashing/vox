@@ -425,6 +425,15 @@ pub const APP_QUALIFIER: &str = "com";
 pub const APP_ORG: &str = "pixelsmashing";
 pub const APP_NAME_STABLE: &str = "dictation";
 
+/// `VOX_HOME=/some/dir` puts the config, data and log directories under it instead of the
+/// user's. For tests that must never touch the real settings file, and for running a
+/// second profile side by side (docs/DEVELOPMENT.md).
+fn home_override() -> Option<PathBuf> {
+    std::env::var_os("VOX_HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+}
+
 fn project_dirs() -> anyhow::Result<directories::ProjectDirs> {
     directories::ProjectDirs::from(APP_QUALIFIER, APP_ORG, APP_NAME_STABLE)
         .ok_or_else(|| anyhow::anyhow!("no home directory"))
@@ -437,15 +446,24 @@ fn ensure_dir(dir: PathBuf) -> anyhow::Result<PathBuf> {
 }
 
 pub fn config_dir() -> anyhow::Result<PathBuf> {
+    if let Some(home) = home_override() {
+        return ensure_dir(home.join("config"));
+    }
     ensure_dir(project_dirs()?.config_dir().to_path_buf())
 }
 
 pub fn data_dir() -> anyhow::Result<PathBuf> {
+    if let Some(home) = home_override() {
+        return ensure_dir(home.join("data"));
+    }
     ensure_dir(project_dirs()?.data_dir().to_path_buf())
 }
 
 /// ~/Library/Logs/<bundle id>/ on macOS. Transcripts are never written here.
 pub fn log_dir() -> anyhow::Result<PathBuf> {
+    if let Some(home) = home_override() {
+        return ensure_dir(home.join("logs"));
+    }
     let base = directories::BaseDirs::new().ok_or_else(|| anyhow::anyhow!("no home directory"))?;
     let dir = if cfg!(target_os = "macos") {
         base.home_dir()

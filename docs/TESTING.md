@@ -15,6 +15,15 @@ injector: WAV fixture in, expected transcript out, expected history row written,
 outcome recorded. Fixtures cover: clean speech, background noise, silence only, a 0.2 s tap,
 a recording that hits the cap, and non-English input.
 
+**Command surface** — `tests/settings_command.rs` builds the app on Tauri's mock runtime
+with the real command handlers and drives `settings_set` and `settings_get` through the
+IPC layer, argument deserialisation included, with the argument shaped exactly as
+`src/lib/contract.ts` declares it. It asserts the write comes back merged, reads back, is
+on disk in `settings.json`, and survives a reload; and that a mis-shaped call (the patch
+wrapped in a key, a wrong value type) is an error the caller sees, never a silent no-op.
+That is the class of bug that once rejected every settings call for days without a log
+line. The test sets `VOX_HOME` to a temporary directory so it never touches the real file.
+
 **Property tests** — arbitrary transcripts survive the post-processing pipeline without
 mangling; arbitrary settings JSON either parses or fails cleanly, never panics.
 
