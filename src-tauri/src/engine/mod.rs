@@ -67,8 +67,14 @@ pub trait SpeechEngine: Send {
     fn unload(&mut self);
     fn is_loaded(&self) -> bool;
 
-    /// `pcm` is 16 kHz mono f32 in -1.0..=1.0, already trimmed.
-    fn transcribe(&mut self, pcm: &[f32], hint: &LanguageHint) -> Result<Transcript, Error>;
+    /// `pcm` is 16 kHz mono f32 in -1.0..=1.0, already trimmed. `context` as for
+    /// `stream_start`: the hints for this one pass, never kept.
+    fn transcribe(
+        &mut self,
+        pcm: &[f32],
+        hint: &LanguageHint,
+        context: &[String],
+    ) -> Result<Transcript, Error>;
 
     /// Learned vocabulary passed as a recognition hint, where the backend supports it.
     fn set_vocabulary(&mut self, _terms: &[String]) -> bool {
@@ -99,6 +105,7 @@ enum Job {
     Transcribe {
         pcm: Vec<f32>,
         hint: LanguageHint,
+        context: Vec<String>,
         reply: crossbeam_channel::Sender<Result<Transcript, Error>>,
     },
     Status {
@@ -127,10 +134,20 @@ pub struct Handle {
 }
 
 impl Handle {
-    pub fn transcribe(&self, pcm: Vec<f32>, hint: LanguageHint) -> Result<Transcript, Error> {
+    pub fn transcribe(
+        &self,
+        pcm: Vec<f32>,
+        hint: LanguageHint,
+        context: Vec<String>,
+    ) -> Result<Transcript, Error> {
         let (reply, rx) = crossbeam_channel::bounded(1);
         self.tx
-            .send(Job::Transcribe { pcm, hint, reply })
+            .send(Job::Transcribe {
+                pcm,
+                hint,
+                context,
+                reply,
+            })
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?;
         rx.recv()
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?
@@ -251,9 +268,14 @@ pub fn spawn(settings: Arc<RwLock<crate::settings::Settings>>) -> anyhow::Result
                             Err(e) => Err(e.clone()),
                         });
                     }
-                    Job::Transcribe { pcm, hint, reply } => {
+                    Job::Transcribe {
+                        pcm,
+                        hint,
+                        context,
+                        reply,
+                    } => {
                         let result = match &mut state {
-                            Ok(e) => e.transcribe(&pcm, &hint),
+                            Ok(e) => e.transcribe(&pcm, &hint, &context),
                             Err(e) => Err(e.clone()),
                         };
                         let _ = reply.send(result);

@@ -202,9 +202,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     let mut last_state_emit = Instant::now();
     // Input level since the last `vox://level`, for the overlay's ring (~20 Hz).
     let mut level = LevelMeter::default();
-    // How many recognition hints this dictation's engine session was given, for the
-    // history row and Diagnostics (docs/CONTEXT.md). A count, never the hints.
-    let mut hints: u32 = 0;
+    // This dictation's recognition hints (docs/CONTEXT.md), held so the batch fallback can
+    // use them if streaming did not start, and counted into the history row. Dropped with
+    // the dictation; never logged.
+    let mut terms: Vec<String> = Vec::new();
 
     loop {
         // While recording, poll so audio is drained and the cap is enforced.
@@ -305,9 +306,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     (language_hint(&s), s.privacy.read_focused_field)
                 };
                 let vocabulary = context::vocabulary_terms(&deps.settings.read(), &deps.history);
-                hints = 0;
+                terms = Vec::new();
                 if !read_field {
-                    hints = vocabulary.len() as u32;
+                    terms = vocabulary.clone();
                     streaming = start_stream(&deps, hint.clone(), vocabulary.clone());
                 }
                 target = match deps.injector.capture_target() {
@@ -324,8 +325,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         None => (Vec::new(), "no target"),
                     };
                     let from_field = field.len();
-                    let terms = context::merge(vocabulary, field);
-                    hints = terms.len() as u32;
+                    terms = context::merge(vocabulary, field);
                     tracing::info!(
                         "context: {} hints sent, {} candidates from the field ({}), read in {} ms",
                         terms.len(),
@@ -333,7 +333,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         note,
                         t0.elapsed().as_millis()
                     );
-                    streaming = start_stream(&deps, hint, terms);
+                    streaming = start_stream(&deps, hint, terms.clone());
                 }
                 // The overlay goes up once the target is known so it can sit by the caret;
                 // the tray icon and the cue have already answered "is it on?" by now.
@@ -401,7 +401,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     tgt,
                     held_ms,
                     streaming,
-                    hints,
+                    std::mem::take(&mut terms),
                     &rx,
                 );
                 let _ = cancelled;
@@ -428,9 +428,10 @@ fn finish(
     target: Option<InjectionTarget>,
     held_ms: u32,
     streaming: bool,
-    hints: u32,
+    terms: Vec<String>,
     rx: &crossbeam_channel::Receiver<Event>,
 ) -> bool {
+    let hints = terms.len() as u32;
     let released_at = Instant::now();
     let (vad, hint, output, history_cfg) = {
         let s = deps.settings.read();
@@ -468,7 +469,7 @@ fn finish(
         }
         deps.engine.stream_finish()
     } else {
-        deps.engine.transcribe(pcm, hint)
+        deps.engine.transcribe(pcm, hint, terms)
     };
     let transcript = match result {
         Ok(t) => t,
