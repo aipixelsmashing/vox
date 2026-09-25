@@ -188,6 +188,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     return fx.vocabTerms
   },
   async vocab_forget() { await wait(); },
+  async vocab_forget_all() { await wait(); return { deleted: fx.vocabTerms.length } },
   async vocab_export() { await wait(300); return { path: '~/Documents/vox-vocabulary.txt' } },
 
   async settings_get() {

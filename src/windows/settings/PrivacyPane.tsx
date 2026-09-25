@@ -13,17 +13,31 @@ import { Button, Note, NumberField, Row, Section, Select, Toggle } from '../../u
 export function PrivacyPane({ settings, patch }: { settings: Settings; patch: (p: DeepPartial<Settings>) => Promise<void> }) {
   const [confirmingWipe, setConfirmingWipe] = useState(false)
   const [wipeNote, setWipeNote] = useState<string | null>(null)
+  const [confirmingCorrections, setConfirmingCorrections] = useState(false)
+  const [correctionsNote, setCorrectionsNote] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportNote, setExportNote] = useState<{ text: string; fail: boolean } | null>(null)
 
   useEffect(() => {
-    if (!exportNote && !wipeNote) return
+    if (!exportNote && !wipeNote && !correctionsNote) return
     const t = setTimeout(() => {
       setExportNote(null)
       setWipeNote(null)
+      setCorrectionsNote(null)
     }, 6000)
     return () => clearTimeout(t)
-  }, [exportNote, wipeNote])
+  }, [exportNote, wipeNote, correctionsNote])
+
+  const deleteCorrections = async () => {
+    try {
+      const { deleted } = await commands.vocab_forget_all()
+      setCorrectionsNote(copy.settings.privacy.deletedCorrections(deleted))
+    } catch (e) {
+      setCorrectionsNote(toDisplayError(e).userMessage)
+    } finally {
+      setConfirmingCorrections(false)
+    }
+  }
 
   const wipe = async () => {
     try {
@@ -77,6 +91,20 @@ export function PrivacyPane({ settings, patch }: { settings: Settings; patch: (p
             </>
           ) : (
             <Button danger onClick={() => setConfirmingWipe(true)}>{copy.settings.privacy.wipeButton}</Button>
+          )}
+        </Row>
+      </Section>
+
+      <Section title={copy.settings.privacy.correctionsTitle} note={copy.settings.privacy.correctionsNote}>
+        <Row label={copy.settings.privacy.deleteCorrections} hint={confirmingCorrections ? copy.settings.privacy.wipeConfirm : undefined}>
+          {correctionsNote && <Note>{correctionsNote}</Note>}
+          {confirmingCorrections ? (
+            <>
+              <Button danger onClick={() => void deleteCorrections()}>{copy.history.wipeYes}</Button>
+              <Button onClick={() => setConfirmingCorrections(false)}>{copy.history.wipeNo}</Button>
+            </>
+          ) : (
+            <Button danger onClick={() => setConfirmingCorrections(true)}>{copy.settings.privacy.deleteCorrectionsButton}</Button>
           )}
         </Row>
       </Section>

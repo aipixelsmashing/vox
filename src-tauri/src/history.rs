@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use parking_lot::Mutex;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -66,7 +66,9 @@ CREATE TABLE IF NOT EXISTS vocab_candidates (
   last_seen   INTEGER NOT NULL,
   source_apps TEXT,
   reversals   INTEGER NOT NULL DEFAULT 0,
-  state       TEXT NOT NULL
+  state       TEXT NOT NULL,
+  sessions    INTEGER NOT NULL DEFAULT 1,
+  last_session INTEGER
 );
 "#;
 
@@ -284,6 +286,88 @@ impl Store {
         Ok(conn.execute("DELETE FROM vocab_candidates WHERE id = ?1", params![id])? > 0)
     }
 
+    /// Every correction ever stored, candidates included, then VACUUM so the forms are not
+    /// recoverable from free pages. The Privacy pane's delete button.
+    pub fn vocab_forget_all(&self) -> anyhow::Result<usize> {
+        let conn = self.conn.lock();
+        let n = conn.execute("DELETE FROM vocab_candidates", [])?;
+        conn.execute_batch("VACUUM;")?;
+        Ok(n)
+    }
+
+    /// One observed correction (docs/LEARNING.md, "How capture works"). Upserts the
+    /// candidate matched on the wrong form case-insensitively and the right form exactly,
+    /// counts it, counts the session if it is a new one, adds the app name, and promotes a
+    /// candidate to applied once it has `min_occurrences` corrections over at least
+    /// [`crate::learning::MIN_SESSIONS`] sessions. Returns (count, sessions, promoted).
+    /// Only ever stores the two forms: the caller has already reduced the edit to them.
+    pub fn vocab_observe(
+        &self,
+        wrong: &str,
+        right: &str,
+        app: &str,
+        session: i64,
+        now: i64,
+        min_occurrences: u32,
+    ) -> anyhow::Result<(u32, u32, bool)> {
+        let conn = self.conn.lock();
+        let existing = conn
+            .query_row(
+                "SELECT id, count, sessions, last_session, source_apps, state
+                 FROM vocab_candidates
+                 WHERE lower(wrong_form) = lower(?1) AND right_form = ?2",
+                params![wrong, right],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, u32>(1)?,
+                        r.get::<_, u32>(2)?,
+                        r.get::<_, Option<i64>>(3)?,
+                        r.get::<_, Option<String>>(4)?,
+                        r.get::<_, String>(5)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((id, count, sessions, last_session, apps, state)) = existing else {
+            conn.execute(
+                "INSERT INTO vocab_candidates
+                   (wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state, sessions, last_session)
+                 VALUES (?1, ?2, 1, ?3, ?3, ?4, 0, 'candidate', 1, ?5)",
+                params![wrong, right, now, app, session],
+            )?;
+            return Ok((1, 1, false));
+        };
+        let count = count + 1;
+        let sessions = if last_session == Some(session) {
+            sessions
+        } else {
+            sessions + 1
+        };
+        let mut apps: Vec<String> = apps
+            .map(|a| {
+                a.split(',')
+                    .filter(|x| !x.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !app.is_empty() && !apps.iter().any(|a| a == app) {
+            apps.push(app.to_string());
+        }
+        let promoted = state == "candidate"
+            && count >= min_occurrences
+            && sessions >= crate::learning::MIN_SESSIONS;
+        let state = if promoted { "applied" } else { state.as_str() };
+        conn.execute(
+            "UPDATE vocab_candidates
+             SET count = ?2, last_seen = ?3, source_apps = ?4, state = ?5, sessions = ?6, last_session = ?7
+             WHERE id = ?1",
+            params![id, count, now, apps.join(","), state, sessions, session],
+        )?;
+        Ok((count, sessions, promoted))
+    }
+
     /// `vocabulary.txt`: one `wrong → right` per line, applied terms first.
     pub fn vocab_export_to(&self, dir: &Path) -> anyhow::Result<(PathBuf, usize)> {
         let mut terms = self.vocab_list()?;
@@ -364,6 +448,21 @@ fn migrate(conn: &Connection) -> anyhow::Result<()> {
         conn.execute_batch(
             "ALTER TABLE transcripts ADD COLUMN context_terms INTEGER NOT NULL DEFAULT 0;",
         )?;
+    }
+    // M4: the session columns behind "three occurrences across two sessions". Rows from
+    // before count as one session, which cannot promote anything on its own.
+    let vocab_columns: Vec<String> = conn
+        .prepare("PRAGMA table_info(vocab_candidates)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .collect();
+    if !vocab_columns.iter().any(|c| c == "sessions") {
+        conn.execute_batch(
+            "ALTER TABLE vocab_candidates ADD COLUMN sessions INTEGER NOT NULL DEFAULT 1;",
+        )?;
+    }
+    if !vocab_columns.iter().any(|c| c == "last_session") {
+        conn.execute_batch("ALTER TABLE vocab_candidates ADD COLUMN last_session INTEGER;")?;
     }
     Ok(())
 }
@@ -669,6 +768,82 @@ mod tests {
             .contains("cuber netties → Kubernetes"));
         assert!(store.vocab_forget(terms[0].id).unwrap());
         assert!(store.vocab_list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_vocab_table_from_before_sessions_gets_the_columns_and_counts_as_one() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE vocab_candidates (
+               id INTEGER PRIMARY KEY, wrong_form TEXT NOT NULL, right_form TEXT NOT NULL,
+               count INTEGER NOT NULL DEFAULT 1, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL,
+               source_apps TEXT, reversals INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL);
+             INSERT INTO vocab_candidates VALUES (1, 'prea', 'Priya', 2, 1, 2, 'Slack', 0, 'candidate');",
+        )
+        .unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+        let store = Store {
+            conn: Mutex::new(conn),
+        };
+        // Two old corrections count as one session: a third in a new session promotes.
+        assert_eq!(
+            store
+                .vocab_observe("Prea", "Priya", "Code", 7, 3, 3)
+                .unwrap(),
+            (3, 2, true)
+        );
+        let t = &store.vocab_list().unwrap()[0];
+        assert_eq!(t.state, "applied");
+        assert_eq!(t.source_apps, vec!["Slack", "Code"]);
+        assert_eq!(t.wrong_form, "prea", "the first-seen spelling is kept");
+    }
+
+    #[test]
+    fn observe_counts_sessions_distinctly_and_never_repromotes() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(
+            store.vocab_observe("a", "B", "Notes", 1, 10, 3).unwrap(),
+            (1, 1, false)
+        );
+        assert_eq!(
+            store.vocab_observe("a", "B", "Notes", 1, 11, 3).unwrap(),
+            (2, 1, false)
+        );
+        assert_eq!(
+            store.vocab_observe("a", "B", "", 2, 12, 3).unwrap(),
+            (3, 2, true)
+        );
+        assert_eq!(
+            store.vocab_observe("a", "B", "Notes", 3, 13, 3).unwrap(),
+            (4, 3, false),
+            "already applied"
+        );
+        assert_eq!(
+            store.vocab_observe("a", "C", "Notes", 3, 13, 3).unwrap(),
+            (1, 1, false),
+            "a different right form is its own row"
+        );
+        let terms = store.vocab_list().unwrap();
+        assert_eq!(terms.len(), 2);
+        let applied = terms.iter().find(|t| t.right_form == "B").unwrap();
+        assert_eq!((applied.first_seen, applied.last_seen), (10, 13));
+        assert_eq!(
+            applied.source_apps,
+            vec!["Notes"],
+            "an empty app name is not provenance"
+        );
+    }
+
+    #[test]
+    fn forget_all_empties_the_table() {
+        let store = Store::open_in_memory().unwrap();
+        store.vocab_observe("a", "B", "Notes", 1, 10, 3).unwrap();
+        store.vocab_observe("c", "D", "Notes", 1, 10, 3).unwrap();
+        assert_eq!(store.vocab_forget_all().unwrap(), 2);
+        assert!(store.vocab_list().unwrap().is_empty());
+        assert_eq!(store.vocab_forget_all().unwrap(), 0);
     }
 
     #[test]

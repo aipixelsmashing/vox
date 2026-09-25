@@ -160,6 +160,12 @@ export const copy = {
       wipeButton: 'Delete all…',
       wipeConfirm: "This can't be undone.",
       wiped: (n: number) => `Deleted ${n} ${n === 1 ? 'transcript' : 'transcripts'}.`,
+      correctionsTitle: 'Corrections',
+      correctionsNote:
+        'After Vox places text, it watches that field for 90 seconds and notices when you fix a word. It keeps the wrong form, the right form, a count, the dates and which apps — never the sentence, and never from a password field. Turn it off in Vocabulary.',
+      deleteCorrections: 'Delete every correction it has stored',
+      deleteCorrectionsButton: 'Delete all…',
+      deletedCorrections: (n: number) => `Deleted ${n} ${n === 1 ? 'correction' : 'corrections'}.`,
       networkTitle: 'Network',
       sends: 'Vox makes one request: the update check, which sends nothing but the request itself. There is no analytics endpoint, no crash reporter, no account, and no "anonymous usage statistics" toggle.',
       updateCheck: 'Check for updates',

@@ -91,7 +91,9 @@ CREATE TABLE vocab_candidates (
   last_seen   INTEGER NOT NULL,
   source_apps TEXT,                     -- app names only, for provenance in the UI
   reversals   INTEGER NOT NULL DEFAULT 0,
-  state       TEXT NOT NULL             -- candidate | applied | suspended | rejected
+  state       TEXT NOT NULL,            -- candidate | applied | suspended | rejected
+  sessions    INTEGER NOT NULL DEFAULT 1, -- distinct sessions the fix was seen in
+  last_session INTEGER                  -- start time (ms) of the last of them
 );
 ```
 

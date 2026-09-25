@@ -190,3 +190,191 @@ fn read_focused_field_is_off_by_default_and_in_the_file() {
         serde_json::Value::Bool(false)
     );
 }
+
+// ─── Correction capture (docs/LEARNING.md, docs/TESTING.md "Learning tests") ─────────
+
+/// The learning module never logs the text it reads or the forms it stores; the log gets
+/// counts. Every log line is checked for the variables that would hold them.
+#[test]
+fn learning_logs_no_field_text_or_forms() {
+    let src = include_str!("../src/learning.rs");
+    let mut in_log = false;
+    for line in src.lines() {
+        if line.contains("tracing::") {
+            in_log = true;
+        }
+        if in_log {
+            for needle in [
+                "{wrong",
+                "{right",
+                "{inserted",
+                "{observed",
+                "{value",
+                "{middle",
+                "{baseline",
+                "{prefix",
+                "{suffix",
+                "{text",
+                "{located",
+                "wrong:?",
+                "right:?",
+                "value:?",
+                "middle:?",
+                "located:?",
+                "{w}",
+                "{r}",
+                "{w:?",
+                "{r:?",
+            ] {
+                assert!(!line.contains(needle), "learning.rs logs text: {line}");
+            }
+            if line.trim_end().ends_with(';') {
+                in_log = false;
+            }
+        }
+    }
+}
+
+/// The watch is registered under the `Inserted` arm and nowhere else, after the
+/// secret-context return: a field we refused to insert into is never watched, by
+/// construction rather than by a filter afterwards.
+#[test]
+fn watch_is_registered_only_after_a_verified_insertion() {
+    let src = include_str!("../src/pipeline.rs");
+    let lines: Vec<&str> = src.lines().collect();
+    let calls: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.contains("learning::watch_after_insertion"))
+        .map(|(i, _)| i)
+        .collect();
+    assert_eq!(calls.len(), 1, "exactly one call site");
+    let i = calls[0];
+    let window = lines[i.saturating_sub(3)..i].join("\n");
+    assert!(
+        window.contains("InjectionOutcome::Inserted"),
+        "the watch must sit under the Inserted arm:\n{window}"
+    );
+    let before = lines[..i].join("\n");
+    assert!(
+        before.contains("is_secret_context()"),
+        "secret contexts must return before the watch is reached"
+    );
+}
+
+/// docs/TESTING.md: the pairs that must never produce a candidate, against the real system
+/// word list, while the two terms must. Without the list nothing is recorded at all.
+#[test]
+fn must_never_learn_pairs_against_the_system_word_list() {
+    use vox_lib::learning::{observe, Observed};
+    let store = vox_lib::history::Store::open_in_memory().unwrap();
+    for (w, r) in [
+        ("their", "there"),
+        ("they're", "their"),
+        ("there", "they're"),
+        ("to", "too"),
+        ("two", "to"),
+        ("its", "it's"),
+        ("it's", "its"),
+        ("affect", "effect"),
+        ("than", "then"),
+        ("your", "you're"),
+        ("whose", "who's"),
+        ("principal", "principle"),
+        ("lead", "led"),
+        ("bear", "bare"),
+    ] {
+        assert_eq!(
+            observe(&store, w, r, "Notes", 1, 3).unwrap(),
+            Observed::Guarded,
+            "{w} → {r} must not produce a candidate"
+        );
+    }
+    assert!(store.vocab_list().unwrap().is_empty());
+    let have_list = vox_lib::context::system_words().is_some();
+    for (w, r) in [
+        ("cuber netties", "Kubernetes"),
+        ("acks UI element", "AXUIElement"),
+    ] {
+        let got = observe(&store, w, r, "Notes", 1, 3).unwrap();
+        if have_list {
+            assert!(
+                matches!(got, Observed::Recorded { count: 1, .. }),
+                "{w} → {r} must produce a candidate, got {got:?}"
+            );
+        } else {
+            assert_eq!(got, Observed::Guarded, "no word list: fail closed");
+        }
+    }
+}
+
+/// Correction candidates never contain text beyond the two forms, even when the
+/// correction sits in a long, sensitive-looking sentence.
+#[test]
+fn candidates_hold_the_two_forms_and_nothing_else() {
+    use vox_lib::learning::{extract_correction, observe_with};
+    let inserted = "my card is 4111 1111 1111 1111, the password for prea is hunter2 and the door code is 8842 ";
+    let observed = "my card is 4111 1111 1111 1111, the password for Priya is hunter2 and the door code is 8842 ";
+    let (w, r) = extract_correction(inserted, observed).expect("an aligned one-token fix");
+    assert_eq!((w.as_str(), r.as_str()), ("prea", "Priya"));
+    let store = vox_lib::history::Store::open_in_memory().unwrap();
+    let common = |t: &str| {
+        [
+            "my", "card", "is", "the", "password", "for", "and", "door", "code",
+        ]
+        .contains(&t)
+    };
+    observe_with(&store, &w, &r, "Notes", 1, 3, Some(&common)).unwrap();
+    let json = serde_json::to_string(&store.vocab_list().unwrap()).unwrap();
+    for needle in ["4111", "hunter2", "8842", "card", "password", "door"] {
+        assert!(
+            !json.contains(needle),
+            "the stored row leaks {needle}: {json}"
+        );
+    }
+    // Every column of vocab_candidates is on this list; none can hold a sentence.
+    let src = include_str!("../src/history.rs");
+    let table = src
+        .split("CREATE TABLE IF NOT EXISTS vocab_candidates (")
+        .nth(1)
+        .and_then(|rest| rest.split(");").next())
+        .expect("vocab_candidates table in the schema");
+    const ALLOWED: &[&str] = &[
+        "id",
+        "wrong_form",
+        "right_form",
+        "count",
+        "first_seen",
+        "last_seen",
+        "source_apps",
+        "reversals",
+        "state",
+        "sessions",
+        "last_session",
+    ];
+    for line in table.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let column = line.split_whitespace().next().unwrap();
+        assert!(
+            ALLOWED.contains(&column),
+            "unexpected vocab_candidates column {column}"
+        );
+    }
+}
+
+/// Capture is on from the first launch (docs/LEARNING.md#rollout) and application is not,
+/// and both flags are in the settings file so they can be inspected and diffed.
+#[test]
+fn capture_is_on_and_application_off_by_default() {
+    let s = vox_lib::settings::Settings::default();
+    assert!(s.learning.capture_corrections);
+    assert!(!s.learning.apply_learned_terms);
+    let json = serde_json::to_value(&s).unwrap();
+    assert_eq!(
+        json["learning"]["captureCorrections"],
+        serde_json::Value::Bool(true)
+    );
+    assert_eq!(
+        json["learning"]["applyLearnedTerms"],
+        serde_json::Value::Bool(false)
+    );
+}

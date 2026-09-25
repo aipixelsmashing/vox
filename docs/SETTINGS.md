@@ -138,8 +138,9 @@ One window, four panes, no search, no nesting deeper than one level:
 4. **Vocabulary** — every learned term with its provenance and a delete button, the learning
    toggle, and an export. Specified in [LEARNING.md](LEARNING.md#the-failure-mode-stated-plainly).
 5. **Privacy** — reading the focused field for recognition hints ([CONTEXT.md](CONTEXT.md)),
-   history retention, wipe, offline lock, update checks, **Export everything**, plus one plain
-   paragraph stating exactly what the app sends and when.
+   history retention, wipe, a line stating what correction capture stores with a button that
+   deletes all of it ([LEARNING.md](LEARNING.md)), offline lock, update checks, **Export
+   everything**, plus one plain paragraph stating exactly what the app sends and when.
 6. **Diagnostics** — corrections per 100 words over time, insertion outcomes, per-stage
    timings, memory. The user's own numbers, computed locally, so they can judge whether this
    is earning its place.

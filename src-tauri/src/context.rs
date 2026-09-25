@@ -142,7 +142,9 @@ impl WordList {
 
 static WORDS: OnceLock<Option<WordList>> = OnceLock::new();
 
-fn system_words() -> Option<&'static WordList> {
+/// The system word list, loaded on first use. Also the correction watch's homophone guard
+/// (docs/LEARNING.md), which runs on its own thread and can afford the first load.
+pub fn system_words() -> Option<&'static WordList> {
     WORDS
         .get_or_init(|| WordList::load(Path::new("/usr/share/dict/words")))
         .as_ref()
