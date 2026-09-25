@@ -132,8 +132,8 @@ Cannot be automated: real permissions, a real key capture, a real restart.
    System Settings" lands on the right pane. After granting: "Quit and reopen" restarts Vox.
 3. Dictation → Change…: press a key; the row shows it and dictation uses it at once, without
    a restart. Set it back.
-4. Turn off sound cues, dictate: silent. Turn history off: the panel says so and nothing new
-   is stored. Turn both back on.
+4. Dictation → turn off sound cues, dictate: silent. Privacy → turn history off: the panel
+   says so and nothing new is stored. Turn both back on.
 5. Privacy → Export everything: the folder holds `history.md`, `history.json` and
    `vocabulary.txt`, and the note names the counts.
 6. Diagnostics: the app table matches what you dictated into tonight; memory is a number.
@@ -161,6 +161,24 @@ Cannot be automated: the assertion is about focus and placement on a real screen
 2. It goes away by itself after about four seconds; a click dismisses it sooner.
 3. Two failures in a row: the second message replaces the first and the timer restarts.
 4. Dictate successfully: no toast. Success is the text appearing.
+
+### Recording overlay (M3)
+
+Cannot be automated: placement relative to a real caret, and a real full-screen Space.
+
+1. Hold right Option in Notes with the caret mid-paragraph: a pill appears just below the
+   caret within a beat, the ring moves with your voice, the time counts up. Release: it
+   reads "Transcribing…" and is gone when the text lands. Nothing in Notes lost focus.
+2. Same with the caret on the last line of a window at the bottom of the screen: the pill
+   sits above the caret instead.
+3. Same in a Chromium web textarea, and in an app with no readable caret (Finder in front):
+   the pill appears at the bottom centre of the screen.
+4. Click on the pill while recording: the click goes through to whatever is under it.
+5. Full-screen app (Notes in full screen): the pill still appears.
+6. Escape while recording, and a tap under 120 ms: the pill goes away with nothing placed.
+7. Settings → Dictation → turn the level meter off: no pill; dictation otherwise unchanged.
+   Turn on Reduce Motion in System Settings → Accessibility → Display: the ring is a
+   three-step meter that steps rather than animates.
 
 ### Context biasing (M3)
 

@@ -129,7 +129,8 @@ during a full dictation cycle plus an update-check attempt.
 One window, four panes, no search, no nesting deeper than one level:
 
 1. **Dictation** — hotkey (captured by pressing keys, not typing a string), mode, cancel key,
-   input device, mic level meter, recording cap.
+   input device, mic level meter, recording cap, and the two kinds of feedback while you
+   speak: the sound cues and the recording overlay.
 2. **Model** — installed models with size and languages, download/remove, import from folder,
    execution provider in use, warm/lazy.
 3. **Text** — insertion method, clipboard restore, spacing and capitalisation, manual

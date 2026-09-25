@@ -122,9 +122,28 @@ are no achievements here and no framing of usage as a score.
 
 ## Recording overlay
 
-Optional, on by default: a small pill near the caret (or bottom-centre if the caret can't be
-located) showing a level meter and elapsed seconds. It disappears the moment insertion
-completes. Never steals focus, never accepts clicks, respects reduced-motion.
+Optional, on by default (`ui.levelOverlay`): a small pill near the caret (or bottom-centre
+if the caret can't be located) showing a level meter and elapsed seconds. It disappears the
+moment insertion completes. Never steals focus, never accepts clicks, respects reduced-motion.
+
+What it shows, and when:
+
+- **Recording.** The amber level ring from [UI-KIT.md](UI-KIT.md#motion) and the elapsed
+  time as `0:04`, so the recording cap is never a surprise. The ring is the one animated
+  thing in the product; under reduced motion it is a static three-step meter.
+- **Working.** The ring fills solid and the text reads "Transcribing…" then "Placing the
+  text…", the same strings as the history panel's live row.
+- **Gone** on the transition back to idle, whichever way it ends: text placed, clipboard
+  fallback, cancel, or a brush of the key. The toast, not the overlay, carries a reason.
+
+Placement: just below the caret with the pill's left edge on it, from the focused element's
+`AXBoundsForRange` at the selected range; above the caret when there is no room below;
+clamped to the monitor the caret is on. Bottom centre, above the Dock, when the app cannot
+say where its caret is (Chromium usually can; some Electron apps cannot). The window is
+created on the first dictation and hidden afterwards, joins every Space including a
+full-screen app's, and ignores the mouse. It is shown once the target element is known,
+which is after the tray icon and the start cue: those answer "is it on?"; the ring answers
+"is it hearing me?".
 
 ## Notifications
 

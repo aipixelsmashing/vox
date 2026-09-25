@@ -29,6 +29,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   the microphone is open even when the menu bar is on another screen. On by default;
   `ui.soundCues` in settings turns it off.
 
+- A small pill next to the cursor while you dictate: an amber ring that moves with your
+  voice and the elapsed time, then "Transcribing…" until the text lands. It never takes
+  focus, clicks pass through it, and it shows over full-screen apps. Settings → Dictation
+  turns it off, next to the sound cues, which now have their own switch there too.
 - First-launch setup in three short steps, including the one that says you may not need
   this. It remembers where you got to, and Settings → Dictation can run it again.
 - Settings: six panes from the menu bar — Dictation (change the key by pressing it, mode,

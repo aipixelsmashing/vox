@@ -14,7 +14,7 @@ use crate::cues;
 use tauri::Emitter;
 
 use crate::commands::{InsertionResultEvent, PipelineStateDto};
-use crate::{audio, clipboard, engine, history, inject, settings, tray};
+use crate::{audio, clipboard, engine, history, inject, panel, settings, tray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -192,6 +192,8 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     // True while the engine has a live streaming session for this recording.
     let mut streaming = false;
     let mut last_state_emit = Instant::now();
+    // Input level since the last `vox://level`, for the overlay's ring (~20 Hz).
+    let mut level = LevelMeter::default();
 
     loop {
         // While recording, poll so audio is drained and the cap is enforced.
@@ -201,9 +203,13 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                     if let Some(c) = capture.as_mut() {
                         let fresh = c.drain();
+                        level.feed(&fresh);
                         if streaming && !fresh.is_empty() {
                             deps.engine.stream_push(fresh);
                         }
+                    }
+                    if let Some(rms) = level.take_if_due() {
+                        emit_level(&deps.app, rms);
                     }
                     if last_state_emit.elapsed() >= Duration::from_millis(500) {
                         last_state_emit = Instant::now();
@@ -275,6 +281,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         notify(&deps.app, crate::permissions::MSG_MICROPHONE);
                         state = State::Idle;
                         tray::set_state(&deps.app, tray::IconState::Attention);
+                        emit_state(&deps.app, PipelineStateDto::Idle);
                         continue;
                     }
                 }
@@ -294,6 +301,22 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         None
                     }
                 };
+                // The overlay goes up once the target is known so it can sit by the caret;
+                // the tray icon and the cue have already answered "is it on?" by now.
+                if deps.settings.read().ui.level_overlay {
+                    let anchor = target.as_ref().and_then(caret_anchor);
+                    panel::show_overlay(&deps.app, anchor);
+                    level = LevelMeter::default();
+                    emit_state(
+                        &deps.app,
+                        PipelineStateDto::Recording {
+                            elapsed_ms: started
+                                .map(|s| s.elapsed().as_millis() as u64)
+                                .unwrap_or(0),
+                            long_form: false,
+                        },
+                    );
+                }
             }
             Action::Discard => {
                 tracing::info!(
@@ -307,8 +330,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 capture = None;
                 target = None;
                 started = None;
-                tray::set_state(&deps.app, tray::IconState::Idle);
-                emit_state(&deps.app, PipelineStateDto::Idle);
+                go_idle(&deps);
             }
             Action::Finish { capped } => {
                 let held_ms = started.map(|s| s.elapsed().as_millis() as u32).unwrap_or(0);
@@ -324,8 +346,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         streaming = false;
                     }
                     state = State::Idle;
-                    tray::set_state(&deps.app, tray::IconState::Idle);
-                    emit_state(&deps.app, PipelineStateDto::Idle);
+                    go_idle(&deps);
                     continue;
                 }
                 tray::set_state(&deps.app, tray::IconState::Transcribing);
@@ -344,8 +365,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 let _ = cancelled;
                 streaming = false;
                 state = State::Idle;
-                tray::set_state(&deps.app, tray::IconState::Idle);
-                emit_state(&deps.app, PipelineStateDto::Idle);
+                go_idle(&deps);
             }
         }
     }
@@ -544,6 +564,68 @@ fn emit_state(app: &tauri::AppHandle, state: PipelineStateDto) {
     let _ = app.emit("vox://state", state);
 }
 
+/// `vox://level`, only while recording (docs/UI-CONTRACT.md). The overlay's ring.
+fn emit_level(app: &tauri::AppHandle, rms: f32) {
+    let _ = app.emit("vox://level", serde_json::json!({ "rms": rms }));
+}
+
+/// Back to Idle: tray, state event, and the overlay comes down the moment the text is
+/// placed (or the dictation is dropped). Every path out of a dictation ends here.
+fn go_idle(deps: &Deps) {
+    tray::set_state(&deps.app, tray::IconState::Idle);
+    panel::hide_overlay(&deps.app);
+    emit_state(&deps.app, PipelineStateDto::Idle);
+}
+
+#[cfg(target_os = "macos")]
+fn caret_anchor(target: &InjectionTarget) -> Option<panel::Anchor> {
+    target
+        .element
+        .as_ref()
+        .and_then(inject::macos::caret_bounds)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn caret_anchor(_target: &InjectionTarget) -> Option<panel::Anchor> {
+    None
+}
+
+/// RMS of the samples since the last emit, scaled so ordinary speech fills most of the
+/// meter (the same scale the onboarding microphone test uses), at most every 50 ms.
+#[derive(Default)]
+struct LevelMeter {
+    sum_sq: f64,
+    n: usize,
+    last: Option<Instant>,
+}
+
+impl LevelMeter {
+    const INTERVAL: Duration = Duration::from_millis(50);
+    const GAIN: f32 = 6.0;
+
+    fn feed(&mut self, pcm: &[f32]) {
+        self.sum_sq += pcm
+            .iter()
+            .map(|x| f64::from(*x) * f64::from(*x))
+            .sum::<f64>();
+        self.n += pcm.len();
+    }
+
+    /// The scaled level if 50 ms have passed and any audio arrived; resets either way when
+    /// it fires.
+    fn take_if_due(&mut self) -> Option<f32> {
+        let due = self.last.is_none_or(|t| t.elapsed() >= Self::INTERVAL);
+        if !due || self.n == 0 {
+            return None;
+        }
+        let rms = (self.sum_sq / self.n as f64).sqrt() as f32;
+        self.sum_sq = 0.0;
+        self.n = 0;
+        self.last = Some(Instant::now());
+        Some((rms * Self::GAIN).min(1.0))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -637,6 +719,20 @@ mod tests {
             postprocess("ls -la\ncd foo", &out(), false),
             "ls -la\ncd foo "
         );
+    }
+
+    #[test]
+    fn level_meter_scales_rms_and_throttles() {
+        let mut m = LevelMeter::default();
+        assert_eq!(m.take_if_due(), None, "nothing fed, nothing emitted");
+        m.feed(&[0.1; 1600]);
+        let first = m.take_if_due().expect("first emit is immediate");
+        assert!((first - 0.6).abs() < 1e-3, "0.1 rms × 6 = {first}");
+        m.feed(&[0.5; 100]);
+        assert_eq!(m.take_if_due(), None, "within 50 ms of the last emit");
+        m.last = Some(Instant::now() - Duration::from_millis(60));
+        m.feed(&[0.5; 100]);
+        assert_eq!(m.take_if_due(), Some(1.0), "clamped to 1.0");
     }
 
     #[test]

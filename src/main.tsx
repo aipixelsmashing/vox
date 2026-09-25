@@ -10,6 +10,7 @@ import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'
 import { Onboarding } from './windows/Onboarding'
+import { RecordingOverlay } from './windows/RecordingOverlay'
 import { Settings } from './windows/Settings'
 import { Toast } from './windows/Toast'
 import { DevOverlay } from './ui/DevOverlay'
@@ -36,7 +37,7 @@ function App() {
       {win === 'settings' && <Settings />}
       {win === 'onboarding' && <Onboarding />}
       {win === 'longform' && <Placeholder name="Long-form session" />}
-      {win === 'overlay' && <Placeholder name="Recording overlay" />}
+      {win === 'overlay' && <RecordingOverlay />}
       {win === 'toast' && <Toast />}
       {isMock && <DevOverlay />}
     </>

@@ -30,6 +30,19 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | Long transcript | Two lines, then fade. Full text on expand | `history-long` |
 | Loading | Rows render progressively; no skeleton shimmer | `history-slow` |
 
+## Recording overlay
+
+A pill near the caret while a dictation is in progress; bottom centre when the caret cannot
+be located. Click-through, never focused, gone the moment the text is placed.
+
+| State | What renders | **[S]** |
+| --- | --- | --- |
+| Recording | Amber ring filling with the input level, elapsed time as `0:04` | `recording` |
+| Working | Ring filled solid, "Transcribing…" then "Placing the text…" | `recording` |
+| Ended in the clipboard | Same as working; the toast carries the reason, the pill just goes | `recording-fails` |
+| Reduced motion | The ring becomes a static three-step meter; turn on Reduce Motion in System Settings → Accessibility → Display to review it | — |
+| Turned off | `ui.levelOverlay` false: nothing, ever | — |
+
 ## Settings panes
 
 | Pane | Key states | **[S]** |
