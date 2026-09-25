@@ -56,6 +56,7 @@ afconvert -f WAVE -d LEI16@16000 -c 1 ~/Desktop/real-s3.m4a fixtures/audio/real-
 cd spikes
 cargo run --release -p s3-engine -- --runs 3 ~/Desktop/real-s3.m4a
 cargo run --release -p s3-engine -- --runs 3 ~/Desktop/real-s3-noisy.m4a
+cargo run --release -p s5-context -- ~/Desktop/real-s3.m4a
 cargo run --release -p s5-context -- --context "Orsolya Csernák,Kubestrix,keytap,axuielement,Tauri" ~/Desktop/real-s5.m4a
 cargo run --release -p s5-context -- --context "<your three to five names, comma-separated>" ~/Desktop/real-mine.m4a
 ```
@@ -70,6 +71,18 @@ cargo run --release -p s5-context -- --context "<twenty terms not in the sentenc
 
 Any hinted term that appears in the `dt+ctx` transcript is a word the recogniser put in
 your mouth. Zero is the hope; one in five runs is the level at which the cap comes down.
+
+The third line runs the plain sentence through both modules with no hints: its `st` and
+`dt` rows are the test of whether the dictation module's tail drop
+([docs/spikes/s5-context.md](../../docs/spikes/s5-context.md)) shows up on an ordinary
+sentence in a real voice. Those are one-pass runs; the app streams, which is where the
+drop was measured. For the streamed comparison on the same file, convert it and point the
+engine's experiment at it:
+
+```bash
+afconvert -f WAVE -d LEI16@16000 -c 1 ~/Desktop/real-s3.m4a ~/Desktop/real-s3.wav
+cd src-tauri && VOX_TAIL_AUDIO=~/Desktop/real-s3.wav VOX_TAIL_REFERENCE="The meeting has been moved to Thursday at three o'clock, so please update the shared calendar before you leave today." cargo test -- --ignored tail_experiment --nocapture
+```
 
 **What to paste back.** The whole output of each run, and for 4 the sentence as written.
 The S5 output has five rows per file; the ones that matter are `st` (today's engine),
