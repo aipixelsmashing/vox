@@ -463,12 +463,28 @@ mod tests {
     #[test]
     #[ignore = "needs macOS 26, Apple's speech assets and fixtures/audio/context-6s.wav"]
     fn tail_experiment_streamed_against_one_pass() {
-        const REFERENCE: &str = "Please ask Orsolya Csernák about the Kubestrix migration, and check that keytap and axuielement still build in the Tauri app.";
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../fixtures/audio/context-6s.wav"
+        // VOX_TAIL_AUDIO (16 kHz mono WAV) and VOX_TAIL_REFERENCE point it at another
+        // recording, such as a real voice (fixtures/audio/README.md).
+        let reference = std::env::var("VOX_TAIL_REFERENCE").unwrap_or_else(|_| {
+            "Please ask Orsolya Csernák about the Kubestrix migration, and check that keytap and axuielement still build in the Tauri app.".into()
+        });
+        #[allow(non_snake_case)]
+        let REFERENCE = reference.as_str();
+        let path = std::env::var("VOX_TAIL_AUDIO").unwrap_or_else(|_| {
+            concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../fixtures/audio/context-6s.wav"
+            )
+            .into()
+        });
+        let mut reader = hound::WavReader::open(&path).expect("audio file");
+        let spec = reader.spec();
+        assert_eq!(
+            spec.sample_rate,
+            crate::audio::TARGET_SAMPLE_RATE,
+            "16 kHz mono WAV"
         );
-        let mut reader = hound::WavReader::open(path).expect("fixture");
+        assert_eq!(spec.channels, 1, "16 kHz mono WAV");
         let pcm: Vec<f32> = reader
             .samples::<i16>()
             .map(|s| s.unwrap() as f32 / 32768.0)

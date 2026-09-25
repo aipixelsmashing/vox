@@ -198,8 +198,9 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
    off, right with it on.
 2. Same name in a password field: unchanged, and the log shows the read was refused.
 3. Turn the setting off mid-session: the next dictation sends no hints (its history row
-   shows no hint count; Diagnostics' "Sent for N of M" stops rising). With a custom word
-   in Settings → Text the count is 1: the dictionary is a hint too.
+   shows no hint count; Diagnostics' "Sent for N of M" stops rising). A custom word in
+   Settings → Text alone sends nothing: dictate into an empty field with the setting on
+   and the row shows no hint count either.
 4. First dictation after turning the setting on: the log shows "dictation module ready"
    before it, or "hints dropped" with a count if it came too soon. Never a missing or
    late transcript either way.

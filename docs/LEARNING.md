@@ -85,10 +85,12 @@ Rules that keep this honest:
 ## How terms are applied
 
 Applied terms become a post-recognition replacement list, the same mechanism as the manual
-dictionary, and they are also passed to the model as recognition hints before recognition,
-which fixes the error rather than patching it afterwards. On macOS that is
-`AnalysisContext.contextualStrings` with the `DictationTranscriber` module, the same channel
-the focused-field context uses ([CONTEXT.md](CONTEXT.md), spike S5).
+dictionary. When the recogniser is already on the dictation module because the focused
+field supplied hints ([CONTEXT.md](CONTEXT.md), spike S5), they are also passed as
+`AnalysisContext.contextualStrings`, ranked ahead of the field's terms, which fixes the
+error rather than patching it. They never switch the module on their own: that module
+costs a dropped last word now and then, which is worth it for a name on screen and not
+for a replacement the post-processing pass makes anyway.
 
 Matching is case-insensitive and whole-token; replacement preserves sentence-initial
 capitalisation.

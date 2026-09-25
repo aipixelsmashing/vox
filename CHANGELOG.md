@@ -44,7 +44,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   hints for that one dictation. Never a password field, never stored, never logged, never
   leaves this Mac. Each history row says how many hints it had ("· 6 hints"), and
   Diagnostics counts how many dictations had any. Your custom words in Settings → Text
-  are hints too, whether or not the setting is on.
+  ride along as hints when the field supplied some; on their own they keep working as
+  replacements, as before.
 - First-launch setup in three short steps, including the one that says you may not need
   this. It remembers where you got to, and Settings → Dictation can run it again.
 - Settings: six panes from the menu bar — Dictation (change the key by pressing it, mode,
