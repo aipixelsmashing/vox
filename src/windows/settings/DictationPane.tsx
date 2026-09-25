@@ -6,7 +6,7 @@ import type { AudioDevice, HotkeyBinding, Settings } from '../../lib/contract'
 import { copy } from '../../lib/copy'
 import { useVoxEvent } from '../../lib/events'
 import type { DeepPartial } from '../../lib/useSettings'
-import { Button, Note, NumberField, Row, Section, Select } from '../../ui/form'
+import { Button, Note, NumberField, Row, Section, Select, Toggle } from '../../ui/form'
 
 const KEY_NAMES: Record<string, string> = {
   AltRight: 'Right Option',
@@ -143,6 +143,14 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
             suffix="s"
             onChange={(maxRecordingSec) => void patch({ audio: { maxRecordingSec } })}
           />
+        </Row>
+      </Section>
+      <Section title={copy.settings.dictation.feedbackTitle}>
+        <Row label={copy.settings.dictation.soundCues} hint={copy.settings.dictation.soundCuesHint}>
+          <Toggle label={copy.settings.dictation.soundCues} checked={settings.ui.soundCues} onChange={(soundCues) => void patch({ ui: { soundCues } })} />
+        </Row>
+        <Row label={copy.settings.dictation.overlay} hint={copy.settings.dictation.overlayHint}>
+          <Toggle label={copy.settings.dictation.overlay} checked={settings.ui.levelOverlay} onChange={(levelOverlay) => void patch({ ui: { levelOverlay } })} />
         </Row>
       </Section>
       <Section title={copy.settings.dictation.setupTitle}>

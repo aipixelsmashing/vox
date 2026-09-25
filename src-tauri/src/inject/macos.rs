@@ -4,13 +4,14 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use axuielement::ax_attribute::AX_BOUNDS_FOR_RANGE_PARAMETERIZED_ATTRIBUTE;
 use axuielement::ax_attribute::{
     AX_COMBO_BOX_ROLE, AX_FOCUSED_UI_ELEMENT_ATTRIBUTE, AX_NUMBER_OF_CHARACTERS_ATTRIBUTE,
     AX_ROLE_ATTRIBUTE, AX_SECURE_TEXT_FIELD_SUBROLE, AX_SELECTED_TEXT_ATTRIBUTE,
     AX_SELECTED_TEXT_RANGE_ATTRIBUTE, AX_SUBROLE_ATTRIBUTE, AX_TEXT_AREA_ROLE, AX_TEXT_FIELD_ROLE,
     AX_VALUE_ATTRIBUTE,
 };
-use axuielement::{system_wide, AXUIElement};
+use axuielement::{system_wide, AXRange, AXUIElement, AXValue};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use objc2_core_graphics::{
     CGEvent, CGEventFlags, CGEventSource, CGEventSourceStateID, CGEventTapLocation,
@@ -187,6 +188,60 @@ pub(crate) fn app_name_for_bundle(bundle_id: &str) -> Option<String> {
         });
     map.insert(bundle_id.to_string(), name.clone());
     name
+}
+
+/// The caret's rectangle in logical screen points (top-left origin), for placing the
+/// recording overlay next to it. `AXBoundsForRange` on the selected range; an empty range
+/// gives an empty rectangle in some apps, so the character before the caret is asked for
+/// then. None when the app cannot say, which the overlay treats as "bottom centre".
+/// Read-only and a few hundred microseconds; never the text.
+pub fn caret_bounds(el: &ElementRef) -> Option<crate::panel::Anchor> {
+    let range =
+        el.0.range_attribute(AX_SELECTED_TEXT_RANGE_ATTRIBUTE)
+            .ok()
+            .flatten()?;
+    let ask = |r: AXRange| -> Option<(f64, f64, f64, f64)> {
+        let param = AXValue::from_range(r)?;
+        let rect =
+            el.0.parameterized_attribute(AX_BOUNDS_FOR_RANGE_PARAMETERIZED_ATTRIBUTE, &param)
+                .ok()
+                .flatten()?
+                .as_rect()?;
+        let (x, y, w, h) = (
+            rect.origin.x,
+            rect.origin.y,
+            rect.size.width,
+            rect.size.height,
+        );
+        // A rectangle that is not on any screen or has no height is the app saying "no".
+        if !(x.is_finite() && y.is_finite() && h.is_finite() && w.is_finite()) {
+            return None;
+        }
+        if !(2.0..=200.0).contains(&h) || w < 0.0 || w > 400.0 {
+            return None;
+        }
+        Some((x, y, w, h))
+    };
+    ask(AXRange {
+        location: range.location,
+        length: 0,
+    })
+    .or_else(|| {
+        (range.location > 0)
+            .then(|| {
+                ask(AXRange {
+                    location: range.location - 1,
+                    length: 1,
+                })
+            })
+            .flatten()
+    })
+    .or_else(|| {
+        ask(AXRange {
+            location: range.location,
+            length: 1,
+        })
+    })
 }
 
 /// Chromium, and therefore every Electron app, does not build its accessibility tree until

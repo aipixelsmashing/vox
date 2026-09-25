@@ -14,6 +14,13 @@ pub const HISTORY_WINDOW: &str = "history";
 pub const SETTINGS_WINDOW: &str = "settings";
 pub const ONBOARDING_WINDOW: &str = "onboarding";
 pub const TOAST_WINDOW: &str = "toast";
+pub const OVERLAY_WINDOW: &str = "overlay";
+/// The pill is 180×36 in the page (src/windows/RecordingOverlay.tsx) plus 4px of shadow room
+/// on every side; the window is that, fixed, so the page never has to report a size.
+const OVERLAY_WIDTH: f64 = 188.0;
+const OVERLAY_HEIGHT: f64 = 44.0;
+/// Between the caret's rectangle and the pill.
+const OVERLAY_GAP: f64 = 6.0;
 const TOAST_WIDTH: f64 = 380.0;
 /// Before the page has measured its text; `toast_fit` replaces it.
 const TOAST_INITIAL_HEIGHT: f64 = 56.0;
@@ -297,15 +304,141 @@ pub fn fit_toast(app: &AppHandle, height: f64) {
 
 /// Bottom centre of the primary monitor, above where the Dock usually is.
 fn toast_position(app: &AppHandle, height: f64) -> Option<LogicalPosition<f64>> {
+    bottom_centre(app, TOAST_WIDTH, height)
+}
+
+fn bottom_centre(app: &AppHandle, width: f64, height: f64) -> Option<LogicalPosition<f64>> {
     let monitor = app.primary_monitor().ok().flatten()?;
     let scale = monitor.scale_factor();
     let pos = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
     Some(LogicalPosition::new(
-        pos.x + (size.width - TOAST_WIDTH) / 2.0,
+        pos.x + (size.width - width) / 2.0,
         pos.y + size.height - height - 96.0,
     ))
 }
+
+// ─── Recording overlay ───────────────────────────────────────────────────────
+
+/// A rectangle in logical screen points with a top-left origin — the caret's, as the
+/// accessibility API reports it and as Tauri positions windows: (x, y, width, height).
+pub type Anchor = (f64, f64, f64, f64);
+
+/// Shows the recording overlay near `anchor`, or bottom centre when the caret could not be
+/// located (docs/UI-SPEC.md, "Recording overlay"). Click-through and never focused: the
+/// user is typing into another app and must not notice this window exists except by eye.
+/// Created lazily on the first dictation and hidden afterwards, like the toast.
+pub fn show_overlay(app: &AppHandle, anchor: Option<Anchor>) {
+    let window = match app.get_webview_window(OVERLAY_WINDOW) {
+        Some(w) => w,
+        None => {
+            let built = WebviewWindowBuilder::new(
+                app,
+                OVERLAY_WINDOW,
+                WebviewUrl::App(format!("index.html?window={OVERLAY_WINDOW}").into()),
+            )
+            .title("Vox")
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .focusable(false)
+            .skip_taskbar(true)
+            .resizable(false)
+            .accept_first_mouse(false)
+            .visible_on_all_workspaces(true)
+            .visible(false)
+            .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+            .build();
+            match built {
+                Ok(w) => {
+                    if let Err(e) = w.set_ignore_cursor_events(true) {
+                        tracing::warn!("overlay: could not make the window click-through: {e}");
+                    }
+                    float_over_full_screen(&w);
+                    w
+                }
+                Err(e) => {
+                    tracing::warn!("overlay window: {e}");
+                    return;
+                }
+            }
+        }
+    };
+    let pos = overlay_position(app, anchor);
+    if let Some(pos) = pos {
+        let _ = window.set_position(pos);
+    }
+    let _ = window.show();
+}
+
+pub fn hide_overlay(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(OVERLAY_WINDOW) {
+        let _ = w.hide();
+    }
+}
+
+/// Just below the caret, left edge on it; above the caret when there is no room below;
+/// clamped to the monitor the caret is on. Bottom centre when there is no caret.
+fn overlay_position(app: &AppHandle, anchor: Option<Anchor>) -> Option<LogicalPosition<f64>> {
+    let Some((x, y, w, h)) = anchor else {
+        return bottom_centre(app, OVERLAY_WIDTH, OVERLAY_HEIGHT);
+    };
+    let monitor = app
+        .monitor_from_point(x + w / 2.0, y + h / 2.0)
+        .ok()
+        .flatten()
+        .or_else(|| app.primary_monitor().ok().flatten())?;
+    let scale = monitor.scale_factor();
+    let mon = monitor.position().to_logical::<f64>(scale);
+    let size = monitor.size().to_logical::<f64>(scale);
+    Some(place_overlay(
+        (x, y, w, h),
+        (mon.x, mon.y, size.width, size.height),
+    ))
+}
+
+/// Pure placement, unit-tested: caret rect and monitor rect in, window origin out.
+fn place_overlay(caret: Anchor, monitor: Anchor) -> LogicalPosition<f64> {
+    const MARGIN: f64 = 8.0;
+    let (cx, cy, _cw, ch) = caret;
+    let (mx, my, mw, mh) = monitor;
+    // The pill has 4px of shadow room; shift so the pill's edge, not the window's, aligns.
+    let mut x = cx - 4.0 - MARGIN;
+    let mut y = cy + ch + OVERLAY_GAP;
+    if y + OVERLAY_HEIGHT > my + mh - MARGIN {
+        y = cy - OVERLAY_GAP - OVERLAY_HEIGHT;
+    }
+    let max_x = mx + mw - OVERLAY_WIDTH - MARGIN;
+    x = x.min(max_x).max(mx + MARGIN);
+    y = y.max(my + MARGIN);
+    LogicalPosition::new(x, y)
+}
+
+/// A floating Tauri window still hides behind a full-screen app: macOS puts each full-screen
+/// app in its own Space and only windows that opt in may join it. Opt the overlay in, and
+/// keep it out of the window cycle, so dictating into a full-screen editor shows the pill.
+#[cfg(target_os = "macos")]
+fn float_over_full_screen(window: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+    let Ok(ptr) = window.ns_window() else {
+        return;
+    };
+    let ptr = ptr as usize;
+    let _ = window.run_on_main_thread(move || {
+        // SAFETY: `ns_window` returned this NSWindow, which Tauri keeps alive for the
+        // window's lifetime, and we are on the main thread as AppKit requires.
+        let ns: &NSWindow = unsafe { &*(ptr as *const NSWindow) };
+        ns.setCollectionBehavior(
+            NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary
+                | NSWindowCollectionBehavior::Stationary
+                | NSWindowCollectionBehavior::IgnoresCycle,
+        );
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn float_over_full_screen(_window: &tauri::WebviewWindow) {}
 
 #[cfg(target_os = "macos")]
 fn frontmost_bundle_id() -> Option<String> {
@@ -315,4 +448,35 @@ fn frontmost_bundle_id() -> Option<String> {
 #[cfg(not(target_os = "macos"))]
 fn frontmost_bundle_id() -> Option<String> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MON: Anchor = (0.0, 0.0, 1440.0, 900.0);
+
+    #[test]
+    fn overlay_sits_below_the_caret_left_aligned() {
+        let p = place_overlay((300.0, 200.0, 1.0, 18.0), MON);
+        assert_eq!(p.x, 300.0 - 12.0);
+        assert_eq!(p.y, 200.0 + 18.0 + OVERLAY_GAP);
+    }
+
+    #[test]
+    fn overlay_moves_above_the_caret_at_the_bottom_of_the_screen() {
+        let p = place_overlay((300.0, 880.0, 1.0, 18.0), MON);
+        assert_eq!(p.y, 880.0 - OVERLAY_GAP - OVERLAY_HEIGHT);
+    }
+
+    #[test]
+    fn overlay_stays_on_the_monitor() {
+        let right = place_overlay((1435.0, 200.0, 1.0, 18.0), MON);
+        assert_eq!(right.x, 1440.0 - OVERLAY_WIDTH - 8.0);
+        let left = place_overlay((2.0, 200.0, 1.0, 18.0), MON);
+        assert_eq!(left.x, 8.0);
+        // A second monitor to the left has negative x; clamping is relative to it.
+        let second = place_overlay((-1000.0, 50.0, 1.0, 18.0), (-1920.0, 0.0, 1920.0, 1080.0));
+        assert_eq!(second.x, -1012.0);
+    }
 }
