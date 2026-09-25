@@ -17,35 +17,35 @@ export const historyEntries: HistoryEntry[] = [
     text: 'Can you take a look at the deploy script before I merge it — I think the retry logic is wrong when the first attempt times out.',
     wordCount: 25, durationMs: 7400, latencyMs: 412, engineId: 'parakeet-tdt-0.6b-v3-int8',
     language: 'en', targetApp: 'Slack', outcome: 'inserted', outcomeNote: null,
-    method: 'accessibility', longForm: false,
+    method: 'accessibility', longForm: false, contextTerms: 6,
   },
   {
     id: 2, createdAt: now - 18 * min,
     text: 'refactor the auth middleware to use the new session store',
     wordCount: 10, durationMs: 3100, latencyMs: 288, engineId: 'parakeet-tdt-0.6b-v3-int8',
     language: 'en', targetApp: 'Code', outcome: 'inserted', outcomeNote: null,
-    method: 'paste', longForm: false,
+    method: 'paste', longForm: false, contextTerms: 0,
   },
   {
     id: 3, createdAt: now - 64 * min,
     text: 'The quarterly numbers came in higher than we forecast, mostly on the enterprise side, which means the capacity plan needs redoing before the board meeting.',
     wordCount: 26, durationMs: 8800, latencyMs: 505, engineId: 'parakeet-tdt-0.6b-v3-int8',
     language: 'en', targetApp: 'Terminal', outcome: 'clipboardOnly',
-    outcomeNote: 'Terminal is running as administrator', method: null, longForm: false,
+    outcomeNote: 'Terminal is running as administrator', method: null, longForm: false, contextTerms: 0,
   },
   {
     id: 4, createdAt: now - 3 * 60 * min,
     text: "So the problem with the current approach is that we're paying the model load cost on every single dictation, which means the first one after lunch always feels broken even though nothing is wrong. What if we predicted it instead — we know when someone focuses a text field, we know which apps they dictate into…",
     wordCount: 412, durationMs: 254_000, latencyMs: 1900, engineId: 'parakeet-tdt-0.6b-v3-int8',
     language: 'en', targetApp: null, outcome: 'inserted', outcomeNote: null,
-    method: 'accessibility', longForm: true,
+    method: 'accessibility', longForm: true, contextTerms: 0,
   },
   {
     id: 5, createdAt: now - 26 * 60 * min,
     text: 'remind me to send Priya the migration notes',
     wordCount: 8, durationMs: 2400, latencyMs: 245, engineId: 'parakeet-tdt-0.6b-v3-int8',
     language: 'en', targetApp: 'Notes', outcome: 'inserted', outcomeNote: null,
-    method: 'accessibility', longForm: false,
+    method: 'accessibility', longForm: false, contextTerms: 0,
   },
 ]
 
@@ -109,6 +109,7 @@ export const permissionsMissing: PermissionReport = {
 }
 
 export const diagnosticsRich: Diagnostics = {
+  context: { dictations: 412, withHints: 57 },
   correctionsPer100Words: [
     { weekStart: now - 42 * 24 * 60 * min, value: 6.8 },
     { weekStart: now - 35 * 24 * 60 * min, value: 6.1 },
@@ -129,6 +130,7 @@ export const diagnosticsRich: Diagnostics = {
 }
 
 export const diagnosticsThin: Diagnostics = {
+  context: { dictations: 3, withHints: 0 },
   correctionsPer100Words: [],
   insertionsByApp: [{ app: 'Slack', inserted: 3, clipboardOnly: 0 }],
   stageTimingsMs: { capture: 21, inference: 301, injection: 16 },

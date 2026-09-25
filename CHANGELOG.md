@@ -33,6 +33,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   voice and the elapsed time, then "Transcribing…" until the text lands. It never takes
   focus, clicks pass through it, and it shows over full-screen apps. Settings → Dictation
   turns it off, next to the sound cues, which now have their own switch there too.
+- Privacy → "Read the field you're dictating into", off by default: at key-down Vox
+  reads the text around your cursor in the field you are in, and hands up to twenty
+  unusual words from it (names, identifiers, your custom words) to Apple's recogniser as
+  hints for that one dictation. Never a password field, never stored, never logged, never
+  leaves this Mac. Each history row says how many hints it had ("· 6 hints"), and
+  Diagnostics counts how many dictations had any. Your custom words in Settings → Text
+  are hints too, whether or not the setting is on.
 - First-launch setup in three short steps, including the one that says you may not need
   this. It remembers where you got to, and Settings → Dictation can run it again.
 - Settings: six panes from the menu bar — Dictation (change the key by pressing it, mode,

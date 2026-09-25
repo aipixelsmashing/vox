@@ -53,6 +53,8 @@ export interface HistoryEntry {
   outcomeNote: string | null
   method: InjectionMethod | null
   longForm: boolean
+  /** How many recognition hints this dictation was given (docs/CONTEXT.md). Never the hints. */
+  contextTerms: number
 }
 
 export type VocabState = 'candidate' | 'applied' | 'suspended' | 'rejected'
@@ -106,6 +108,8 @@ export interface Diagnostics {
   memory: { idleRssMb: number; peakRssMb: number }
   /** Adaptive residency health — below 0.8 the heuristic needs fixing, not a setting. */
   preloadHitRate: number
+  /** Whether recognition hints are reaching the engine: dictations with any, out of all. */
+  context: { dictations: number; withHints: number }
 }
 
 export type Destination = 'clipboard' | 'newFile' | 'insertAtCursor' | 'appendToFile'

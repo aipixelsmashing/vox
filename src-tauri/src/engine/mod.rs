@@ -77,10 +77,15 @@ pub trait SpeechEngine: Send {
 
     // Streaming: audio is pushed while the key is held so only the tail is left to
     // finalise at release. Engines that cannot stream keep the defaults and the pipeline
-    // falls back to `transcribe` with the whole clip.
-    fn stream_start(&mut self, _hint: &LanguageHint) -> Result<(), Error> {
+    // falls back to `transcribe` with the whole clip. `context` is the recognition hints
+    // for this one session (docs/CONTEXT.md): at most twenty terms, never stored by the
+    // engine, never logged.
+    fn stream_start(&mut self, _hint: &LanguageHint, _context: &[String]) -> Result<(), Error> {
         Err(Error::Unavailable("streaming not supported".into()))
     }
+    /// Get whatever the hinted path needs ready, off the critical path. Called when the
+    /// context setting is on; a no-op for engines whose hints need nothing.
+    fn prepare_context(&mut self) {}
     fn stream_push(&mut self, _pcm: &[f32]) -> Result<(), Error> {
         Err(Error::Unavailable("streaming not supported".into()))
     }
@@ -101,8 +106,10 @@ enum Job {
     },
     StreamStart {
         hint: LanguageHint,
+        context: Vec<String>,
         reply: crossbeam_channel::Sender<Result<(), Error>>,
     },
+    PrepareContext,
     StreamPush {
         pcm: Vec<f32>,
     },
@@ -129,10 +136,14 @@ impl Handle {
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?
     }
 
-    pub fn stream_start(&self, hint: LanguageHint) -> Result<(), Error> {
+    pub fn stream_start(&self, hint: LanguageHint, context: Vec<String>) -> Result<(), Error> {
         let (reply, rx) = crossbeam_channel::bounded(1);
         self.tx
-            .send(Job::StreamStart { hint, reply })
+            .send(Job::StreamStart {
+                hint,
+                context,
+                reply,
+            })
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?;
         rx.recv()
             .map_err(|_| Error::Unavailable("engine thread gone".into()))?
@@ -154,6 +165,18 @@ impl Handle {
 
     pub fn stream_cancel(&self) {
         let _ = self.tx.send(Job::StreamCancel);
+    }
+
+    /// Fire-and-forget: the engine readies its hinted path in the background.
+    pub fn prepare_context(&self) {
+        let _ = self.tx.send(Job::PrepareContext);
+    }
+
+    /// A handle nobody answers, for tests of code that only needs to hold one.
+    #[doc(hidden)]
+    pub fn disconnected() -> Self {
+        let (tx, _rx) = crossbeam_channel::bounded(1);
+        Self { tx }
     }
 
     /// Ok(engine id) when loaded; the load error otherwise.
@@ -235,12 +258,21 @@ pub fn spawn(settings: Arc<RwLock<crate::settings::Settings>>) -> anyhow::Result
                         };
                         let _ = reply.send(result);
                     }
-                    Job::StreamStart { hint, reply } => {
+                    Job::StreamStart {
+                        hint,
+                        context,
+                        reply,
+                    } => {
                         let result = match &mut state {
-                            Ok(e) => e.stream_start(&hint),
+                            Ok(e) => e.stream_start(&hint, &context),
                             Err(e) => Err(e.clone()),
                         };
                         let _ = reply.send(result);
+                    }
+                    Job::PrepareContext => {
+                        if let Ok(e) = &mut state {
+                            e.prepare_context();
+                        }
                     }
                     Job::StreamPush { pcm } => {
                         if let Ok(e) = &mut state {

@@ -21,16 +21,32 @@ extern "C" {
         locale: *const c_char,
     ) -> *mut c_char;
     fn vox_sa_free(p: *mut c_char);
-    fn vox_sa_stream_start(locale: *const c_char, sample_rate: f64) -> *mut c_char;
+    fn vox_sa_stream_start(
+        locale: *const c_char,
+        sample_rate: f64,
+        context: *const c_char,
+    ) -> *mut c_char;
+    fn vox_sa_prepare_dictation();
+    /// Only the ignored engine test polls this; the app reads readiness from the bridge's
+    /// stream-start report instead.
+    #[allow(dead_code)]
+    fn vox_sa_dictation_ready() -> bool;
     fn vox_sa_stream_push(handle: i32, pcm: *const f32, len: usize) -> bool;
     fn vox_sa_stream_finish(handle: i32) -> *mut c_char;
     fn vox_sa_stream_cancel(handle: i32);
 }
 
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct StreamStartReport {
     ok: bool,
     handle: i32,
+    /// "speech" or "dictation": which module the session runs on.
+    module: Option<String>,
+    /// True when hints were supplied but the dictation module was not ready, so the
+    /// session runs without them.
+    #[serde(default)]
+    hints_dropped: bool,
     error: Option<String>,
 }
 
@@ -41,6 +57,9 @@ struct StreamFinishReport {
     ms: f64,
     finals: usize,
     volatiles: usize,
+    /// True when the text ends with a result the module never finalised.
+    #[serde(default)]
+    used_volatile_tail: bool,
     pushed_seconds: f64,
     error: Option<String>,
 }
@@ -174,7 +193,7 @@ impl SpeechEngine for SpeechAnalyzerEngine {
         })
     }
 
-    fn stream_start(&mut self, hint: &LanguageHint) -> Result<(), Error> {
+    fn stream_start(&mut self, hint: &LanguageHint, context: &[String]) -> Result<(), Error> {
         if !self.loaded {
             return Err(Error::NotLoaded);
         }
@@ -187,11 +206,19 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             LanguageHint::Auto => self.locale.clone(),
         };
         let c_locale = CString::new(locale).unwrap_or_default();
-        // SAFETY: valid C string for the call; the bridge copies it.
+        // One term per line. Never logged here or in the bridge (tests/guards.rs).
+        let joined: String = context
+            .iter()
+            .map(|t| t.replace(['\n', '\0'], " "))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let c_context = CString::new(joined).unwrap_or_default();
+        // SAFETY: valid C strings for the call; the bridge copies them.
         let rep: StreamStartReport = call_json(|| unsafe {
             vox_sa_stream_start(
                 c_locale.as_ptr(),
                 f64::from(crate::audio::TARGET_SAMPLE_RATE),
+                c_context.as_ptr(),
             )
         })?;
         if !rep.ok {
@@ -199,8 +226,28 @@ impl SpeechEngine for SpeechAnalyzerEngine {
                 rep.error.unwrap_or_else(|| "stream start failed".into()),
             ));
         }
+        if rep.hints_dropped {
+            tracing::warn!(
+                "stream start: {} hints dropped, the dictation module is not ready yet",
+                context.len()
+            );
+        } else if !context.is_empty() {
+            tracing::info!(
+                "stream start: {} module with {} hints",
+                rep.module.as_deref().unwrap_or("?"),
+                context.len()
+            );
+        }
         self.stream = Some(rep.handle);
         Ok(())
+    }
+
+    fn prepare_context(&mut self) {
+        if !self.loaded {
+            return;
+        }
+        // SAFETY: no preconditions; the bridge does the work on its own task.
+        unsafe { vox_sa_prepare_dictation() };
     }
 
     fn stream_push(&mut self, pcm: &[f32]) -> Result<(), Error> {
@@ -228,11 +275,16 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             return Err(Error::Inference(e));
         }
         tracing::info!(
-            "stream finish: {:.0} ms for {:.2} s pushed, {} final / {} volatile results",
+            "stream finish: {:.0} ms for {:.2} s pushed, {} final / {} volatile results{}",
             rep.ms,
             rep.pushed_seconds,
             rep.finals,
-            rep.volatiles
+            rep.volatiles,
+            if rep.used_volatile_tail {
+                ", volatile tail used"
+            } else {
+                ""
+            }
         );
         Ok(Transcript {
             text: rep.text,
@@ -248,4 +300,88 @@ impl SpeechEngine for SpeechAnalyzerEngine {
             unsafe { vox_sa_stream_cancel(h) };
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Streams the S5 fixture with its five terms as hints through the dictation module,
+    /// which is the path a real dictation with `privacy.readFocusedField` on takes. Needs
+    /// macOS 26, Apple's assets for both modules and the fixture, so it does not run in
+    /// CI: `cargo test -- --ignored streams_with_hints`.
+    #[test]
+    #[ignore = "needs macOS 26, Apple's speech assets and fixtures/audio/context-6s.wav"]
+    fn streams_with_hints_through_the_dictation_module() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../fixtures/audio/context-6s.wav"
+        );
+        // So the bridge's "stream finish: … final / volatile results" line is visible
+        // under --nocapture; it answers whether the dictation module finalises when streamed.
+        let _ = tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_max_level(tracing::Level::INFO)
+            .try_init();
+        let mut reader = hound::WavReader::open(path).expect("fixture");
+        let spec = reader.spec();
+        assert_eq!(spec.sample_rate, crate::audio::TARGET_SAMPLE_RATE);
+        let pcm: Vec<f32> = reader
+            .samples::<i16>()
+            .map(|s| s.unwrap() as f32 / 32768.0)
+            .collect();
+
+        let mut e = SpeechAnalyzerEngine::new();
+        e.load(&EngineOptions {
+            model_dir: std::env::temp_dir(),
+            device: super::super::Device::Auto,
+            language: "en-US".into(),
+        })
+        .expect("engine loads");
+        e.prepare_context();
+        let t0 = std::time::Instant::now();
+        while !unsafe { vox_sa_dictation_ready() } {
+            assert!(
+                t0.elapsed() < Duration::from_secs(120),
+                "dictation module never became ready"
+            );
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let hints: Vec<String> = [
+            "Orsolya Csernák",
+            "Kubestrix",
+            "keytap",
+            "axuielement",
+            "Tauri",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let run = |e: &mut SpeechAnalyzerEngine, hints: &[String]| -> Transcript {
+            e.stream_start(&LanguageHint::Auto, hints)
+                .expect("stream starts");
+            for chunk in pcm.chunks(320) {
+                e.stream_push(chunk).expect("push");
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            e.stream_finish().expect("finish")
+        };
+        let with = run(&mut e, &hints);
+        let without = run(&mut e, &[]);
+        eprintln!("without hints: {:?}", without.text);
+        eprintln!("with hints:    {:?}", with.text);
+        assert!(
+            !with.text.trim().is_empty(),
+            "the dictation module produced no text"
+        );
+        assert!(!without.text.trim().is_empty());
+        let lower = with.text.to_lowercase();
+        assert!(
+            hints.iter().any(|h| lower.contains(&h.to_lowercase())),
+            "no hinted term recovered: {}",
+            with.text
+        );
+    }
+
+    use std::time::Duration;
 }

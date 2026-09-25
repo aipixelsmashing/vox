@@ -14,6 +14,7 @@ export const copy = {
     notInserted: (reason: string) => `not inserted — ${reason}`,
     items: (n: number) => (n === 1 ? '1 item' : `${n} items`),
     words: (n: number) => (n === 1 ? '1 word' : `${n} words`),
+    hints: (n: number) => (n === 1 ? '1 hint' : `${n} hints`),
     deleteAll: 'Delete all…',
     wipeConfirm: (n: number) => `Delete all ${n} transcripts? This can't be undone.`,
     wipeYes: 'Delete',
@@ -192,6 +193,9 @@ export const copy = {
       memory: 'Memory',
       idle: 'idle',
       peak: 'peak',
+      hints: 'Recognition hints',
+      hintsHint: 'Names and terms from the field you were dictating into, and your own words. The count per dictation is in the history panel; the terms are never kept.',
+      hintsUsed: (withHints: number, dictations: number) => `Sent for ${withHints} of ${dictations} dictations`,
     },
   },
   onboarding: {

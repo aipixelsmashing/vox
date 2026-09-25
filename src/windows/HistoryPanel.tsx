@@ -318,6 +318,7 @@ export function HistoryPanel() {
                   <span>{relative(e.createdAt)}</span>
                   {e.targetApp && <span>· {e.targetApp}</span>}
                   <span>· {copy.history.words(e.wordCount)}</span>
+                  {e.contextTerms > 0 && <span>· {copy.history.hints(e.contextTerms)}</span>}
                   {failed && (
                     <span style={{ color: 'var(--fail)' }}>
                       · {copy.history.notInserted(e.outcomeNote ?? '')}

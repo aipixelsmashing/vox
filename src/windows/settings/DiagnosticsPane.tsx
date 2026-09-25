@@ -89,6 +89,9 @@ export function DiagnosticsPane() {
         <Row label={copy.settings.diagnostics.injection}>
           <span className="numeric">{d.stageTimingsMs.injection} ms</span>
         </Row>
+        <Row label={copy.settings.diagnostics.hints} hint={copy.settings.diagnostics.hintsHint}>
+          <span className="numeric">{copy.settings.diagnostics.hintsUsed(d.context.withHints, d.context.dictations)}</span>
+        </Row>
         <Row label={copy.settings.diagnostics.memory}>
           <span className="numeric">
             {d.memory.idleRssMb} MB {copy.settings.diagnostics.idle} · {d.memory.peakRssMb} MB {copy.settings.diagnostics.peak}

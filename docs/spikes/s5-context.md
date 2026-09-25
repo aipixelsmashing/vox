@@ -61,5 +61,13 @@ to be confirmed when the module is switched.
   base-accuracy gap on a human speaker.
 - Whether hint count or length degrades recognition or latency, and how often a hint
   produces a word the user did not say (the app passes at most 20, nearest the caret).
-- `DictationTranscriber` finals in the streaming path.
+- ~~`DictationTranscriber` finals in the streaming path.~~ Answered 2026-09-25 in the
+  product's own streaming path (`cargo test -- --ignored streams_with_hints`, macOS 27.0):
+  the fixture pushed in 20 ms chunks with the periodic `finalize(through:)` gave **0 final
+  / 30 volatile** results from `DictationTranscriber` (277 ms at release) against 1 final /
+  36 volatile from `SpeechTranscriber` (196 ms). The module does not finalise in this path
+  even through `finalizeAndFinishThroughEndOfInput`; the bridge keeps the last volatile
+  result when nothing after it was finalised, and the transcript was complete and identical
+  to the file run above (2/5 terms recovered). That rule is load-bearing and the log says
+  "volatile tail used" whenever it fires.
 - Custom LM with `CustomPronunciation` and the `weight` parameter, if ever needed.

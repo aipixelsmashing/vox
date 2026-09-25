@@ -63,6 +63,10 @@ private func blocking<T>(_ initial: T, _ job: @escaping @Sendable () async -> T)
 private final class EngineState: @unchecked Sendable {
     static let shared = EngineState()
     var locale: Locale? = nil
+    /// The dictation module's assets are installed and it has been warmed. Set by
+    /// vox_sa_prepare_dictation's background task; read at stream start without waiting.
+    var dictationReady = false
+    var dictationPreparing = false
 }
 
 private func resolveLocale(_ id: String) -> Locale {
@@ -241,12 +245,20 @@ public func vox_sa_transcribe(
 //
 // The pipeline pushes 16 kHz mono float chunks while the key is held; the analyzer works on
 // them as they arrive, so at release only the tail is left to finalise. Volatile results are
-// requested to keep the model processing incrementally; only final results are kept.
+// requested to keep the model processing incrementally; final results are kept, and a
+// trailing volatile result the module never finalised is used as the tail.
 // All entry points are called from the single Rust engine thread.
+//
+// Two modules of the same framework (docs/CONTEXT.md, docs/spikes/s5-context.md):
+// SpeechTranscriber, today's engine, when there are no hints; DictationTranscriber, which
+// honours AnalysisContext.contextualStrings, whenever hints exist and its assets are ready.
+// Hints are per session, in memory, and never logged from here.
 
 private struct StreamStartReport: Codable {
     var ok = false
     var handle: Int32 = 0
+    var module: String? = nil
+    var hintsDropped = false
     var error: String? = nil
 }
 
@@ -255,31 +267,61 @@ private struct StreamFinishReport: Codable {
     var ms = 0.0
     var finals = 0
     var volatiles = 0
+    var usedVolatileTail = false
     var pushedSeconds = 0.0
     var error: String? = nil
 }
 
+/// What the results task has collected so far.
+private struct StreamText {
+    var finals = ""
+    var finalCount = 0
+    var volatileCount = 0
+    var lastVolatile = ""
+    var lastVolatileStart = CMTime.zero
+    var lastFinalEnd = CMTime.zero
+
+    mutating func note(text: String, isFinal: Bool, range: CMTimeRange) {
+        if isFinal {
+            finals += text
+            finalCount += 1
+            lastFinalEnd = range.end
+            lastVolatile = ""
+        } else {
+            volatileCount += 1
+            lastVolatile = text
+            lastVolatileStart = range.start
+        }
+    }
+
+    /// Finals, plus the last volatile result if it covers audio after the last final.
+    func merged() -> (String, Bool) {
+        let tailUsable = !lastVolatile.isEmpty && (finalCount == 0 || lastVolatileStart >= lastFinalEnd)
+        return (finals + (tailUsable ? lastVolatile : ""), tailUsable)
+    }
+}
+
 @available(macOS 26.0, *)
 private final class StreamSession: @unchecked Sendable {
-    let transcriber: SpeechTranscriber
     let analyzer: SpeechAnalyzer
     let cont: AsyncStream<AnalyzerInput>.Continuation
     let inFmt: AVAudioFormat
     let outFmt: AVAudioFormat?
     let converter: AVAudioConverter?
-    let box = Box<(String, Int, Int)>(("", 0, 0))
+    let module: String
+    let box = Box<StreamText>(StreamText())
     var results: Task<Void, Error>? = nil
     var pushedFrames = 0
     /// Frames already covered by a periodic finalize request.
     var finalizedFrames = 0
 
-    init(transcriber: SpeechTranscriber, analyzer: SpeechAnalyzer,
-         cont: AsyncStream<AnalyzerInput>.Continuation, inFmt: AVAudioFormat, outFmt: AVAudioFormat?) {
-        self.transcriber = transcriber
+    init(analyzer: SpeechAnalyzer, cont: AsyncStream<AnalyzerInput>.Continuation,
+         inFmt: AVAudioFormat, outFmt: AVAudioFormat?, module: String) {
         self.analyzer = analyzer
         self.cont = cont
         self.inFmt = inFmt
         self.outFmt = outFmt
+        self.module = module
         if let outFmt, outFmt != inFmt {
             self.converter = AVAudioConverter(from: inFmt, to: outFmt)
         } else {
@@ -295,9 +337,72 @@ private final class StreamRegistry: @unchecked Sendable {
     var next: Int32 = 1
 }
 
+@available(macOS 26.0, *)
+private func dictationModule(_ locale: Locale) -> DictationTranscriber {
+    DictationTranscriber(
+        locale: locale,
+        contentHints: [.shortForm],
+        transcriptionOptions: [.punctuation],
+        reportingOptions: [.volatileResults],
+        attributeOptions: [])
+}
+
+/// Installs the dictation module's assets (separate from the speech module's) and warms it,
+/// on a detached task so nothing on the dictation path waits. Called when the context
+/// setting is on. Idempotent.
+@_cdecl("vox_sa_prepare_dictation")
+public func vox_sa_prepare_dictation() {
+    guard #available(macOS 26.0, *) else { return }
+    let state = EngineState.shared
+    if state.dictationReady || state.dictationPreparing { return }
+    state.dictationPreparing = true
+    Task.detached(priority: .utility) {
+        let t = Date()
+        let locale = state.locale ?? Locale(identifier: "en_US")
+        let probe = dictationModule(locale)
+        do {
+            var status = await AssetInventory.status(forModules: [probe])
+            if status != .installed {
+                if let req = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
+                    try await req.downloadAndInstall()
+                }
+                status = await AssetInventory.status(forModules: [probe])
+            }
+            guard status == .installed else {
+                blog("dictation module assets not installed (\(status)); hints will be dropped")
+                state.dictationPreparing = false
+                return
+            }
+            let analyzer = SpeechAnalyzer(
+                modules: [probe],
+                options: .init(priority: .userInitiated, modelRetention: .processLifetime))
+            let fmt = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [probe])
+            try await analyzer.prepareToAnalyze(in: fmt)
+            await analyzer.cancelAndFinishNow()
+            state.dictationReady = true
+            blog("dictation module ready in \(Int(ms(t))) ms")
+        } catch {
+            blog("dictation module could not be prepared: \(error.localizedDescription)")
+        }
+        state.dictationPreparing = false
+    }
+}
+
+@_cdecl("vox_sa_dictation_ready")
+public func vox_sa_dictation_ready() -> Bool {
+    guard #available(macOS 26.0, *) else { return false }
+    return EngineState.shared.dictationReady
+}
+
+/// Starts a streaming session. `cContext` is the recognition hints, one per line, empty for
+/// none. With hints and a ready dictation module the session runs on DictationTranscriber
+/// with the hints as contextual strings; otherwise on SpeechTranscriber, and the report says
+/// the hints were dropped.
 @_cdecl("vox_sa_stream_start")
-public func vox_sa_stream_start(_ cLocale: UnsafePointer<CChar>, _ sampleRate: Double) -> UnsafeMutablePointer<CChar>? {
+public func vox_sa_stream_start(_ cLocale: UnsafePointer<CChar>, _ sampleRate: Double,
+                                _ cContext: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>? {
     let wanted = String(cString: cLocale)
+    let terms = String(cString: cContext).split(separator: "\n").map(String.init).filter { !$0.isEmpty }
     var rep = StreamStartReport()
     guard #available(macOS 26.0, *) else {
         rep.error = "SpeechAnalyzer needs macOS 26"
@@ -310,40 +415,58 @@ public func vox_sa_stream_start(_ cLocale: UnsafePointer<CChar>, _ sampleRate: D
             resolved = await SpeechTranscriber.supportedLocale(equivalentTo: resolveLocale(wanted))
         }
         let locale = resolved ?? Locale(identifier: "en_US")
+        let useDictation = !terms.isEmpty && EngineState.shared.dictationReady
+        r.hintsDropped = !terms.isEmpty && !useDictation
         do {
-            let transcriber = SpeechTranscriber(
-                locale: locale,
-                transcriptionOptions: [],
-                reportingOptions: [.volatileResults],
-                attributeOptions: [])
-            let analyzer = SpeechAnalyzer(
-                modules: [transcriber],
-                options: .init(priority: .userInitiated, modelRetention: .processLifetime))
-            let best = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
-            try await analyzer.prepareToAnalyze(in: best)
             guard let inFmt = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false) else {
                 r.error = "bad input format"
                 return r
             }
             let (stream, cont) = AsyncStream.makeStream(of: AnalyzerInput.self)
-            let session = StreamSession(transcriber: transcriber, analyzer: analyzer, cont: cont, inFmt: inFmt, outFmt: best)
-            let box = session.box
-            session.results = Task {
-                for try await res in transcriber.results {
-                    if res.isFinal {
-                        box.value.0 += String(res.text.characters)
-                        box.value.1 += 1
-                    } else {
-                        box.value.2 += 1
+            let session: StreamSession
+            if useDictation {
+                let transcriber = dictationModule(locale)
+                let analyzer = SpeechAnalyzer(
+                    modules: [transcriber],
+                    options: .init(priority: .userInitiated, modelRetention: .processLifetime))
+                let ctx = AnalysisContext()
+                ctx.contextualStrings = [.general: terms]
+                try await analyzer.setContext(ctx)
+                let best = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+                try await analyzer.prepareToAnalyze(in: best)
+                session = StreamSession(analyzer: analyzer, cont: cont, inFmt: inFmt, outFmt: best, module: "dictation")
+                let box = session.box
+                session.results = Task {
+                    for try await res in transcriber.results {
+                        box.value.note(text: String(res.text.characters), isFinal: res.isFinal, range: res.range)
+                    }
+                }
+            } else {
+                let transcriber = SpeechTranscriber(
+                    locale: locale,
+                    transcriptionOptions: [],
+                    reportingOptions: [.volatileResults],
+                    attributeOptions: [])
+                let analyzer = SpeechAnalyzer(
+                    modules: [transcriber],
+                    options: .init(priority: .userInitiated, modelRetention: .processLifetime))
+                let best = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+                try await analyzer.prepareToAnalyze(in: best)
+                session = StreamSession(analyzer: analyzer, cont: cont, inFmt: inFmt, outFmt: best, module: "speech")
+                let box = session.box
+                session.results = Task {
+                    for try await res in transcriber.results {
+                        box.value.note(text: String(res.text.characters), isFinal: res.isFinal, range: res.range)
                     }
                 }
             }
-            try await analyzer.start(inputSequence: stream)
+            try await session.analyzer.start(inputSequence: stream)
             let reg = StreamRegistry.shared
             let handle = reg.next
             reg.next += 1
             reg.sessions[handle] = session
             r.handle = handle
+            r.module = session.module
             r.ok = true
         } catch {
             r.error = "\(error)"
@@ -419,9 +542,11 @@ public func vox_sa_stream_finish(_ handle: Int32) -> UnsafeMutablePointer<CChar>
             s.cont.finish()
             try await s.analyzer.finalizeAndFinishThroughEndOfInput()
             try await s.results?.value
-            r.text = s.box.value.0.trimmingCharacters(in: .whitespacesAndNewlines)
-            r.finals = s.box.value.1
-            r.volatiles = s.box.value.2
+            let (text, usedTail) = s.box.value.merged()
+            r.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            r.finals = s.box.value.finalCount
+            r.volatiles = s.box.value.volatileCount
+            r.usedVolatileTail = usedTail
         } catch {
             r.error = "\(error)"
         }

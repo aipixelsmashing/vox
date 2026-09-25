@@ -83,6 +83,8 @@ pub struct HistoryEntryDto {
     pub outcome_note: Option<String>,
     pub method: Option<&'static str>,
     pub long_form: bool,
+    /// How many recognition hints this dictation was given. Never the hints.
+    pub context_terms: u32,
 }
 
 impl From<history::Entry> for HistoryEntryDto {
@@ -108,6 +110,7 @@ impl From<history::Entry> for HistoryEntryDto {
                 .map(inject::FallbackReason::note_from_code),
             method: e.method.as_deref().map(inject::Method::contract_name),
             long_form: false,
+            context_terms: e.context_terms,
         }
     }
 }
@@ -361,6 +364,12 @@ pub fn settings_set(
     *state.settings.write() = merged.clone();
     settings::SETTINGS_GEN.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     tracing::info!("settings updated: {touched}");
+    if merged.privacy.read_focused_field {
+        // Get the word list and the dictation module ready now, in the background, so the
+        // next dictation does not pay for either inside its 150 ms (docs/CONTEXT.md).
+        crate::context::warm();
+        state.engine.prepare_context();
+    }
     Ok(merged)
 }
 
@@ -553,6 +562,15 @@ pub struct DiagnosticsDto {
     pub stage_timings_ms: StageTimingsDto,
     pub memory: MemoryDto,
     pub preload_hit_rate: f64,
+    pub context: ContextUseDto,
+}
+
+/// Whether recognition hints are reaching the engine: dictations with any, out of all.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUseDto {
+    pub dictations: u32,
+    pub with_hints: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -611,6 +629,10 @@ pub fn diagnostics_recent(state: State<'_, AppState>, limit: u32) -> CmdResult<D
             peak_rss_mb: peak,
         },
         preload_hit_rate: 0.0,
+        context: ContextUseDto {
+            dictations: stats.total,
+            with_hints: stats.with_hints,
+        },
     })
 }
 
