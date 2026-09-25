@@ -14,7 +14,7 @@ use crate::cues;
 use tauri::Emitter;
 
 use crate::commands::{InsertionResultEvent, PipelineStateDto};
-use crate::{audio, clipboard, engine, history, inject, panel, settings, tray};
+use crate::{audio, clipboard, context, engine, history, inject, panel, settings, tray};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -194,6 +194,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     let mut last_state_emit = Instant::now();
     // Input level since the last `vox://level`, for the overlay's ring (~20 Hz).
     let mut level = LevelMeter::default();
+    // How many recognition hints this dictation's engine session was given, for the
+    // history row and Diagnostics (docs/CONTEXT.md). A count, never the hints.
+    let mut hints: u32 = 0;
 
     loop {
         // While recording, poll so audio is drained and the cap is enforced.
@@ -286,14 +289,19 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     }
                 }
                 // Open the streaming session so the engine works while the user speaks.
-                let hint = language_hint(&deps.settings.read());
-                streaming = match deps.engine.stream_start(hint) {
-                    Ok(()) => true,
-                    Err(e) => {
-                        tracing::info!("streaming unavailable, batch transcription: {e}");
-                        false
-                    }
+                // With the focused-field setting off this happens before the target is
+                // captured, exactly as before the setting existed; with it on, the field
+                // has to be read first so the hints can go in at session start.
+                let (hint, read_field) = {
+                    let s = deps.settings.read();
+                    (language_hint(&s), s.privacy.read_focused_field)
                 };
+                let vocabulary = context::vocabulary_terms(&deps.settings.read(), &deps.history);
+                hints = 0;
+                if !read_field {
+                    hints = vocabulary.len() as u32;
+                    streaming = start_stream(&deps, hint.clone(), vocabulary.clone());
+                }
                 target = match deps.injector.capture_target() {
                     Ok(t) => Some(t),
                     Err(e) => {
@@ -301,6 +309,24 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         None
                     }
                 };
+                if read_field {
+                    let t0 = Instant::now();
+                    let (field, note) = match target.as_ref() {
+                        Some(t) => field_hints(t),
+                        None => (Vec::new(), "no target"),
+                    };
+                    let from_field = field.len();
+                    let terms = context::merge(vocabulary, field);
+                    hints = terms.len() as u32;
+                    tracing::info!(
+                        "context: {} hints sent, {} candidates from the field ({}), read in {} ms",
+                        terms.len(),
+                        from_field,
+                        note,
+                        t0.elapsed().as_millis()
+                    );
+                    streaming = start_stream(&deps, hint, terms);
+                }
                 // The overlay goes up once the target is known so it can sit by the caret;
                 // the tray icon and the cue have already answered "is it on?" by now.
                 if deps.settings.read().ui.level_overlay {
@@ -361,7 +387,15 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         &format!("Stopped at {minutes} minutes. Transcribed what was recorded."),
                     );
                 }
-                let cancelled = finish(&deps, cap.expect("checked"), tgt, held_ms, streaming, &rx);
+                let cancelled = finish(
+                    &deps,
+                    cap.expect("checked"),
+                    tgt,
+                    held_ms,
+                    streaming,
+                    hints,
+                    &rx,
+                );
                 let _ = cancelled;
                 streaming = false;
                 state = State::Idle;
@@ -386,6 +420,7 @@ fn finish(
     target: Option<InjectionTarget>,
     held_ms: u32,
     streaming: bool,
+    hints: u32,
     rx: &crossbeam_channel::Receiver<Event>,
 ) -> bool {
     let released_at = Instant::now();
@@ -525,6 +560,7 @@ fn finish(
             outcome: outcome_str,
             outcome_note: note,
             method,
+            context_terms: hints,
         };
         match deps.history.insert(&entry) {
             Ok(id) => entry_id = id,
@@ -562,6 +598,38 @@ pub fn notify(app: &tauri::AppHandle, body: &str) {
 /// never on the dictation path.
 fn emit_state(app: &tauri::AppHandle, state: PipelineStateDto) {
     let _ = app.emit("vox://state", state);
+}
+
+/// Opens the engine's streaming session with this dictation's hints. False means the
+/// batch path will transcribe the whole clip at release.
+fn start_stream(deps: &Deps, hint: engine::LanguageHint, terms: Vec<String>) -> bool {
+    match deps.engine.stream_start(hint, terms) {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::info!("streaming unavailable, batch transcription: {e}");
+            false
+        }
+    }
+}
+
+/// Hints from the focused field, and one word for the log about how the read went.
+#[cfg(target_os = "macos")]
+fn field_hints(target: &InjectionTarget) -> (Vec<String>, &'static str) {
+    let Some(el) = target.element.as_ref() else {
+        return (Vec::new(), "no focused element");
+    };
+    match context::read_field(el) {
+        Ok((window, caret)) => match context::field_terms(&window, caret) {
+            Ok(terms) => (terms, "ok"),
+            Err(why) => (Vec::new(), why),
+        },
+        Err(why) => (Vec::new(), why),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn field_hints(_target: &InjectionTarget) -> (Vec<String>, &'static str) {
+    (Vec::new(), "unsupported platform")
 }
 
 /// `vox://level`, only while recording (docs/UI-CONTRACT.md). The overlay's ring.

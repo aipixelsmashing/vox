@@ -74,7 +74,8 @@ CREATE TABLE transcripts (
   target_app   TEXT,                    -- bundle id / exe name, for diagnostics
   outcome      TEXT NOT NULL,           -- inserted | clipboard_only
   outcome_note TEXT,                    -- failure reason when clipboard_only
-  method       TEXT                     -- ax | paste | unicode | none
+  method       TEXT,                    -- ax | paste | unicode | none
+  context_terms INTEGER NOT NULL DEFAULT 0  -- recognition hints sent, a count (docs/CONTEXT.md); never the hints
 );
 CREATE INDEX idx_created ON transcripts(created_at DESC);
 CREATE VIRTUAL TABLE transcripts_fts USING fts5(text, content='transcripts', content_rowid='id');

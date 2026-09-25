@@ -64,7 +64,7 @@ export async function runScriptedDictation(succeed = true) {
     durationMs: 3200, latencyMs: succeed ? 180 : 240, engineId: 'speechanalyzer', language: 'en',
     targetApp: 'Slack', outcome: succeed ? 'inserted' : 'clipboardOnly',
     outcomeNote: succeed ? null : 'window was elevated', method: succeed ? 'accessibility' : null,
-    longForm: false,
+    longForm: false, contextTerms: mockSettings.privacy.readFocusedField ? 4 : 0,
   }, ...history]
   if (!succeed) {
     lastToast = 'Copied instead — Terminal is running as administrator. Press Ctrl+Shift+V to paste.'

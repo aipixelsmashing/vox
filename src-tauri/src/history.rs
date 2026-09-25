@@ -28,6 +28,9 @@ pub struct Entry {
     pub outcome: String,
     pub outcome_note: Option<String>,
     pub method: Option<String>,
+    /// How many recognition hints the engine session was given (docs/CONTEXT.md). The
+    /// count only; the hints themselves are never stored anywhere.
+    pub context_terms: u32,
 }
 
 const SCHEMA: &str = r#"
@@ -43,7 +46,8 @@ CREATE TABLE IF NOT EXISTS transcripts (
   target_app   TEXT,
   outcome      TEXT NOT NULL,
   outcome_note TEXT,
-  method       TEXT
+  method       TEXT,
+  context_terms INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_created ON transcripts(created_at DESC);
 CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(text, content='transcripts', content_rowid='id');
@@ -77,6 +81,7 @@ impl Store {
         }
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -85,6 +90,7 @@ impl Store {
     pub fn open_in_memory() -> anyhow::Result<Self> {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch(SCHEMA)?;
+        migrate(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -93,8 +99,8 @@ impl Store {
     pub fn insert(&self, entry: &Entry) -> anyhow::Result<i64> {
         let conn = self.conn.lock();
         conn.execute(
-            "INSERT INTO transcripts (created_at, text, word_count, duration_ms, latency_ms, engine_id, language, target_app, outcome, outcome_note, method)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            "INSERT INTO transcripts (created_at, text, word_count, duration_ms, latency_ms, engine_id, language, target_app, outcome, outcome_note, method, context_terms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 entry.created_at,
                 entry.text,
@@ -107,6 +113,7 @@ impl Store {
                 entry.outcome,
                 entry.outcome_note,
                 entry.method,
+                entry.context_terms,
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -230,12 +237,14 @@ pub struct VocabTerm {
     pub state: String,
 }
 
-/// What Diagnostics shows: outcomes by app and the median release-to-text.
+/// What Diagnostics shows: outcomes by app, the median release-to-text, and how many
+/// dictations went to the engine with recognition hints.
 #[derive(Debug, Clone, Default)]
 pub struct Stats {
     pub by_app: Vec<(String, u32, u32)>,
     pub median_latency_ms: u32,
     pub total: u32,
+    pub with_hints: u32,
 }
 
 impl Store {
@@ -320,10 +329,16 @@ impl Store {
                 |r| r.get(0),
             )?
         };
+        let with_hints: u32 = conn.query_row(
+            "SELECT COUNT(*) FROM transcripts WHERE context_terms > 0",
+            [],
+            |r| r.get(0),
+        )?;
         Ok(Stats {
             by_app,
             median_latency_ms,
             total,
+            with_hints,
         })
     }
 }
@@ -334,7 +349,24 @@ pub enum ExportFormat {
     Json,
 }
 
-const COLUMNS: &str = "id, created_at, text, word_count, duration_ms, latency_ms, engine_id, language, target_app, outcome, outcome_note, method";
+const COLUMNS: &str = "id, created_at, text, word_count, duration_ms, latency_ms, engine_id, language, target_app, outcome, outcome_note, method, context_terms";
+
+/// Columns added after a database may already exist. `CREATE TABLE IF NOT EXISTS` does not
+/// touch an existing table, so each addition is checked against `PRAGMA table_info` and
+/// added when missing. Every entry is a pure statement with a test.
+fn migrate(conn: &Connection) -> anyhow::Result<()> {
+    let has_context: bool = conn
+        .prepare("PRAGMA table_info(transcripts)")?
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .any(|name| name == "context_terms");
+    if !has_context {
+        conn.execute_batch(
+            "ALTER TABLE transcripts ADD COLUMN context_terms INTEGER NOT NULL DEFAULT 0;",
+        )?;
+    }
+    Ok(())
+}
 
 fn row_to_entry(r: &rusqlite::Row) -> rusqlite::Result<Entry> {
     Ok(Entry {
@@ -350,6 +382,7 @@ fn row_to_entry(r: &rusqlite::Row) -> rusqlite::Result<Entry> {
         outcome: r.get(9)?,
         outcome_note: r.get(10)?,
         method: r.get(11)?,
+        context_terms: r.get(12)?,
     })
 }
 
@@ -441,7 +474,36 @@ mod tests {
             outcome: "inserted".into(),
             outcome_note: None,
             method: Some("ax".into()),
+            context_terms: 0,
         }
+    }
+
+    #[test]
+    fn a_database_from_before_context_terms_gets_the_column() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE transcripts (
+               id INTEGER PRIMARY KEY, created_at INTEGER NOT NULL, text TEXT NOT NULL,
+               word_count INTEGER NOT NULL, duration_ms INTEGER NOT NULL, latency_ms INTEGER NOT NULL,
+               engine_id TEXT NOT NULL, language TEXT, target_app TEXT, outcome TEXT NOT NULL,
+               outcome_note TEXT, method TEXT);
+             INSERT INTO transcripts VALUES (1, 1, 'old row', 2, 1000, 200, 'speechanalyzer', NULL, NULL, 'inserted', NULL, 'ax');",
+        )
+        .unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+        let store = Store {
+            conn: Mutex::new(conn),
+        };
+        let rows = store.recent(10).unwrap();
+        assert_eq!(rows[0].text, "old row");
+        assert_eq!(rows[0].context_terms, 0, "old rows read as unhinted");
+        let mut e = entry("new row", 2);
+        e.context_terms = 7;
+        store.insert(&e).unwrap();
+        assert_eq!(store.recent(1).unwrap()[0].context_terms, 7);
+        assert_eq!(store.stats().unwrap().with_hints, 1);
     }
 
     #[test]

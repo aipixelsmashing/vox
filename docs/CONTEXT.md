@@ -102,12 +102,51 @@ terms.
 - A bug that logged or stored context would be a privacy incident. The guard test is the
   control; the setting is the user's control.
 
+## Implementation notes
+
+What shipped in M3, where it departs from or sharpens the design above:
+
+- **Module choice is by hints, not by the setting.** Applied learned terms and the manual
+  dictionary are hints too ([LEARNING.md](LEARNING.md#how-terms-are-applied)), so a user
+  with the setting off but a dictionary entry is on `DictationTranscriber` for that
+  dictation. With no hints of any kind the session is `SpeechTranscriber`, unchanged.
+- **The dictation module is readied in the background**, when the setting is on at launch
+  and when it is turned on: its assets are installed if missing (Apple's download, like
+  the speech module's on first run) and it is warmed once. If a dictation starts before
+  that has finished, the session runs on `SpeechTranscriber`, the hints are dropped, and
+  the log says so with a count. Nothing on the dictation path ever waits for it.
+- **The read happens before the session opens** when the setting is on, so the hints go
+  in at session start; the audio waits in the two-second ring buffer meanwhile, inside
+  the same window the Electron wake-up already uses. With the setting off the session
+  opens before the target is captured, exactly as before.
+- **Only the window is read** where the app supports `AXStringForRange`; otherwise
+  `AXValue`, sliced. The role must be a text field, text area or combo box.
+- **The word list** is `/usr/share/dict/words`, lower-cased, held as 3.5 MB and loaded in
+  the background only once the setting is on. Until it is loaded no field terms are sent,
+  because without it every word would look unusual. If the file is missing, the same.
+- **Tokens.** Apostrophes and hyphens split ("don't", "well-known" become ordinary
+  words); dots inside a token keep it ("vox.pixelsmashing.com", "Node.js") unless no
+  segment has three letters ("e.g."). Adjacent capitalised unknown words join into one
+  term.
+- **Finalisation.** `DictationTranscriber` may leave the tail of a session as a volatile
+  result; the bridge appends the last volatile result when it covers audio after the last
+  final one, and the log line says "volatile tail used" when that happened.
+- **The batch path** (used only when streaming fails to start) has no hints.
+- **Diagnostics and history carry the count.** Each history row stores how many hints its
+  dictation was given (`context_terms`, [HISTORY.md](HISTORY.md#storage)) and shows it as
+  "· 6 hints"; Diagnostics shows "Sent for N of M dictations". The terms are in neither.
+
 ## Testing
 
-- Unit: extraction (dictionary words excluded, identifiers kept, the 20-term cap, nearest-
-  first ordering, learned and manual terms ranked ahead), the password/secure-input
-  refusal, the 150 ms deadline path, and the default being off.
-- Guard: no `tracing` call in the context path formats the window or the terms; the
-  history schema has no column for them; the settings file has the flag.
+- Unit (`context.rs`): extraction (dictionary words excluded, identifiers kept, the
+  20-term cap, nearest-first ordering, learned and manual terms ranked ahead, UTF-16
+  offsets), the word list, and the default being off. The password/secure-input refusal
+  and the 150 ms deadline are in `read_field`, which needs a real element: manual gate.
+- Guard (`tests/guards.rs`): `context.rs` contains no logging at all; the pipeline's
+  context log lines format counts only; the bridge's log lines never mention hints; the
+  history schema has no column that could hold them; the settings file has the flag, off.
+- Engine (`speechanalyzer.rs`, `cargo test -- --ignored streams_with_hints`): the S5
+  fixture streamed with its five terms through the dictation module produces text and
+  recovers at least one of them. Needs macOS 26 and Apple's assets, so not in CI.
 - Manual gate ([TESTING.md](TESTING.md)): dictate a name that is on screen and wrong
   without the setting; right with it; unchanged in a password field.

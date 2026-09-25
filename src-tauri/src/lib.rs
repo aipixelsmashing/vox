@@ -13,6 +13,7 @@
 pub mod audio;
 pub mod clipboard;
 pub mod commands;
+pub mod context;
 pub mod cues;
 pub mod engine;
 pub mod export;
@@ -109,6 +110,12 @@ pub fn run() {
                         notify(&handle, &format!("Transcription is unavailable: {e}"));
                     }
                 });
+            }
+
+            if settings.read().privacy.read_focused_field {
+                // The word list and the dictation module, ready before the first key-down.
+                context::warm();
+                engine.prepare_context();
             }
 
             let injector: Arc<dyn inject::TextInjector> =
