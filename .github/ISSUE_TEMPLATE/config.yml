@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/OWNER/vox/security/advisories/new
+    url: https://github.com/aipixelsmashing/vox/security/advisories/new
     about: Report privately, not as a public issue.
   - name: Feature idea
-    url: https://github.com/OWNER/vox/discussions
+    url: https://github.com/aipixelsmashing/vox/discussions
     about: Start a discussion first — see CONTRIBUTING.md for what's in and out of scope.
