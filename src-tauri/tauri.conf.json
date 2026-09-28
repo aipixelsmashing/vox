@@ -76,6 +76,7 @@
       "active": true,
       "dialog": true,
       "pubkey": "REPLACE_WITH_MINISIGN_PUBLIC_KEY",
+      "_pubkey_comment": "Placeholder. The minisign keypair is generated at M5 (ROADMAP.md) and the public key goes here before the first signed build.",
       "_comment": "Endpoint is a domain we control that redirects to GitHub Releases. Installed clients keep updating through a repo rename, an org move, or a migration off GitHub entirely. Never point this straight at a GitHub URL.",
       "endpoints": [
         "https://vox.pixelsmashing.com/updates/latest.json"
