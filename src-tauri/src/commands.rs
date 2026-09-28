@@ -555,6 +555,14 @@ pub fn vocab_forget(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     Ok(())
 }
 
+/// Every stored correction, candidates included, then VACUUM (docs/LEARNING.md). The
+/// Privacy pane's delete button; it confirms once, like the history wipe.
+#[tauri::command]
+pub fn vocab_forget_all(state: State<'_, AppState>) -> CmdResult<Deleted> {
+    let deleted = state.history.vocab_forget_all().map_err(VoxError::io)?;
+    Ok(Deleted { deleted })
+}
+
 #[tauri::command]
 pub fn vocab_export(state: State<'_, AppState>) -> CmdResult<ExportedTo> {
     let dir = export_dir().map_err(VoxError::io)?;

@@ -23,13 +23,14 @@ rather than a constraint that prevents it.
 
 ## How capture works
 
-After a successful insertion, the pipeline registers a **watch** on the target field for a
-bounded window (default 90 s, cancelled when focus leaves the app).
+After a *verified* insertion, the pipeline registers a **watch** on the target field for a
+bounded window (90 s, cancelled when focus leaves the app). The watch runs on its own thread
+and reads the field back at T+2 s, T+10 s, T+30 s, T+60 s and T+90 s.
 
 ```
 insert "meet me at cuber netties standup"
         │
-        ├── observe field content at T+2s, T+10s, T+30s (AX read, cheap)
+        ├── observe field content at T+2s, T+10s, T+30s, T+60s, T+90s (AX read, cheap)
         │
         └── diff against what we inserted
                 │
@@ -38,13 +39,29 @@ insert "meet me at cuber netties standup"
                         └── candidate, stored with count = 1
 ```
 
+At registration the watch notes where the insertion sits in the field: the text before it
+and the text after it. Each read must find that surrounding text unchanged; the span
+between is then compared with the insertion. If the surroundings changed, the user is
+editing the document rather than the dictation, and the watch ends. A second fix in the
+same dictation is measured against the field as it stood after the first, so both count.
+Text typed after the insertion is tolerated as long as the rest of the insertion is still
+there to anchor on.
+
 Rules that keep this honest:
 
 - **Never learn from a single instance.** A candidate becomes an applied term at **three**
-  independent occurrences, across at least two distinct sessions.
+  independent occurrences, across at least two distinct sessions. A **session** starts at
+  launch and again after four hours without a dictation — Vox is a tray app that runs for
+  weeks, so a launch alone would be no boundary at all. The setting
+  `learning.minOccurrences` can raise the three, never lower it.
 - **Only local, aligned edits count.** If the user rewrote the whole sentence, that is editing,
-  not correcting — discard it. Alignment must map a contiguous span of inserted tokens to a
-  contiguous replacement.
+  not correcting — discard it. Alignment must map a contiguous span of at most three
+  inserted tokens to a contiguous replacement of at most three, with the rest of the
+  insertion intact around it. Deletions are not corrections; neither are insertions. Tokens
+  compare with surrounding punctuation removed, so adding a comma changes nothing. When the
+  fix is on the very last token there is nothing after it to anchor on, so the replacement
+  may then not be longer than what it replaced — "prea" → "Priya" is caught there, "Priya"
+  → "Priya Sharma" is not.
 - **Never store surrounding text.** The candidate record holds the wrong form, the right form,
   a count, and a timestamp. Not the sentence it appeared in.
 - **Never watch a field we refused to insert into.** Password fields and secure-input contexts
@@ -59,8 +76,11 @@ Rules that keep this honest:
   the system word list (`/usr/share/dict/words` on macOS, the platform spell-checker
   elsewhere), case-insensitively, token by token for multi-word forms. Proper nouns,
   product names, acronyms and jargon pass because they are not dictionary words; grammar
-  fixes never do. [TESTING.md](TESTING.md) lists the homophone pairs that must produce no
-  candidate.
+  fixes never do. A contraction counts as ordinary when its base is ("it's", "you're"),
+  because the word list has no apostrophes; a token with no letters (a number) counts as
+  ordinary too. If the word list cannot be loaded, nothing is recorded: without it every
+  word looks unusual and the guard could not do its job. [TESTING.md](TESTING.md) lists
+  the homophone pairs that must produce no candidate.
 
 ## How terms are applied
 
@@ -114,11 +134,34 @@ CREATE TABLE vocab_candidates (
   first_seen    INTEGER NOT NULL,
   last_seen     INTEGER NOT NULL,
   source_apps   TEXT,               -- distinct app names, for provenance only
-  state         TEXT NOT NULL       -- candidate | applied | suspended | rejected
+  reversals     INTEGER NOT NULL DEFAULT 0,
+  state         TEXT NOT NULL,      -- candidate | applied | suspended | rejected
+  sessions      INTEGER NOT NULL DEFAULT 1,  -- distinct sessions the fix was seen in
+  last_session  INTEGER             -- id (start time, ms) of the last of them
 );
 ```
 
-Kilobytes, not megabytes. The compounding asset costs nothing in footprint.
+It shares `history.db` ([HISTORY.md](HISTORY.md)). A row matches on the wrong form
+case-insensitively and the right form exactly; the first-seen spelling of the wrong form is
+kept. Kilobytes, not megabytes. The compounding asset costs nothing in footprint.
+
+## Inspecting what has been captured
+
+The Privacy pane states what is stored and has the delete button; the Vocabulary pane lists
+applied terms and, on request, the candidates still waiting. The table itself is plain
+SQLite, readable with the `sqlite3` that ships with macOS:
+
+```bash
+sqlite3 -header -column ~/Library/Application\ Support/vox/history.db \
+  "SELECT id, wrong_form, right_form, count, sessions, state, source_apps,
+          datetime(first_seen/1000,'unixepoch','localtime') AS first_seen,
+          datetime(last_seen/1000,'unixepoch','localtime')  AS last_seen
+   FROM vocab_candidates ORDER BY last_seen DESC"
+```
+
+The log (`~/Library/Logs/<bundle id>/vox.log`) says what each watch did in counts only —
+`watch: registered for 90 s`, `watch: read 2: candidate recorded (2 → 1 tokens), seen 1
+times in 1 sessions`, `watch: ended at read 3, focus left the app` — never the forms.
 
 ## What this is not
 

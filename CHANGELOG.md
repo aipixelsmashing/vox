@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Vox now notices when you fix a word it got wrong: after placing text it watches that
+  field for 90 seconds and keeps the wrong form, the right form, a count, the dates and
+  which apps — never the sentence, never from a password field, and never a fix where both
+  spellings are ordinary words. Nothing is applied yet; Settings → Privacy states what is
+  stored and has a button that deletes all of it.
 - Hold right Option, speak, release: the words appear in the field you were typing in.
   Transcription runs on this Mac with Apple's speech engine (macOS 26 or later).
 - A menu bar icon that shows when Vox is listening or working, with Pause and Quit.

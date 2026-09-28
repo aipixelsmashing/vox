@@ -34,14 +34,17 @@ regression fails the PR. See [LATENCY.md](LATENCY.md).
 dictations and records idle RSS, peak RSS and idle CPU. A >15% idle-RSS regression fails the
 PR, exactly like a latency regression. See [FOOTPRINT.md](FOOTPRINT.md).
 
-**Learning tests** — edit alignment against a fixture corpus of insertion/correction pairs,
-including the negatives that must *not* produce candidates: whole-sentence rewrites, deletions,
-edits after focus left the app, anything in a field we refused to insert into, and the
-homophone guard — their/there/they're, to/too/two, its/it's, affect/effect, than/then,
-your/you're, whose/who's, principal/principle, lead/led, bear/bare — none may produce a
-candidate, while "cuber netties" → "Kubernetes" and "acks UI element" → "AXUIElement" must. Plus the
-three-occurrence threshold, the auto-suspend rule, and the guarantee that deleting a term also
-deletes its evidence.
+**Learning tests** — edit alignment against a fixture corpus of insertion/correction pairs
+(`learning.rs`), including the negatives that must *not* produce candidates: whole-sentence
+rewrites, deletions, insertions, edits after focus left the app, anything in a field we
+refused to insert into, and the homophone guard — their/there/they're, to/too/two, its/it's,
+affect/effect, than/then, your/you're, whose/who's, principal/principle, lead/led,
+bear/bare — none may produce a candidate, while "cuber netties" → "Kubernetes" and "acks UI
+element" → "AXUIElement" must (`tests/guards.rs`, against the real system word list). Plus
+the three-occurrence, two-session threshold, the session clock, the auto-suspend rule (with
+M7, when terms are applied), and the guarantee that deleting a term also deletes its
+evidence. The focus-left and refused-field cases are structural: the watch is registered
+under the `Inserted` arm only, and ends itself when the frontmost app changes.
 
 **UI contract coverage** — every command in `src/lib/contract.ts` has a mock implementation,
 and every state documented in [UI-STATES.md](UI-STATES.md) has a scenario in
@@ -217,6 +220,25 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
 The application list in [TEXT-INJECTION.md](TEXT-INJECTION.md), per platform, recording for
 each: method used, outcome, and observed latency. Results committed to
 `docs/compat/<version>.md` so regressions are visible across releases.
+
+### Correction capture (M4)
+
+Cannot be automated: a real field, a real edit, a real focus change. The exit criterion
+is the table filling up correctly from real use ([LEARNING.md](LEARNING.md#inspecting-what-has-been-captured)
+has the `sqlite3` query).
+
+1. Dictate a sentence with a mangled name into Notes, fix the name within a minute: the
+   log shows `watch: registered` then `watch: read N: candidate recorded`, and the row is
+   in the table with `count 1`, `sessions 1`, `state candidate`, `source_apps Notes`.
+2. Same fix again in the same sitting, then once more after a relaunch or four hours
+   later: `count 3`, `sessions 2`, `state applied`. Three in one sitting stays `candidate`.
+3. Fix a homophone ("their" → "there"): `watch: … edit guarded` and no row.
+4. Rewrite the whole sentence, or delete the name, or add a word: no row.
+5. Fix a name, then keep typing after the dictation: the row is still recorded.
+6. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
+   and no row. Dictate into a password field: no `watch:` line at all.
+7. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
+   how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
 
 ### Long-form and learning
 

@@ -554,6 +554,12 @@ fn finish(
         }
     };
 
+    // A verified insertion gets a correction watch (docs/LEARNING.md). Off the critical
+    // path; a refused or unverified insertion never reaches this arm.
+    if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
+        crate::learning::watch_after_insertion(deps, t, &text);
+    }
+
     let mut entry_id = 0;
     if history_cfg.enabled {
         let entry = history::Entry {

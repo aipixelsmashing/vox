@@ -51,7 +51,7 @@ be located. Click-through, never focused, gone the moment the text is placed.
 | Model | Not downloaded; downloading with progress; verification failed; import; engine in use | `model-none`, `model-downloading`, `model-hash-fail` |
 | Text | Manual dictionary empty vs populated | `dictionary-empty` |
 | Vocabulary | No terms yet; terms with provenance; a suspended term; learning off | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off` |
-| Privacy | Read-focused-field on/off; offline lock on/off; export running; wipe confirmation | `offline-locked` |
+| Privacy | Read-focused-field on/off; offline lock on/off; export running; wipe confirmation; corrections delete confirmation | `offline-locked` |
 | Diagnostics | Corrections trend; insertion outcomes by app; not enough data yet | `diagnostics-thin`, `diagnostics-rich` |
 
 ## Onboarding
@@ -107,6 +107,8 @@ pane.
 | History database could not be read | "Couldn't read Vox's data. Try again." with the action "Try again" |
 | A feature this build does not have | "That isn't available in this version of Vox." |
 | Privacy pane and onboarding card, read-focused-field toggle (off by default) | "Read the field you're dictating into — Vox looks at the text around your cursor to recognise the names and terms you're likely to say. Read once per dictation, never stored, never leaves this Mac. Off in password fields." |
+| Privacy pane, what correction capture stores | "After Vox places text, it watches that field for 90 seconds and notices when you fix a word. It keeps the wrong form, the right form, a count, the dates and which apps — never the sentence, and never from a password field. Turn it off in Vocabulary." with "Delete every correction it has stored" → "Delete all…" → "This can't be undone." |
+| Corrections deleted | "Deleted 12 corrections." (singular "1 correction") |
 
 Empty states are invitations, not apologies:
 

@@ -32,9 +32,13 @@ all — including for updates.
 
 ## What Vox learns about you
 
-If you turn on vocabulary learning, Vox watches the text field for a short window after it
-inserts something, and notices when you fix a word. After it has seen the same fix three times,
-it starts making that fix for you.
+Vox watches the text field for 90 seconds after it inserts something, and notices when you
+fix a word. It keeps the wrong form, the right form, a count, the dates and which apps —
+never the sentence, and never from a password field. This runs from the first launch so the
+list has time to build; Settings → Privacy states it and has a button that deletes all of
+it, and "Watch my corrections" in Settings → Vocabulary turns it off. Only if you also turn
+on "Apply what it has learned" does Vox start making a fix for you, and then only after it
+has seen the same fix three times on at least two different days or sittings.
 
 What that stores: the wrong form, the right form, a count, a date, and which apps it happened
 in. Not the sentences. Not the surrounding text. Kilobytes in total, in the same local

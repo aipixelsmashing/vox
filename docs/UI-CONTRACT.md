@@ -37,6 +37,7 @@ Grouped by pane. Full signatures in `contract.ts`.
 | --- | --- | --- |
 | `vocab_list` | `{ state? }` | `VocabTerm[]` |
 | `vocab_forget` | `{ id }` | `void` — deletes the term *and* its evidence |
+| `vocab_forget_all` | — | `{ deleted }` — every stored correction, candidates included; the Privacy pane's delete button |
 | `vocab_export` | — | `{ path }` |
 
 ### Settings, models, permissions
