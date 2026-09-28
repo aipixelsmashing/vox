@@ -3,8 +3,7 @@
 ## Reporting a vulnerability
 
 Report privately through GitHub's **Report a vulnerability** button on the Security tab, or by
-email to `aipixelsmashing@gmail.com` (PGP key in `docs/security-key.asc`). Please do not open a
-public issue for a vulnerability.
+email to `aipixelsmashing@gmail.com`. Please do not open a public issue for a vulnerability.
 
 Include what you can: affected version and platform, reproduction steps, and impact. A working
 proof of concept helps but is not required.
