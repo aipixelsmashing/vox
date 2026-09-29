@@ -142,10 +142,12 @@ behaviour honest.
 
 | Path (macOS example) | Contents |
 | --- | --- |
-| `~/Library/Application Support/vox/settings.json` | Settings, mode `0600` |
-| `~/Library/Application Support/vox/history.db` | SQLite transcripts and vocabulary, mode `0600` |
-| `~/Library/Application Support/vox/models/` | Downloaded model files + `manifest.json` |
-| `~/Library/Logs/vox/vox.log` | Rolling log, transcripts never written to it |
+| `~/Library/Application Support/com.pixelsmashing.dictation/settings.json` | Settings, mode `0600` |
+| `~/Library/Application Support/com.pixelsmashing.dictation/history.db` | SQLite transcripts and vocabulary, mode `0600` |
+| `~/Library/Application Support/com.pixelsmashing.dictation/models/` | Downloaded model files + `manifest.json` |
+| `~/Library/Logs/com.pixelsmashing.dictation/vox.log.<date>` | Rolling daily log, transcripts never written to it |
+
+`VOX_HOME=/some/dir` puts all of it under that directory instead.
 
 Windows: `%APPDATA%\vox\`. Linux: `$XDG_CONFIG_HOME/vox` and `$XDG_DATA_HOME/vox`.
 
