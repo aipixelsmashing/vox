@@ -41,6 +41,8 @@ Behaviour:
 
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
+- **Closing** — however the panel closes, focus goes back to the app it was opened over.
+  Vox does not stay frontmost, so none of its other windows comes forward in its place.
 - **Copy** — clipboard, marked private so it stays out of clipboard history and cloud sync.
 - **Insert** — re-runs the injection pipeline against whatever is focused now. Useful after a
   failed insertion, which is why failed rows are marked.

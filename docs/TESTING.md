@@ -133,6 +133,12 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
 6. "Delete all…" asks once, then the list is empty and `history.db` has been vacuumed
    (file size drops).
 7. `history.enabled` false: the panel says history is off and offers nothing else.
+8. With the onboarding or settings window open behind another app's window, open the panel
+   over that app and click a row: the transcript is on the clipboard, the panel is gone,
+   the app you were in is frontmost with its field still focused, and the Vox window stays
+   behind. The same with Enter, Escape, the chord and the tray icon. Which process gets
+   focus is unit-tested (`panel::tests`); that macOS gives it is a real focus change and
+   is checked here.
 
 ### Settings window (M3)
 

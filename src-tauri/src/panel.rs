@@ -38,9 +38,10 @@ const GAP_BELOW_TRAY: f64 = 6.0;
 /// tray event that carries one, so the panel can open under the icon even from the menu.
 static TRAY_RECT: Mutex<Option<(f64, f64, f64, f64)>> = Mutex::new(None);
 
-/// Bundle id of the app that was frontmost when the panel last opened. Read by
-/// `history_list` for the current-app boost.
-static OPENED_OVER: Mutex<Option<String>> = Mutex::new(None);
+/// The app that was frontmost when the panel last opened: its process id, which the panel
+/// hands focus back to when it closes, and its bundle id, read by `history_list` for the
+/// current-app boost.
+static OPENED_OVER: Mutex<Option<(u32, Option<String>)>> = Mutex::new(None);
 
 pub fn remember_tray_rect(app: &AppHandle, rect: tauri::Rect) {
     let scale = app
@@ -55,7 +56,7 @@ pub fn remember_tray_rect(app: &AppHandle, rect: tauri::Rect) {
 }
 
 pub fn opened_over() -> Option<String> {
-    OPENED_OVER.lock().clone()
+    OPENED_OVER.lock().as_ref().and_then(|(_, b)| b.clone())
 }
 
 pub fn is_visible(app: &AppHandle) -> bool {
@@ -72,15 +73,34 @@ pub fn toggle_history(app: &AppHandle) {
     }
 }
 
+/// Closes the panel because the user is done with it — a row was copied or inserted, Escape,
+/// the tray icon or the chord again — and gives focus back to the app it was opened over.
+/// Without that Vox stays the active app, and macOS brings its next visible window forward:
+/// an onboarding or settings window left open behind other apps would appear in the panel's
+/// place, and "Insert" would type into it. Losing focus is the other way the panel closes,
+/// and hides the window only: focus has already gone where the user sent it.
 pub fn hide_history(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(HISTORY_WINDOW) {
         let _ = w.hide();
     }
+    let opened_over = OPENED_OVER.lock().as_ref().map(|(pid, _)| *pid);
+    let frontmost = frontmost().map(|(pid, _)| pid);
+    if let Some(pid) = hand_back_to(opened_over, std::process::id(), frontmost) {
+        activate(app, pid);
+    }
+}
+
+/// Pure decision, unit-tested: which process gets focus when the panel closes, if any.
+/// Nobody when the panel was opened over one of Vox's own windows (that window is next in
+/// line anyway), and nobody when another app is already in front.
+fn hand_back_to(opened_over: Option<u32>, own: u32, frontmost: Option<u32>) -> Option<u32> {
+    let target = opened_over.filter(|pid| *pid != own)?;
+    (frontmost == Some(own)).then_some(target)
 }
 
 pub fn show_history(app: &AppHandle) {
     // Remember what the user was in before we take focus.
-    *OPENED_OVER.lock() = frontmost_bundle_id();
+    *OPENED_OVER.lock() = frontmost();
 
     let window = match app.get_webview_window(HISTORY_WINDOW) {
         Some(w) => w,
@@ -441,20 +461,65 @@ fn float_over_full_screen(window: &tauri::WebviewWindow) {
 fn float_over_full_screen(_window: &tauri::WebviewWindow) {}
 
 #[cfg(target_os = "macos")]
-fn frontmost_bundle_id() -> Option<String> {
-    crate::inject::macos::frontmost_app().and_then(|(_, _, bundle)| bundle)
+fn frontmost() -> Option<(u32, Option<String>)> {
+    crate::inject::macos::frontmost_app().map(|(pid, _, bundle)| (pid, bundle))
 }
 
 #[cfg(not(target_os = "macos"))]
-fn frontmost_bundle_id() -> Option<String> {
+fn frontmost() -> Option<(u32, Option<String>)> {
     None
 }
+
+/// Activation is cooperative since macOS 14: the active app yields to the one it names and
+/// the system then honours that app's request. AppKit, so on the main thread.
+#[cfg(target_os = "macos")]
+fn activate(app: &AppHandle, pid: u32) {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
+    let _ = app.run_on_main_thread(move || {
+        let Some(target) =
+            NSRunningApplication::runningApplicationWithProcessIdentifier(pid as libc::pid_t)
+        else {
+            // It quit while the panel was open; nothing to go back to.
+            return;
+        };
+        // SAFETY: on the main thread, `sharedApplication` is the running NSApplication and
+        // `yieldActivationToApplication:` takes the NSRunningApplication we hold.
+        unsafe {
+            let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            let _: () = msg_send![ns_app, yieldActivationToApplication: &*target];
+        }
+        if !target.activateWithOptions(NSApplicationActivationOptions(0)) {
+            tracing::warn!("history panel: could not hand focus back to pid {pid}");
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn activate(_app: &AppHandle, _pid: u32) {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const MON: Anchor = (0.0, 0.0, 1440.0, 900.0);
+
+    #[test]
+    fn closing_the_panel_hands_focus_back_to_the_app_it_opened_over() {
+        const VOX: u32 = 100;
+        const EDITOR: u32 = 200;
+        // Vox is still in front after the panel hides: the editor gets focus, not whichever
+        // Vox window is next.
+        assert_eq!(hand_back_to(Some(EDITOR), VOX, Some(VOX)), Some(EDITOR));
+        // Opened over Vox's own settings or onboarding window: that window is what the user
+        // was in, and it is next in line without any help.
+        assert_eq!(hand_back_to(Some(VOX), VOX, Some(VOX)), None);
+        // Another app is already in front; taking focus from it would be the bug in reverse.
+        assert_eq!(hand_back_to(Some(EDITOR), VOX, Some(300)), None);
+        assert_eq!(hand_back_to(Some(EDITOR), VOX, None), None);
+        assert_eq!(hand_back_to(None, VOX, Some(VOX)), None);
+    }
 
     #[test]
     fn overlay_sits_below_the_caret_left_aligned() {
