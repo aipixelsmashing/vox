@@ -10,3 +10,6 @@
 !/fixtures/audio/README.md
 /docs/compat/*.local.md
 /spikes/target
+# Claude Code: the preview config is shared, the rest is per machine
+/.claude/*
+!/.claude/launch.json
