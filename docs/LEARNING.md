@@ -154,14 +154,15 @@ applied terms and, on request, the candidates still waiting. The table itself is
 SQLite, readable with the `sqlite3` that ships with macOS:
 
 ```bash
-sqlite3 -header -column ~/Library/Application\ Support/vox/history.db \
+sqlite3 -header -column ~/Library/Application\ Support/com.pixelsmashing.dictation/history.db \
   "SELECT id, wrong_form, right_form, count, sessions, state, source_apps,
           datetime(first_seen/1000,'unixepoch','localtime') AS first_seen,
           datetime(last_seen/1000,'unixepoch','localtime')  AS last_seen
    FROM vocab_candidates ORDER BY last_seen DESC"
 ```
 
-The log (`~/Library/Logs/<bundle id>/vox.log`) says what each watch did in counts only —
+The log (`~/Library/Logs/com.pixelsmashing.dictation/vox.log.<date>`, dated in UTC) says
+what each watch did in counts only —
 `watch: registered for 90 s`, `watch: read 2: candidate recorded (2 → 1 tokens), seen 1
 times in 1 sessions`, `watch: ended at read 3, focus left the app` — never the forms.
 
