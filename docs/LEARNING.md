@@ -47,6 +47,17 @@ same dictation is measured against the field as it stood after the first, so bot
 Text typed after the insertion is tolerated as long as the rest of the insertion is still
 there to anchor on.
 
+**The last three watches run side by side.** A new dictation does not end the watch on the
+one before it, because the fix often comes a sentence late: dictate A, dictate B, notice the
+name in A. A's watch reads B as text typed after its insertion and still sees the fix. The
+fourth dictation ends the oldest watch; a watch whose window ran out, or whose app lost
+focus, frees its place. Two limits follow from the anchoring, and are accepted:
+
+- A fix in A changes the text before B, so B's watch ends at its next read. A later fix in
+  B is then not seen. It also means one fix is never counted by two watches.
+- A fix on the *last* word of A, once B follows it, cannot be told from typing and is not
+  recorded (the rule about the very last token, below).
+
 Rules that keep this honest:
 
 - **Never learn from a single instance.** A candidate becomes an applied term at **three**
