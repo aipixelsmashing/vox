@@ -25,8 +25,31 @@ codesign --force --deep --options runtime \
   -s "$IDENTITY" "$APP"
 codesign -dv "$APP" 2>&1 | grep -E "^(Identifier|Authority|Signature)" || true
 
-pkill -f "Vox.app/Contents/MacOS/vox" 2>/dev/null || true
+# Wait for the old process to be gone before replacing the bundle: LaunchServices refuses to
+# open an app it still has registered as exiting (error -600).
+RUNNING="Vox.app/Contents/MacOS/vox"
+pkill -f "$RUNNING" 2>/dev/null || true
+tries=0
+while pgrep -f "$RUNNING" >/dev/null 2>&1; do
+  tries=$((tries + 1))
+  if [ "$tries" -gt 50 ]; then
+    echo "Vox is still running after 5 seconds. Quit it from the tray and run this again."
+    exit 1
+  fi
+  sleep 0.1
+done
+
 rm -rf /Applications/Vox.app
 cp -R "$APP" /Applications/
-open /Applications/Vox.app
+
+# The process table and LaunchServices do not always agree on "gone"; one more go is enough.
+tries=0
+until open /Applications/Vox.app; do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 3 ]; then
+    echo "Installed /Applications/Vox.app, but it did not launch. Open it from Finder."
+    exit 1
+  fi
+  sleep 1
+done
 echo "Installed and launched /Applications/Vox.app"
