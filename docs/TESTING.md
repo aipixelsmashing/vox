@@ -244,7 +244,12 @@ has the `sqlite3` query).
 5. Fix a name, then keep typing after the dictation: the row is still recorded.
 6. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
    and no row. Dictate into a password field: no `watch:` line at all.
-7. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
+7. Dictate a sentence with a mangled name in the middle, dictate a second sentence after
+   it in the same field, then fix the name in the first within a minute: two
+   `watch: registered` lines with no `watch: cancelled` between them, then `candidate
+   recorded`, and one row (not two). A fourth dictation in a row logs one
+   `watch: cancelled`, for the oldest.
+8. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
 
 ### Long-form and learning

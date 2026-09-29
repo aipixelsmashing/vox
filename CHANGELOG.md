@@ -58,6 +58,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   couldn't be placed floats. Click a row to copy it; Insert puts it into whatever is
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
+### Changed
+- Vox keeps watching your last three dictations for fixes, not only the latest one. Dictate
+  a sentence, dictate the next, then go back and fix a name in the first: that fix now
+  counts.
+
 ### Fixed
 - Closing the history panel — by clicking a row, Enter, Escape, the shortcut or the menu bar
   icon — returns you to the app you were in. Before, Vox stayed in front, so a setup or

@@ -16,6 +16,7 @@
 //! Nothing in this file logs the text it reads or the forms it stores. tests/guards.rs
 //! scans every log line here for the variables that would hold them; the log gets counts.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -40,6 +41,10 @@ pub const READ_SCHEDULE: [Duration; 5] = [
     Duration::from_secs(60),
     Duration::from_secs(90),
 ];
+/// How many watches run at once. Corrections often come a sentence or two late, after the
+/// next dictation; a watch is a sleeping thread and five reads, so keeping the last few
+/// costs nothing that can be measured.
+pub const MAX_WATCHES: usize = 3;
 /// Two corrected-backs suspend an applied term rather than fighting the user (M7).
 pub const SUSPEND_AFTER_REVERSALS: u32 = 2;
 /// A correction replaces at most this many inserted tokens with at most this many new ones.
@@ -353,7 +358,14 @@ pub fn apply(_text: &str, _terms: &[Term]) -> String {
 /// Registered after a verified insertion. Fire-and-forget: this is off the critical path and
 /// its failure must never affect dictation. Dropping it cancels the thread at its next check.
 pub struct Watch {
+    /// Set by dropping the watch, and by the thread itself when it ends for any reason.
     cancel: Arc<AtomicBool>,
+}
+
+impl Watch {
+    fn is_over(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
 }
 
 impl Drop for Watch {
@@ -362,9 +374,21 @@ impl Drop for Watch {
     }
 }
 
-/// At most one watch at a time: a new insertion replaces the previous watch, whose field
-/// has changed under it anyway.
-static CURRENT: Mutex<Option<Watch>> = Mutex::new(None);
+/// The watches still running, oldest first, at most [`MAX_WATCHES`]. A new dictation does
+/// not end the one before it: dictate a sentence, dictate the next, go back and fix a name
+/// in the first, and that fix is seen. Each watch anchors on the text around its own
+/// insertion, so a later dictation that lands after it reads as text typed after it.
+static CURRENT: Mutex<VecDeque<Watch>> = Mutex::new(VecDeque::new());
+
+/// Pure bookkeeping, unit-tested: forget the watches that have ended, add the new one, and
+/// cancel the oldest beyond the limit.
+fn keep(watches: &mut VecDeque<Watch>, new: Watch, limit: usize) {
+    watches.retain(|w| !w.is_over());
+    watches.push_back(new);
+    while watches.len() > limit {
+        watches.pop_front();
+    }
+}
 
 /// The pipeline's one call, after an insertion that verified. Never reached for a refused
 /// or unverified insertion: password fields and secure input are excluded before this is
@@ -390,7 +414,9 @@ pub fn watch_after_insertion(
         session,
         min_occurrences,
     );
-    *CURRENT.lock() = watch;
+    if let Some(watch) = watch {
+        keep(&mut CURRENT.lock(), watch, MAX_WATCHES);
+    }
 }
 
 impl Watch {
@@ -522,7 +548,17 @@ mod live {
         !cancel.load(Ordering::Relaxed)
     }
 
+    /// Marks the watch over when its thread ends, however it ends, so its slot is free.
+    struct Over(Arc<AtomicBool>);
+
+    impl Drop for Over {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+
     pub fn run(el: ElementRef, ctx: WatchContext) {
+        let _over = Over(ctx.cancel.clone());
         let t0 = Instant::now();
         // The insertion as the field held it, rebased after each recorded correction so a
         // second fix in the same dictation aligns against the first.
@@ -750,6 +786,83 @@ mod tests {
             extract("we use X here", &format!("we use {long} here")),
             None
         );
+    }
+
+    fn watch() -> (Watch, Arc<AtomicBool>) {
+        let cancel = Arc::new(AtomicBool::new(false));
+        (
+            Watch {
+                cancel: cancel.clone(),
+            },
+            cancel,
+        )
+    }
+
+    #[test]
+    fn a_new_dictation_keeps_the_watches_before_it_up_to_the_limit() {
+        let mut watches = VecDeque::new();
+        let (a, a_flag) = watch();
+        let (b, b_flag) = watch();
+        let (c, c_flag) = watch();
+        let (d, d_flag) = watch();
+        keep(&mut watches, a, 3);
+        keep(&mut watches, b, 3);
+        keep(&mut watches, c, 3);
+        assert_eq!(watches.len(), 3);
+        assert!(
+            !a_flag.load(Ordering::Relaxed),
+            "dictating B and C must not end the watch on A"
+        );
+        // The fourth pushes out the oldest, and only the oldest.
+        keep(&mut watches, d, 3);
+        assert_eq!(watches.len(), 3);
+        assert!(a_flag.load(Ordering::Relaxed));
+        assert!(!b_flag.load(Ordering::Relaxed));
+        assert!(!c_flag.load(Ordering::Relaxed));
+        assert!(!d_flag.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn a_watch_that_ended_by_itself_frees_its_slot() {
+        let mut watches = VecDeque::new();
+        let (a, a_flag) = watch();
+        let (b, b_flag) = watch();
+        let (c, _c) = watch();
+        let (d, _d) = watch();
+        keep(&mut watches, a, 3);
+        keep(&mut watches, b, 3);
+        keep(&mut watches, c, 3);
+        // B's window ran out, or focus left its app: its thread marks it over.
+        b_flag.store(true, Ordering::Relaxed);
+        keep(&mut watches, d, 3);
+        assert_eq!(watches.len(), 3);
+        assert!(
+            !a_flag.load(Ordering::Relaxed),
+            "the ended watch goes, not the oldest live one"
+        );
+    }
+
+    /// Dictate A, dictate B after it, then fix a name in A: what A's watch sees.
+    #[test]
+    fn a_fix_in_an_earlier_dictation_is_seen_past_the_later_one() {
+        let field = "Notes so far. call prea about the launch ";
+        let a = locate(field, None, "call prea about the launch ").unwrap();
+        let after_b = "Notes so far. call prea about the launch and book the room ";
+        let middle = a.middle(after_b).expect("B after A leaves A anchored");
+        assert_eq!(
+            extract_correction(&a.inserted, middle),
+            None,
+            "B is not a correction to A"
+        );
+        let fixed = "Notes so far. call Priya about the launch and book the room ";
+        assert_eq!(
+            extract_correction(&a.inserted, a.middle(fixed).unwrap()),
+            Some(("prea".into(), "Priya".into()))
+        );
+        // B's own watch anchors on the text before it, which the fix in A changed: it
+        // ends there rather than count the same fix twice.
+        let b = locate(after_b, None, "and book the room ").unwrap();
+        assert_eq!(b.middle(fixed), None);
     }
 
     #[test]
