@@ -299,17 +299,16 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 }
                 // Open the streaming session so the engine works while the user speaks.
                 // With the focused-field setting off this happens before the target is
-                // captured, exactly as before the setting existed; with it on, the field
-                // has to be read first so the hints can go in at session start.
+                // captured, with no hints, exactly as before the setting existed; with it
+                // on, the field has to be read first so the hints can go in at session
+                // start. Hints exist only when the field gave some (context::hints_for).
                 let (hint, read_field) = {
                     let s = deps.settings.read();
                     (language_hint(&s), s.privacy.read_focused_field)
                 };
-                let vocabulary = context::vocabulary_terms(&deps.settings.read(), &deps.history);
                 terms = Vec::new();
                 if !read_field {
-                    terms = vocabulary.clone();
-                    streaming = start_stream(&deps, hint.clone(), vocabulary.clone());
+                    streaming = start_stream(&deps, hint.clone(), Vec::new());
                 }
                 target = match deps.injector.capture_target() {
                     Ok(t) => Some(t),
@@ -325,7 +324,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         None => (Vec::new(), "no target"),
                     };
                     let from_field = field.len();
-                    terms = context::merge(vocabulary, field);
+                    let vocabulary =
+                        context::vocabulary_terms(&deps.settings.read(), &deps.history);
+                    terms = context::hints_for(vocabulary, field);
                     tracing::info!(
                         "context: {} hints sent, {} candidates from the field ({}), read in {} ms",
                         terms.len(),

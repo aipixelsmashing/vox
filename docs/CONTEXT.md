@@ -68,9 +68,9 @@ chunk is pushed, inside the ~700 ms the Chromium wake-up may already take. If th
 cannot be read within 150 ms the dictation proceeds without context.
 
 **Engine.** `DictationTranscriber` with `contentHints: [.shortForm]`, replacing
-`SpeechTranscriber` whenever any hints exist. Without hints the module choice does not matter
-for accuracy (S5); the engine keeps using `SpeechTranscriber` then, so a user who turns the
-setting off and has no vocabulary gets exactly today's engine. Hints are set per session via
+`SpeechTranscriber` whenever the field yielded hints. Without field hints the engine keeps
+using `SpeechTranscriber`, so a user who turns the setting off, or dictates into an empty
+field, gets exactly today's engine (see the implementation notes on why). Hints are set per session via
 `AnalysisContext` at `stream_start`; the streaming API is otherwise unchanged.
 
 ## What the user sees
@@ -106,10 +106,14 @@ terms.
 
 What shipped in M3, where it departs from or sharpens the design above:
 
-- **Module choice is by hints, not by the setting.** Applied learned terms and the manual
-  dictionary are hints too ([LEARNING.md](LEARNING.md#how-terms-are-applied)), so a user
-  with the setting off but a dictionary entry is on `DictationTranscriber` for that
-  dictation. With no hints of any kind the session is `SpeechTranscriber`, unchanged.
+- **The module switches only for the field.** `DictationTranscriber` drops the last word
+  of a streamed dictation now and then (the volatile tail, below), a cost worth paying
+  when a name on screen is about to be said and not otherwise. So the session moves to it
+  only when the field yielded at least one term; with the setting off, or a field that
+  gave nothing, it is `SpeechTranscriber` with no hints, unchanged. Applied learned terms
+  and the manual dictionary stay post-processing replacements
+  ([LEARNING.md](LEARNING.md#how-terms-are-applied)); they are added as hints, ranked
+  ahead, only when the module is already switched for the field's sake.
 - **The dictation module is readied in the background**, when the setting is on at launch
   and when it is turned on: its assets are installed if missing (Apple's download, like
   the speech module's on first run) and it is warmed once. If a dictation starts before

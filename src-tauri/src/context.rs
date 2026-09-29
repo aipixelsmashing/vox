@@ -57,6 +57,19 @@ pub fn vocabulary_terms(
     merge(out, Vec::new())
 }
 
+/// The hints for one dictation. The recogniser moves to the dictation module only when
+/// the field gave it something: that module drops the last word of a streamed
+/// dictation now and then (docs/spikes/s5-context.md), a cost worth paying for a name on
+/// screen and not otherwise. So no field terms means no hints at all, and the manual
+/// dictionary and learned terms stay post-processing replacements; they ride along as
+/// hints only when the module is already switched for the field's sake.
+pub fn hints_for(vocabulary: Vec<String>, field: Vec<String>) -> Vec<String> {
+    if field.is_empty() {
+        return Vec::new();
+    }
+    merge(vocabulary, field)
+}
+
 /// Vocabulary first, then the field's terms nearest the caret; case-insensitive
 /// de-duplication; at most [`MAX_TERMS`].
 pub fn merge(vocabulary: Vec<String>, field: Vec<String>) -> Vec<String> {
@@ -528,6 +541,21 @@ mod tests {
             t,
             vec!["Kubernetes", "X1"],
             "case-insensitive de-dup keeps the chosen form"
+        );
+    }
+
+    #[test]
+    fn no_field_terms_means_no_hints_at_all() {
+        let vocab = vec!["Kubernetes".to_string(), "OurCompany".to_string()];
+        assert!(
+            hints_for(vocab.clone(), Vec::new()).is_empty(),
+            "dictionary alone never switches the module"
+        );
+        let with = hints_for(vocab.clone(), vec!["Priya".into()]);
+        assert_eq!(
+            with,
+            vec!["Kubernetes", "OurCompany", "Priya"],
+            "once switched, the vocabulary rides along, ahead"
         );
     }
 
