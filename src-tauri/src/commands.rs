@@ -862,8 +862,14 @@ fn deep_merge(base: &mut serde_json::Value, patch: serde_json::Value) {
 
 // ─── Windows ─────────────────────────────────────────────────────────────────
 
+/// Hides the window that asked. The history panel also hands focus back to the app it was
+/// opened over (`panel::hide_history`); the others are ordinary windows and just hide.
 #[tauri::command]
-pub fn panel_hide(window: WebviewWindow) -> CmdResult<()> {
+pub fn panel_hide(app: AppHandle, window: WebviewWindow) -> CmdResult<()> {
+    if window.label() == panel::HISTORY_WINDOW {
+        panel::hide_history(&app);
+        return Ok(());
+    }
     window.hide().map_err(VoxError::io)
 }
 

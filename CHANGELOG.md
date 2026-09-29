@@ -59,6 +59,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Fixed
+- Closing the history panel — by clicking a row, Enter, Escape, the shortcut or the menu bar
+  icon — returns you to the app you were in. Before, Vox stayed in front, so a setup or
+  settings window left open behind other apps came forward in the panel's place.
 - Updated the audio ring-buffer dependency past a memory-safety advisory (RUSTSEC-2026-0293).
   Vox never used the affected calls.
 - Notifications use the current macOS API instead of one the system now ignores. On a
