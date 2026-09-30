@@ -131,12 +131,19 @@ Hints need the dictation module, and **learned terms switch to it on their own**
 whatever field it goes into. `privacy.readFocusedField` governs reading the field and
 nothing else; learned terms neither need it nor turn it on.
 
+**The manual dictionary follows the same rule.** With `learning.applyLearnedTerms` on, the
+right-hand sides of the dictionary are hints on every dictation and switch the module as
+learned terms do, even when nothing has been learned yet. A word the user typed in
+deliberately should not be weaker than one Vox inferred. With the setting off, the
+dictionary is a post-processing replacement, and a hint only when the field switched the
+module anyway.
+
 **What that costs.** The dictation module drops the last word of a dictation now and
 then: on the S5 fixture it lost one short word at the end in three streamed runs of three
 ([spikes/s5-context.md](spikes/s5-context.md)). Turning learned terms on is accepting that
 on every dictation, in exchange for the names coming out right. The setting's description
-says so. With the setting off, or on with nothing learned yet, the recogniser is the one
-it always was.
+says so. With the setting off, or on with nothing learned and an empty dictionary, the
+recogniser is the one it always was.
 
 **Applied pairs** become a post-recognition replacement list, the same mechanism as the
 manual dictionary (M7).

@@ -59,13 +59,21 @@ pub fn dictionary_terms(settings: &crate::settings::Settings) -> Vec<String> {
 
 /// The hints for one dictation. Hints move the recogniser to the dictation module, which
 /// drops the last word of a streamed dictation now and then (docs/spikes/s5-context.md).
-/// Two things are worth that: a name on screen, and a word the user has taught Vox by
-/// correcting it three times. The manual dictionary alone is not: it stays a
-/// post-processing replacement, and rides along as hints when the module is switched
-/// anyway. Learned terms first, then the dictionary, then the field's, because the user
-/// chose the first two.
-pub fn hints_for(learned: Vec<String>, dictionary: Vec<String>, field: Vec<String>) -> Vec<String> {
-    if learned.is_empty() && field.is_empty() {
+/// What is worth that: a name on screen, and, when the user has turned
+/// `learning.applyLearnedTerms` on (`vocabulary_switches`), a word they taught Vox by
+/// correcting it or typed into the dictionary themselves. A word typed in deliberately is
+/// not weaker than one Vox inferred. With that setting off the dictionary stays a
+/// post-processing replacement and rides along as hints only when the field switched the
+/// module anyway. Learned terms first, then the dictionary, then the field's, because the
+/// user chose the first two.
+pub fn hints_for(
+    learned: Vec<String>,
+    dictionary: Vec<String>,
+    field: Vec<String>,
+    vocabulary_switches: bool,
+) -> Vec<String> {
+    let vocabulary = !learned.is_empty() || !dictionary.is_empty();
+    if field.is_empty() && !(vocabulary_switches && vocabulary) {
         return Vec::new();
     }
     merge(learned.into_iter().chain(dictionary).collect(), field)
@@ -546,31 +554,40 @@ mod tests {
     }
 
     #[test]
-    fn learned_terms_and_the_field_switch_the_module_and_the_dictionary_does_not() {
+    fn the_users_vocabulary_switches_the_module_when_they_turned_it_on() {
         let learned = vec!["Adi".to_string()];
         let dictionary = vec!["Kubernetes".to_string(), "OurCompany".to_string()];
-        assert!(
-            hints_for(Vec::new(), dictionary.clone(), Vec::new()).is_empty(),
-            "dictionary alone never switches the module"
-        );
+        let none = Vec::<String>::new;
+        // learning.applyLearnedTerms on.
         assert_eq!(
-            hints_for(learned.clone(), Vec::new(), Vec::new()),
+            hints_for(learned.clone(), none(), none(), true),
             vec!["Adi"],
             "a learned term switches it with no field read at all"
         );
         assert_eq!(
-            hints_for(learned.clone(), dictionary.clone(), Vec::new()),
-            vec!["Adi", "Kubernetes", "OurCompany"],
-            "once switched, the dictionary rides along"
+            hints_for(none(), dictionary.clone(), none(), true),
+            vec!["Kubernetes", "OurCompany"],
+            "a word typed in deliberately is not weaker than one Vox inferred"
         );
         assert_eq!(
-            hints_for(Vec::new(), dictionary.clone(), vec!["Priya".into()]),
-            vec!["Kubernetes", "OurCompany", "Priya"],
-        );
-        assert_eq!(
-            hints_for(learned, dictionary, vec!["Priya".into()]),
+            hints_for(
+                learned.clone(),
+                dictionary.clone(),
+                vec!["Priya".into()],
+                true
+            ),
             vec!["Adi", "Kubernetes", "OurCompany", "Priya"],
             "learned, then the dictionary, then the field"
+        );
+        assert!(hints_for(none(), none(), none(), true).is_empty());
+        // Off: only the field switches the module, and the dictionary rides along.
+        assert!(
+            hints_for(none(), dictionary.clone(), none(), false).is_empty(),
+            "with the setting off the dictionary alone never switches the module"
+        );
+        assert_eq!(
+            hints_for(none(), dictionary, vec!["Priya".into()], false),
+            vec!["Kubernetes", "OurCompany", "Priya"],
         );
     }
 

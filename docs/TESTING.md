@@ -252,6 +252,8 @@ has the `sqlite3` query).
    `privacy.readFocusedField` off, dictate the name: the log shows `context: N hints
    sent, 1 learned, the field not read` and the name comes out right. Turn
    `applyLearnedTerms` off: no `context:` line, and the recogniser is the one it was.
+   The same with an empty table and one dictionary entry: `0 learned, 1 from the
+   dictionary`, and with the setting off, no `context:` line.
    Over twenty dictations with it on, note how often the last word is missing.
 5. Fix a name slowly: select the word, type the first two letters, and stop for a second
    while a read is due (T+2 s or T+10 s). No row for the half-typed word; one row for the
