@@ -209,6 +209,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     if (s === 'vocab-populated' || s === 'vocab-many') base.learning.applyLearnedTerms = true
     if (s === 'history-disabled') base.history.enabled = false
     if (s === 'dictionary-empty') base.output.dictionary = []
+    if (s === 'hotkey-fn') base.hotkey.keys = ['Function']
     if (s === 'onboarding-fresh') base.onboarding = { completedStep: 0, done: false }
     if (s === 'onboarding-ready') base.onboarding = { completedStep: 2, done: false }
     return base
@@ -229,9 +230,14 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   async hotkey_capture_start() {
     // Resolves when the user presses something. Two seconds, so the "waiting" state is visible.
     await wait(2000)
-    return scenario() === 'hotkey-altgr'
-      ? { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false, altGr: true }
-      : { keys: ['ControlRight'], mode: 'hold', minHoldMs: 120, consume: false }
+    const s = scenario()
+    if (s === 'hotkey-altgr') return { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false, altGr: true }
+    if (s === 'hotkey-fn') return { keys: ['Function'], mode: 'hold', minHoldMs: 120, consume: false, globe: 'emoji' }
+    return { keys: ['ControlRight'], mode: 'hold', minHoldMs: 120, consume: false }
+  },
+  async globe_key_setting() {
+    await wait()
+    return { setting: scenario() === 'hotkey-fn' ? 'emoji' : 'doNothing' }
   },
   async app_relaunch() { /* a browser tab cannot relaunch */ },
   async mic_test_start() {

@@ -47,7 +47,7 @@ be located. Click-through, never focused, gone the moment the text is placed.
 
 | Pane | Key states | **[S]** |
 | --- | --- | --- |
-| Dictation | Capturing a binding; AltGr layout warning; device list empty | `hotkey-capturing`, `hotkey-altgr` |
+| Dictation | Capturing a binding; AltGr layout warning; Fn chosen while macOS still assigns the Globe key; device list empty | `hotkey-capturing`, `hotkey-altgr`, `hotkey-fn` |
 | Model | Not downloaded; downloading with progress; verification failed; import; engine in use | `model-none`, `model-downloading`, `model-hash-fail` |
 | Text | Manual dictionary empty vs populated | `dictionary-empty` |
 | Vocabulary | No words yet; words with provenance, one misheard two ways; a suspended word; learning off; more than twelve words, with the filter field and its no-match state | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off`, `vocab-many` |

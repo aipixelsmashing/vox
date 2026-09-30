@@ -99,7 +99,8 @@ the code lands.
 
 ## M6 · Long-form sessions
 
-Locked sessions, live panel, chunked transcription, destinations.
+Live panel, chunked transcription, destinations. The lock gesture itself shipped with the
+hotkey ([docs/HOTKEYS.md](docs/HOTKEYS.md#the-lock-hands-free-without-a-second-key)).
 See [docs/LONG-FORM.md](docs/LONG-FORM.md).
 
 **Exit:** a ten-minute session produces usable text in a file, memory stays flat throughout.

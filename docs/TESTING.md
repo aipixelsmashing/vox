@@ -221,6 +221,12 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
 6. On an AltGr layout: confirm the warning appears and the suggested alternative works.
 7. Toggle mode and double-tap-hold mode.
 8. Revoke the OS permission mid-session: the tray badges within one check cycle.
+9. Tap, tap: recording continues with the key up (`hotkey: session locked` in the log);
+   speak; tap once: the text lands. Tap, wait a second, tap: two discarded presses, no
+   lock. Tap, then hold: an ordinary dictation. Escape while locked: nothing inserted.
+10. Set the binding to Fn with "Press 🌐 key to" on anything but Do Nothing: the pane
+    says which, and the external-keyboard note shows. Set it to Do Nothing: the warning
+    goes at the next visit. Hold Fn in Notes: recording, as with right Option.
 
 ### Injection compatibility matrix
 
