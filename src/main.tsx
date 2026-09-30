@@ -4,7 +4,7 @@
  */
 
 import React from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import '@fontsource/literata/400.css'
 import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
@@ -44,7 +44,14 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(
+declare global {
+  interface Window {
+    /** Vite's hot reload re-runs this module; React wants one root per container. */
+    __voxRoot?: Root
+  }
+}
+
+;(window.__voxRoot ??= createRoot(document.getElementById('root')!)).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
