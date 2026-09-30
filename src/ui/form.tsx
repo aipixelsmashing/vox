@@ -5,17 +5,28 @@
 
 import type { ReactNode } from 'react'
 
-export function Section({ title, note, children }: { title: string; note?: ReactNode; children: ReactNode }) {
+export function Section({ title, note, actions, children }: {
+  title: string
+  note?: ReactNode
+  /** Controls for the whole section, on the header row beside the title. */
+  actions?: ReactNode
+  children: ReactNode
+}) {
   return (
     <section style={{ marginBottom: 'var(--s-8)' }}>
-      <h2
+      <div
         style={{
-          font: '600 var(--t-title-size) / var(--t-title-lh) var(--font-ui)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--s-3)',
+          flexWrap: 'wrap',
           margin: '0 0 var(--s-2)',
         }}
       >
-        {title}
-      </h2>
+        <h2 style={{ font: '600 var(--t-title-size) / var(--t-title-lh) var(--font-ui)', margin: 0 }}>{title}</h2>
+        {actions && <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-2)' }}>{actions}</div>}
+      </div>
       {note && (
         <p className="meta" style={{ margin: '0 0 var(--s-3)', maxWidth: 520 }}>
           {note}
@@ -165,17 +176,21 @@ export function TextInput({ value, onChange, label, placeholder, width }: {
   )
 }
 
-export function Button({ children, onClick, danger, disabled, primary }: {
+export function Button({ children, onClick, danger, disabled, primary, label }: {
   children: ReactNode
   onClick: () => void
   danger?: boolean
   disabled?: boolean
   primary?: boolean
+  /** For a button whose text is a glyph (×): what a screen reader says instead. */
+  label?: string
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
       style={{
         font: 'inherit',
         color: danger ? 'var(--fail)' : 'inherit',

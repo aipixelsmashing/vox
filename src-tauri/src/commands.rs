@@ -563,6 +563,16 @@ pub fn vocab_forget(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     Ok(())
 }
 
+/// A learned word and every pair behind it: the Vocabulary pane's per-row delete.
+#[tauri::command]
+pub fn vocab_forget_term(state: State<'_, AppState>, right_form: String) -> CmdResult<Deleted> {
+    let deleted = state
+        .history
+        .vocab_forget_term(&right_form)
+        .map_err(VoxError::io)?;
+    Ok(Deleted { deleted })
+}
+
 /// Every stored correction, candidates included, then VACUUM (docs/LEARNING.md). The
 /// Privacy pane's delete button; it confirms once, like the history wipe.
 #[tauri::command]

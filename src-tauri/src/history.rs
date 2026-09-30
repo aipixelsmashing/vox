@@ -382,6 +382,17 @@ impl Store {
         Ok(conn.execute("DELETE FROM vocab_candidates WHERE id = ?1", params![id])? > 0)
     }
 
+    /// Deletes a learned word: every pair with this right form, exactly. The Vocabulary
+    /// pane shows one row per word, so its delete button removes all of them
+    /// (docs/UI-SPEC.md). Returns how many pairs went.
+    pub fn vocab_forget_term(&self, right_form: &str) -> anyhow::Result<usize> {
+        let conn = self.conn.lock();
+        Ok(conn.execute(
+            "DELETE FROM vocab_candidates WHERE right_form = ?1",
+            params![right_form],
+        )?)
+    }
+
     /// Every correction ever stored, candidates included, then VACUUM so the forms are not
     /// recoverable from free pages. The Privacy pane's delete button.
     pub fn vocab_forget_all(&self) -> anyhow::Result<usize> {
@@ -984,6 +995,27 @@ mod tests {
             )
             .unwrap();
         assert!(store.vocab_hinted(3).unwrap().is_empty());
+    }
+
+    #[test]
+    fn forgetting_a_word_removes_every_pair_behind_it_and_no_other() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .vocab_observe("Eddie", "Adi", "Notes", 1, 10, 3)
+            .unwrap();
+        store.vocab_observe("AD", "Adi", "Notes", 1, 11, 3).unwrap();
+        store
+            .vocab_observe("A de", "Adi", "Notes", 2, 12, 3)
+            .unwrap();
+        store
+            .vocab_observe("prea", "Priya", "Slack", 2, 13, 3)
+            .unwrap();
+        assert_eq!(store.vocab_forget_term("Adi").unwrap(), 3);
+        assert_eq!(store.vocab_forget_term("Adi").unwrap(), 0);
+        assert_eq!(store.vocab_forget_term("priya").unwrap(), 0, "exact match");
+        let left = store.vocab_list().unwrap();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].right_form, "Priya");
     }
 
     #[test]

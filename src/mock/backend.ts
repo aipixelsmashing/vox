@@ -185,9 +185,14 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     const s = scenario()
     if (s === 'vocab-empty' || s === 'vocab-off') return []
     if (s === 'vocab-suspended') return fx.vocabTerms.filter((t) => t.state === 'suspended')
+    if (s === 'vocab-many') return fx.manyVocabTerms
     return fx.vocabTerms
   },
   async vocab_forget() { await wait(); },
+  async vocab_forget_term({ rightForm }: { rightForm: string }) {
+    await wait()
+    return { deleted: fx.vocabTerms.filter((t) => t.rightForm === rightForm).length }
+  },
   async vocab_forget_all() { await wait(); return { deleted: fx.vocabTerms.length } },
   async vocab_export() { await wait(300); return { path: '~/Documents/vox-vocabulary.txt' } },
 
@@ -201,7 +206,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     const base = structuredClone(mockSettings)
     if (s === 'offline-locked') base.network.offlineLock = true
     if (s === 'vocab-off') base.learning.captureCorrections = false
-    if (s === 'vocab-populated') base.learning.applyLearnedTerms = true
+    if (s === 'vocab-populated' || s === 'vocab-many') base.learning.applyLearnedTerms = true
     if (s === 'history-disabled') base.history.enabled = false
     if (s === 'dictionary-empty') base.output.dictionary = []
     if (s === 'onboarding-fresh') base.onboarding = { completedStep: 0, done: false }
