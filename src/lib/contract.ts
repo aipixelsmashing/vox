@@ -127,7 +127,12 @@ export interface HotkeyBinding {
   consume: boolean
   /** Set by the core when the active layout maps right Alt to AltGr (docs/HOTKEYS.md). */
   altGr?: boolean
+  /** Present when the binding includes Fn: what macOS itself does with that key. */
+  globe?: GlobeSetting
 }
+
+/** System Settings → Keyboard, "Press 🌐 key to". `unknown`: not set, so macOS's default. */
+export type GlobeSetting = 'doNothing' | 'changeInputSource' | 'emoji' | 'dictation' | 'unknown'
 
 /** Mirrors src-tauri/src/settings.rs. Kept loose here; the core returns the merged truth. */
 export interface Settings {
@@ -136,7 +141,7 @@ export interface Settings {
   audio: { inputDevice: string; preroll: 'off' | '300ms'; maxRecordingSec: number }
   engine: { modelId: string; device: 'auto' | 'cpu' | 'gpu'; language: string }
   learning: { captureCorrections: boolean; applyLearnedTerms: boolean; minOccurrences: number }
-  longForm: { lockKey: string; maxSessionMin: number; defaultDestination: Destination }
+  longForm: { maxSessionMin: number; defaultDestination: Destination }
   output: {
     method: 'auto' | 'accessibility' | 'paste' | 'type'
     restoreClipboard: boolean
@@ -194,6 +199,8 @@ export interface Commands {
   /** Returns the merged result, so the UI never has to guess what the core accepted. */
   settings_set(a: Partial<Settings>): Promise<Settings>
   hotkey_capture_start(): Promise<HotkeyBinding>
+  /** What "Press 🌐 key to" is set to; the Dictation pane asks when the binding is Fn. */
+  globe_key_setting(): Promise<{ setting: GlobeSetting }>
 
   models_list(): Promise<ModelInfo[]>
   models_download(a: { id: string }): Promise<void>
@@ -245,6 +252,7 @@ export const COMMAND_NAMES = [
   'settings_get',
   'settings_set',
   'hotkey_capture_start',
+  'globe_key_setting',
   'models_list',
   'models_download',
   'models_import',

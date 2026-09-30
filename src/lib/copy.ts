@@ -58,6 +58,16 @@ export const copy = {
       hotkeyHint: 'Press the key, speak, let go. Captured by pressing, not by typing a name.',
       pressKeys: 'Press the keys you want to use…',
       altGrWarning: 'On your keyboard layout right Option is AltGr, so holding it changes other keys. Right Control is suggested instead.',
+      globeWarning: (doesNow: string) =>
+        `macOS also uses this key: “Press 🌐 key to” is set to ${doesNow}. Set it to Do Nothing in System Settings → Keyboard, or each press will do that as well.`,
+      globeDoes: {
+        changeInputSource: 'Change Input Source',
+        emoji: 'Show Emoji & Symbols',
+        dictation: 'Start Dictation',
+        unknown: 'its default',
+      },
+      fnKeyboards: "Some external keyboards don't send Fn to the Mac at all. If nothing happens when you hold it, choose another key.",
+      lockHint: 'Tap twice to keep listening hands-free; tap once to stop. Escape still cancels.',
       change: 'Change…',
       mode: 'Mode',
       modeHint: 'Toggle exists because holding a key down is a barrier for some people.',

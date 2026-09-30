@@ -197,6 +197,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
     let mut capture: Option<audio::Capture> = None;
     let mut target: Option<InjectionTarget> = None;
     let mut started: Option<Instant> = None;
+    // When the start cue is due: `minHoldMs` after key-down, so a tap that will be
+    // discarded stays silent. None once played or once the press is over.
+    let mut cue_due: Option<Instant> = None;
     // True while the engine has a live streaming session for this recording.
     let mut streaming = false;
     let mut last_state_emit = Instant::now();
@@ -222,6 +225,10 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                     }
                     if let Some(rms) = level.take_if_due() {
                         emit_level(&deps.app, rms);
+                    }
+                    if cue_due.is_some_and(|due| Instant::now() >= due) {
+                        cue_due = None;
+                        cues::play(cues::Cue::Start);
                     }
                     if last_state_emit.elapsed() >= Duration::from_millis(500) {
                         last_state_emit = Instant::now();
@@ -275,11 +282,14 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         started = Some(Instant::now());
                         last_state_emit = Instant::now();
                         tray::set_state(&deps.app, tray::IconState::Recording);
-                        // After the microphone is open, never before: the cue must not
-                        // delay the first syllable (docs/HOTKEYS.md, recording feedback).
-                        if deps.settings.read().ui.sound_cues {
-                            cues::play(cues::Cue::Start);
-                        }
+                        // The cue plays once the press has lasted the minimum hold, from
+                        // the poll loop: a tap that will be discarded is silent, and the
+                        // cue never delays the first syllable (docs/HOTKEYS.md).
+                        let s = deps.settings.read();
+                        cue_due = s.ui.sound_cues.then(|| {
+                            Instant::now() + Duration::from_millis(u64::from(s.hotkey.min_hold_ms))
+                        });
+                        drop(s);
                         emit_state(
                             &deps.app,
                             PipelineStateDto::Recording {
@@ -375,6 +385,7 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 }
             }
             Action::Discard => {
+                cue_due = None;
                 tracing::info!(
                     "cancelled after {} ms; nothing transcribed or stored",
                     started.map(|s| s.elapsed().as_millis()).unwrap_or(0)
@@ -394,6 +405,9 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 let cap = capture.take();
                 let tgt = target.take();
                 started = None;
+                // A press that ends just past the minimum, before the poll loop got to the
+                // start cue, gets the stop cue only.
+                cue_due = None;
                 if held_ms < min_hold || cap.is_none() {
                     // A brush of the key. Nothing recorded, nothing written.
                     tracing::info!("discarded: held {held_ms} ms, under the {min_hold} ms minimum");

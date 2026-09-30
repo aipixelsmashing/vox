@@ -177,7 +177,7 @@ export const settings: Settings = {
   audio: { inputDevice: 'default', preroll: 'off', maxRecordingSec: 120 },
   engine: { modelId: 'auto', device: 'auto', language: 'auto' },
   learning: { captureCorrections: true, applyLearnedTerms: false, minOccurrences: 3 },
-  longForm: { lockKey: 'KeyL', maxSessionMin: 30, defaultDestination: 'clipboard' },
+  longForm: { maxSessionMin: 30, defaultDestination: 'clipboard' },
   output: {
     method: 'auto', restoreClipboard: true, trailingSpace: true, capitalizeFirst: false,
     collapseNewlinesInTerminals: true, onFocusChange: 'clipboard',

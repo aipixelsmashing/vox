@@ -46,6 +46,7 @@ export const scenarios = {
   // Other
   'hotkey-capturing':      { label: 'Hotkey — waiting for a key' },
   'hotkey-altgr':          { label: 'Hotkey — AltGr layout warning' },
+  'hotkey-fn':             { label: 'Hotkey — Fn chosen, Globe key still assigned' },
   'dictionary-empty':      { label: 'Dictionary — empty' },
   'diagnostics-thin':      { label: 'Diagnostics — not enough data' },
   'diagnostics-rich':      { label: 'Diagnostics — six weeks of data' },

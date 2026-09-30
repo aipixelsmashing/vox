@@ -20,12 +20,15 @@ Same key, one additional gesture:
 | Gesture | Result |
 | --- | --- |
 | Hold, speak, release | Short-form. Text into the focused field. |
-| Hold, then press the lock key (default: `L` while held), release | Session starts. Runs until stopped. |
-| Press the hotkey again, or click Stop | Session ends. |
+| Tap, tap | Session starts on the second tap and runs until stopped. |
+| Tap once, or click Stop | Session ends. |
 | Escape | Cancels, discards everything. |
 
-No separate hotkey to learn, no mode switch in settings, and the short-form path is unchanged
-for people who never use this.
+No separate hotkey to learn, no second key, no mode switch in settings, and the short-form
+path is unchanged for people who never use this. The gesture is specified with the hotkey
+([HOTKEYS.md](HOTKEYS.md#the-lock-hands-free-without-a-second-key)) and shipped with it;
+what follows in this document, the panel, chunking and destinations, is M6. Until then a
+locked session is a hands-free short-form dictation, capped by `audio.maxRecordingSec`.
 
 ## During a session
 

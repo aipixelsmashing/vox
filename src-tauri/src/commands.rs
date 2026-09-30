@@ -394,6 +394,22 @@ pub struct HotkeyBindingDto {
     pub consume: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub alt_gr: bool,
+    /// Present when the binding includes Fn: what macOS itself does with that key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub globe: Option<hotkey::GlobeSetting>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GlobeDto {
+    pub setting: hotkey::GlobeSetting,
+}
+
+/// What "Press 🌐 key to" is set to, for the Dictation pane when the binding is Fn.
+#[tauri::command]
+pub fn globe_key_setting() -> CmdResult<GlobeDto> {
+    Ok(GlobeDto {
+        setting: hotkey::globe_key_setting(),
+    })
 }
 
 /// Resolves with the next chord the user presses and fully releases, or errors after 15 s.
@@ -411,12 +427,17 @@ pub async fn hotkey_capture_start(state: State<'_, AppState>) -> CmdResult<Hotke
             })?;
     let h = state.settings.read().hotkey.clone();
     let alt_gr = hotkey::layout_uses_altgr() && keys.iter().any(|k| k == "AltRight");
+    let globe = keys
+        .iter()
+        .any(|k| k == hotkey::FN_KEY)
+        .then(hotkey::globe_key_setting);
     Ok(HotkeyBindingDto {
         keys,
         mode: h.mode,
         min_hold_ms: h.min_hold_ms,
         consume: h.consume,
         alt_gr,
+        globe,
     })
 }
 
