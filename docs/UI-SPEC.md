@@ -86,13 +86,13 @@ your words is indistinguishable from a system that is broken.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  Words Vox has learned                    Export ↓   │
+│  Words Vox has learned (14)   [Filter words]  Export │
 ├──────────────────────────────────────────────────────┤
 │  Kubernetes          was "cuber netties"             │
 │  3 corrections in Slack, VS Code · since 12 Mar   ×  │
 ├──────────────────────────────────────────────────────┤
-│  Priya               was "prea"                      │
-│  4 corrections in Slack · since 2 Mar             ×  │
+│  Priya               was "prea", "pre a"             │
+│  6 corrections in Slack, Mail · since 2 Mar       ×  │
 ├──────────────────────────────────────────────────────┤
 │  ⚠ Tailwind          suspended                       │
 │  You changed this back twice — not applying it    ×  │
@@ -101,9 +101,14 @@ your words is indistinguishable from a system that is broken.
 └──────────────────────────────────────────────────────┘
 ```
 
-Every row carries provenance, because "where did this come from?" is the first question anyone
-asks. Deleting a term deletes the evidence behind it so it cannot be re-learned from the same
-corrections. Suspended terms explain themselves rather than silently stopping.
+One row per learned word, not per pair: a name the recogniser mishears three different ways
+is one word to the user. Beneath it, every wrong form it replaced; its corrections summed and
+its apps merged. The header carries the count. Every row carries provenance, because "where
+did this come from?" is the first question anyone asks. Deleting a word deletes it and every
+pair behind it, so it cannot be re-learned from the same corrections. Suspended words explain
+themselves rather than silently stopping. The header row holds the count, the export and,
+past twelve words, a filter field that matches the word or any of its wrong forms. Nothing
+actionable sits below the list; the list scrolls with the pane, with no inner scroll region.
 
 ## Long-form session panel
 

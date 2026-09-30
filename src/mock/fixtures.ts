@@ -60,7 +60,7 @@ export const vocabTerms: VocabTerm[] = [
     id: 2, wrongForm: 'prea', rightForm: 'Priya', count: 4,
     firstSeen: now - 40 * 24 * 60 * min, lastSeen: now - 60 * min,
     sourceApps: ['Slack'], reversals: 0, state: 'applied',
-    termCount: 4, termSessions: 3, hinted: true,
+    termCount: 6, termSessions: 3, hinted: true,
   },
   {
     id: 3, wrongForm: 'tail wind', rightForm: 'Tailwind', count: 5,
@@ -74,7 +74,36 @@ export const vocabTerms: VocabTerm[] = [
     sourceApps: ['Chrome'], reversals: 0, state: 'candidate',
     termCount: 2, termSessions: 1, hinted: false,
   },
+  // A second way the same word was misheard: the pane shows one row for Priya, both
+  // wrong forms beneath it, six corrections, Slack and Mail.
+  {
+    id: 5, wrongForm: 'pre a', rightForm: 'Priya', count: 2,
+    firstSeen: now - 10 * 24 * 60 * min, lastSeen: now - 3 * 60 * min,
+    sourceApps: ['Mail'], reversals: 0, state: 'candidate',
+    termCount: 6, termSessions: 3, hinted: true,
+  },
 ]
+
+/** Fourteen learned words, for the filter field that appears past twelve. */
+export const manyVocabTerms: VocabTerm[] = ([
+  ['Kubernetes', 'cuber netties'], ['Priya', 'prea'], ['Tailwind', 'tail wind'],
+  ['PostHog', 'post hog'], ['Adi', 'Eddie'], ['Tauri', 'tory'], ['Grafana', 'graph on a'],
+  ['Anthropic', 'and tropic'], ['Vercel', 'versal'], ['Supabase', 'super base'],
+  ['Figma', 'fig ma'], ['Ollama', 'oh llama'], ['Zed', 'said'], ['Neovim', 'neo vim'],
+] as Array<[string, string]>).map(([rightForm, wrongForm], i) => ({
+  id: 100 + i,
+  wrongForm,
+  rightForm,
+  count: 3 + (i % 4),
+  firstSeen: now - (30 - i) * 24 * 60 * min,
+  lastSeen: now - i * 60 * min,
+  sourceApps: i % 2 ? ['Slack'] : ['Code', 'Notes'],
+  reversals: 0,
+  state: 'applied',
+  termCount: 3 + (i % 4),
+  termSessions: 2,
+  hinted: true,
+}))
 
 export const models: ModelInfo[] = [
   {

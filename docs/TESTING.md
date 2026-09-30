@@ -246,8 +246,9 @@ has the `sqlite3` query).
    over two sittings: three rows, each `count 1` and `state candidate`, and the third
    logs `its right form 3 times in 2 sessions, now hinted`. The right-form query in
    [LEARNING.md](LEARNING.md#inspecting-what-has-been-captured) shows `corrections 3`.
-   Settings → Vocabulary lists the three under "Words Vox has learned". Delete one: the
-   other two move to "Waiting".
+   Settings → Vocabulary lists them as one row, "Adi", with the three wrong forms beneath
+   it and "3 corrections", under "Words Vox has learned (1)". Its × removes the row and
+   all three pairs from the table.
 4. With a hinted term in the table, `learning.applyLearnedTerms` on and
    `privacy.readFocusedField` off, dictate the name: the log shows `context: N hints
    sent, 1 learned, the field not read` and the name comes out right. Turn

@@ -50,7 +50,7 @@ be located. Click-through, never focused, gone the moment the text is placed.
 | Dictation | Capturing a binding; AltGr layout warning; device list empty | `hotkey-capturing`, `hotkey-altgr` |
 | Model | Not downloaded; downloading with progress; verification failed; import; engine in use | `model-none`, `model-downloading`, `model-hash-fail` |
 | Text | Manual dictionary empty vs populated | `dictionary-empty` |
-| Vocabulary | No terms yet; terms with provenance; a suspended term; learning off | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off` |
+| Vocabulary | No words yet; words with provenance, one misheard two ways; a suspended word; learning off; more than twelve words, with the filter field and its no-match state | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off`, `vocab-many` |
 | Privacy | Read-focused-field on/off; offline lock on/off; export running; wipe confirmation; corrections delete confirmation | `offline-locked` |
 | Diagnostics | Corrections trend; insertion outcomes by app; not enough data yet | `diagnostics-thin`, `diagnostics-rich` |
 

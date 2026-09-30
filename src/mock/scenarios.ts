@@ -29,6 +29,7 @@ export const scenarios = {
   'vocab-empty':           { label: 'Vocabulary — nothing learned yet' },
   'vocab-populated':       { label: 'Vocabulary — terms with provenance' },
   'vocab-suspended':       { label: 'Vocabulary — a suspended term' },
+  'vocab-many':            { label: 'Vocabulary — more than twelve words, filter shown' },
   'vocab-off':             { label: 'Vocabulary — learning turned off' },
 
   // Permissions and system

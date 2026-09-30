@@ -184,6 +184,8 @@ export interface Commands {
   vocab_list(a: { state?: VocabState }): Promise<VocabTerm[]>
   /** Deletes the term and the candidate evidence behind it. */
   vocab_forget(a: { id: number }): Promise<void>
+  /** A learned word and every pair behind it; the Vocabulary pane's per-row delete. */
+  vocab_forget_term(a: { rightForm: string }): Promise<{ deleted: number }>
   /** Every stored correction, candidates included. The Privacy pane's delete button. */
   vocab_forget_all(): Promise<{ deleted: number }>
   vocab_export(): Promise<{ path: string }>
@@ -237,6 +239,7 @@ export const COMMAND_NAMES = [
   'history_export',
   'vocab_list',
   'vocab_forget',
+  'vocab_forget_term',
   'vocab_forget_all',
   'vocab_export',
   'settings_get',

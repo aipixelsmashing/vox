@@ -133,12 +133,14 @@ export const copy = {
       captureHint: 'Local, kilobytes, deletable any time.',
       apply: 'Apply what it has learned',
       applyHint: 'Off by default. While it is on, the last word of a dictation is dropped now and then. Every learned word is listed below with a delete button.',
-      learnedTitle: 'Words Vox has learned',
+      learnedTitle: (n: number) => (n ? `Words Vox has learned (${n})` : 'Words Vox has learned'),
+      filter: 'Filter words',
+      noMatch: (q: string) => `No learned word matches “${q}”.`,
       empty: 'No words learned yet. Vox picks them up when you correct it.',
       off: "Learning is off. Vox won't watch your corrections. Turn it on to teach it your words.",
       suspended: 'You changed this back twice — Vox has stopped applying it.',
-      provenance: (count: number, apps: string[], since: string, was: string) =>
-        `was “${was}” · ${count} ${count === 1 ? 'correction' : 'corrections'} in ${apps.join(', ')} · since ${since}`,
+      provenance: (count: number, apps: string[], since: string, was: string[]) =>
+        `was ${was.map((w) => `“${w}”`).join(', ')} · ${count} ${count === 1 ? 'correction' : 'corrections'} in ${apps.join(', ')} · since ${since}`,
       waiting: (n: number) => `Waiting: ${n} ${n === 1 ? 'word' : 'words'} seen once or twice`,
       show: 'Show',
       exportLabel: 'Export as a plain list',

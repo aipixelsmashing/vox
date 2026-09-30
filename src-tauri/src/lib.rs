@@ -182,6 +182,7 @@ pub fn run() {
             commands::models_remove,
             commands::vocab_list,
             commands::vocab_forget,
+            commands::vocab_forget_term,
             commands::vocab_forget_all,
             commands::vocab_export,
             commands::diagnostics_recent,

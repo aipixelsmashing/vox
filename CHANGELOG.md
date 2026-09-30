@@ -59,6 +59,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Changed
+- Settings → Vocabulary shows one row per learned word, with every way it was misheard
+  listed beneath it, and the delete button removes the word with all of them. The count and
+  the export sit in the header above the list, with a filter field once there are more than
+  twelve words.
 - A name Vox gets wrong a different way each time is now learned: three corrections to the
   same word, however it was misheard, make it a word the recogniser is told to expect.
   Replacing one specific mishearing still needs that same fix three times.
