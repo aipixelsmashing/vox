@@ -107,8 +107,9 @@ outcome instead (`dictation: … outcome "clipboard_only"`, `refused: …`, `can
 
 Cannot be automated: the assertion is that a human hears it.
 
-1. Hold right Option: a short rising two-tone plays as recording starts, after the
-   microphone is open. Release: a falling one. The two are distinguishable with eyes closed.
+1. Hold right Option: a short rising two-tone plays once the press has lasted
+   `hotkey.minHoldMs` (120 ms), after the microphone is open. Release: a falling one. The
+   two are distinguishable with eyes closed. Tap the key for under 120 ms: no sound at all.
 2. Set `ui.soundCues` to false: both are silent; dictation is otherwise unchanged.
 3. With the output routed to headphones, the cue is not audible in the room and the
    transcript is unaffected either way.

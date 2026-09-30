@@ -8,6 +8,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Tap the dictation key twice to keep listening hands-free; tap once to stop. Escape still
   cancels. This replaces the earlier design of pressing L while holding the key.
+- The start tone plays once a press has lasted the minimum hold, so a brush of the key, or
+  the first tap of a double tap, makes no sound.
 - Fn (the Globe key) can be the dictation key. When you choose it, Vox tells you if macOS
   still has "Press 🌐 key to" set to something, and that some external keyboards never send
   Fn at all. Right Option stays the default.

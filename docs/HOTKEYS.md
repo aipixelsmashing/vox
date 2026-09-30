@@ -87,8 +87,8 @@ with Option+L:
 | Escape | Cancels, as always. |
 
 The first tap is an ordinary short press: recording opens and is discarded as under
-`minHoldMs`, which means the start cue can sound once before the second tap. The lock
-belongs to `hold` mode only: `toggle` is already hands-free, and `double-tap-hold` uses the
+`minHoldMs`, silently, because the start cue plays only once a press has lasted that long.
+The lock belongs to `hold` mode only: `toggle` is already hands-free, and `double-tap-hold` uses the
 double tap to start. The recording cap (`audio.maxRecordingSec`) still applies to a locked
 session until M6 brings the long-form pipeline; the lock arrived with the hotkey design
 because it is a hotkey question.
@@ -166,7 +166,9 @@ The user must never be uncertain whether Vox is listening.
 
 - Tray icon changes to a distinct recording state, plus a subtle animation of input level.
 - Optional short click on start and stop (default on; sound cues matter for a device where the
-  visible indicator may be on another monitor).
+  visible indicator may be on another monitor). The start cue plays once the press has lasted
+  `minHoldMs`, after the microphone is open and never ahead of it, so a tap that is discarded
+  makes no sound and the cue never delays the first syllable.
 - Optional small overlay near the caret showing a live level meter and elapsed time.
 - If recognition is still running when a subsequent key-down arrives, that key-down is ignored
   and the tray icon flashes a "busy" state rather than queuing a second dictation.
