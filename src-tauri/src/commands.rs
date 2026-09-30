@@ -546,7 +546,13 @@ pub fn models_remove(id: String) -> CmdResult<()> {
 
 #[tauri::command]
 pub fn vocab_list(state: State<'_, AppState>) -> CmdResult<Vec<history::VocabTerm>> {
-    state.history.vocab_list().map_err(VoxError::io)
+    let min = state
+        .settings
+        .read()
+        .learning
+        .min_occurrences
+        .max(crate::learning::MIN_OCCURRENCES);
+    state.history.vocab_list_with(min).map_err(VoxError::io)
 }
 
 #[tauri::command]

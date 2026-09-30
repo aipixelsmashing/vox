@@ -42,7 +42,7 @@ key-down
   │     read AXValue + AXSelectedTextRange of the focused element      ~1–10 ms
   │     take the window around the caret          ≤ 2 000 chars each side
   │     extract hint terms, nearest the caret first, at most 20
-  │     add applied learned terms + manual dictionary
+  │     add hinted learned terms + manual dictionary
   │     engine.stream_start(hint, context)         → AnalysisContext.contextualStrings
   └── … speaking …
 key-up
@@ -54,7 +54,7 @@ ordinary dictionary words (the same system word list the homophone guard uses,
 [LEARNING.md](LEARNING.md)): capitalised words and runs of them, identifiers with digits,
 underscores, dots or mixed case, acronyms, and anything the word list does not know.
 **Cap at 20 terms, nearest the caret first**, walking outwards alternately before and after
-it, so the sentence the user is continuing weighs most. Applied learned terms and the manual
+it, so the sentence the user is continuing weighs most. Hinted learned terms and the manual
 dictionary count towards the same cap and rank ahead of extracted terms, because the user
 chose them. Common words are never sent: they add nothing and they are the user's text.
 
@@ -110,10 +110,10 @@ What shipped in M3, where it departs from or sharpens the design above:
   of a streamed dictation now and then (the volatile tail, below), a cost worth paying
   when a name on screen is about to be said and not otherwise. So the session moves to it
   only when the field yielded at least one term; with the setting off, or a field that
-  gave nothing, it is `SpeechTranscriber` with no hints, unchanged. Applied learned terms
-  and the manual dictionary stay post-processing replacements
-  ([LEARNING.md](LEARNING.md#how-terms-are-applied)); they are added as hints, ranked
-  ahead, only when the module is already switched for the field's sake.
+  gave nothing, it is `SpeechTranscriber` with no hints, unchanged. Hinted learned terms
+  and the manual dictionary's right-hand sides are added as hints, ranked ahead, only
+  when the module is already switched for the field's sake
+  ([LEARNING.md](LEARNING.md#how-terms-are-applied)); replacement stays post-processing.
 - **The dictation module is readied in the background**, when the setting is on at launch
   and when it is turned on: its assets are installed if missing (Apple's download, like
   the speech module's on first run) and it is warmed once. If a dictation starts before

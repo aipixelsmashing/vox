@@ -69,7 +69,13 @@ export interface VocabTerm {
   /** App names only — provenance for the UI, never surrounding text. */
   sourceApps: string[]
   reversals: number
+  /** The pair's own state: `applied` is a literal replacement it earned by itself. */
   state: VocabState
+  /** Corrections to this right form however it was mangled, and the sessions they span. */
+  termCount: number
+  termSessions: number
+  /** The right form reached the threshold and is given to the recogniser as a hint. */
+  hinted: boolean
 }
 
 export type PermissionStatus = 'granted' | 'denied' | 'needsRestart' | 'notApplicable'

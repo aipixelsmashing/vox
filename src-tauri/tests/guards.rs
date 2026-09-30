@@ -351,6 +351,7 @@ fn candidates_hold_the_two_forms_and_nothing_else() {
         "state",
         "sessions",
         "last_session",
+        "session_ids",
     ];
     for line in table.lines().map(str::trim).filter(|l| !l.is_empty()) {
         let column = line.split_whitespace().next().unwrap();

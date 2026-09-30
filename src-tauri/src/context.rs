@@ -37,13 +37,14 @@ pub fn vocabulary_terms(
 ) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     if settings.learning.apply_learned_terms {
-        if let Ok(terms) = history.vocab_list() {
-            out.extend(
-                terms
-                    .into_iter()
-                    .filter(|t| t.state == "applied")
-                    .map(|t| t.right_form),
-            );
+        // Hinting needs only the right form, so it keys on the right form: three
+        // corrections to it, however it was mangled (docs/LEARNING.md).
+        let min = settings
+            .learning
+            .min_occurrences
+            .max(crate::learning::MIN_OCCURRENCES);
+        if let Ok(terms) = history.vocab_hinted(min) {
+            out.extend(terms);
         }
     }
     out.extend(

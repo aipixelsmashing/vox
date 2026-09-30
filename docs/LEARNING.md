@@ -36,8 +36,21 @@ insert "meet me at cuber netties standup"
                 │
                 └── aligned token change: "cuber netties" → "Kubernetes"
                         │
+                        ├── read again 3 s later: the same text? then it has settled
+                        │
                         └── candidate, stored with count = 1
 ```
+
+**A correction is recorded once it has settled:** two consecutive reads find the same text
+where the insertion was. A read can land while the user is part-way through typing the fix,
+and what it sees then is neither what Vox wrote nor what they meant ("deco" on its way to
+"Adi" read as "de"). So the first read to see a change records nothing and asks for a
+confirming read three seconds later; scheduled reads that would come sooner are skipped, so
+the two are never closer than that. If the confirming read finds something else again, that
+becomes the text to confirm. A change first seen by the read at 90 s still gets its
+confirming read, at 93 s. The cost, accepted: the user has to stay in the app for three
+seconds after a fix, and a pause of three seconds in the middle of typing one can still be
+taken for the end of it, which the threshold below is there to absorb.
 
 At registration the watch notes where the insertion sits in the field: the text before it
 and the text after it. Each read must find that surrounding text unchanged; the span
@@ -60,11 +73,25 @@ focus, frees its place. Two limits follow from the anchoring, and are accepted:
 
 Rules that keep this honest:
 
-- **Never learn from a single instance.** A candidate becomes an applied term at **three**
-  independent occurrences, across at least two distinct sessions. A **session** starts at
-  launch and again after four hours without a dictation — Vox is a tray app that runs for
-  weeks, so a launch alone would be no boundary at all. The setting
-  `learning.minOccurrences` can raise the three, never lower it.
+- **Never learn from a single instance.** The threshold is **three** independent
+  corrections, across at least two distinct sessions. A **session** starts at launch and
+  again after four hours without a dictation — Vox is a tray app that runs for weeks, so a
+  launch alone would be no boundary at all. The setting `learning.minOccurrences` can raise
+  the three, never lower it.
+- **Two thresholds, because there are two things to learn.**
+  - *The right form, however it was mangled.* Three corrections to "Adi" — from "Eddie",
+    from "AD", from "A de" — make "Adi" a **hinted term**: it is given to the recogniser
+    as a hint. The names a recogniser mangles differently every time are exactly the ones
+    worth learning, and a hint needs only the right form. Counted over every pair with
+    that right form, matched exactly; a session two pairs share counts once.
+  - *The pair.* "Eddie" → "Adi" is a literal replacement, and replacing text is the
+    stronger act, so it has to earn the threshold **by itself**: that wrong form corrected
+    to that right form three times over two sessions makes the pair **applied**. Pairs are
+    kept from the first correction, as evidence and for this.
+
+  Hinted is computed from the pairs and stored nowhere, so deleting a pair takes its
+  evidence with it, and a right form can stop being hinted. A suspended or rejected pair
+  is no evidence for its right form.
 - **Only local, aligned edits count.** If the user rewrote the whole sentence, that is editing,
   not correcting — discard it. Alignment must map a contiguous span of at most three
   inserted tokens to a contiguous replacement of at most three, with the rest of the
@@ -95,13 +122,18 @@ Rules that keep this honest:
 
 ## How terms are applied
 
-Applied terms become a post-recognition replacement list, the same mechanism as the manual
-dictionary. When the recogniser is already on the dictation module because the focused
-field supplied hints ([CONTEXT.md](CONTEXT.md), spike S5), they are also passed as
-`AnalysisContext.contextualStrings`, ranked ahead of the field's terms, which fixes the
-error rather than patching it. They never switch the module on their own: that module
-costs a dropped last word now and then, which is worth it for a name on screen and not
-for a replacement the post-processing pass makes anyway.
+**Hinted terms** are passed to the recogniser as `AnalysisContext.contextualStrings`,
+ranked ahead of the field's terms, when it is already on the dictation module because the
+focused field supplied hints ([CONTEXT.md](CONTEXT.md), spike S5). That fixes the error
+rather than patching it. They never switch the module on their own: that module costs a
+dropped last word now and then, which is worth it for a name on screen and not otherwise.
+So a hinted term whose pairs are all still candidates does nothing in a field that gave no
+hints; that is the price of the rule above, and it is accepted.
+
+**Applied pairs** become a post-recognition replacement list, the same mechanism as the
+manual dictionary (M7).
+
+Both wait on `learning.applyLearnedTerms`.
 
 Matching is case-insensitive and whole-token; replacement preserves sentence-initial
 capitalisation.
@@ -150,9 +182,14 @@ CREATE TABLE vocab_candidates (
   reversals     INTEGER NOT NULL DEFAULT 0,
   state         TEXT NOT NULL,      -- candidate | applied | suspended | rejected
   sessions      INTEGER NOT NULL DEFAULT 1,  -- distinct sessions the fix was seen in
-  last_session  INTEGER             -- id (start time, ms) of the last of them
+  last_session  INTEGER,            -- id (start time, ms) of the last of them
+  session_ids   TEXT                -- ids of all of them, comma-separated
 );
 ```
+
+One row is one pair, and `state` is the pair's. A right form's count and sessions are summed
+over its rows when they are needed; `session_ids` is what lets a session two pairs share
+count once. Rows from before it existed name the one session they still know.
 
 It shares `history.db` ([HISTORY.md](HISTORY.md)). A row matches on the wrong form
 case-insensitively and the right form exactly; the first-seen spelling of the wrong form is
@@ -161,7 +198,8 @@ kept. Kilobytes, not megabytes. The compounding asset costs nothing in footprint
 ## Inspecting what has been captured
 
 The Privacy pane states what is stored and has the delete button; the Vocabulary pane lists
-applied terms and, on request, the candidates still waiting. The table itself is plain
+what is in use (applied pairs, and every pair behind a hinted term) and, on request, the
+candidates still waiting. The table itself is plain
 SQLite, readable with the `sqlite3` that ships with macOS:
 
 ```bash
@@ -174,11 +212,23 @@ sqlite3 -header -column ~/Library/Application\ Support/com.pixelsmashing.dictati
 
 The log (`~/Library/Logs/com.pixelsmashing.dictation/vox.log.<date>`, dated in UTC) says
 what each watch did in counts only —
-`watch: registered for 90 s`, `watch: read 2: candidate recorded (2 → 1 tokens), seen 1
-times in 1 sessions`, `watch: ended at read 3, focus left the app` — never the forms.
+`watch: registered for 90 s`, `watch: read 2: change seen, waiting for it to settle`,
+`watch: read 3: candidate recorded (2 → 1 tokens), seen 1 times in 1 sessions; its right
+form 3 times in 2 sessions, now hinted`, `watch: ended at read 3, focus left the app` —
+never the forms.
+
+The right forms and what they have reached:
+
+```bash
+sqlite3 -header -column ~/Library/Application\ Support/com.pixelsmashing.dictation/history.db \
+  "SELECT right_form, SUM(count) AS corrections, COUNT(*) AS manglings,
+          group_concat(session_ids, ',') AS sessions_seen
+   FROM vocab_candidates WHERE state NOT IN ('suspended','rejected')
+   GROUP BY right_form ORDER BY corrections DESC"
+```
 
 ## What this is not
 
 Not an LLM rewriting your sentences. Not tone adjustment, not summarisation, not "cleaning up"
-what you said. Vox changes individual terms it has watched you correct three times, and
-nothing else. Silent rewriting of meaning is a trust failure that no accuracy gain justifies.
+what you said. Vox hints a term you have corrected to three times, replaces a word you
+have corrected the same way three times, and does nothing else. Silent rewriting of meaning is a trust failure that no accuracy gain justifies.
