@@ -54,21 +54,25 @@ export const vocabTerms: VocabTerm[] = [
     id: 1, wrongForm: 'cuber netties', rightForm: 'Kubernetes', count: 3,
     firstSeen: now - 30 * 24 * 60 * min, lastSeen: now - 2 * 24 * 60 * min,
     sourceApps: ['Slack', 'Code'], reversals: 0, state: 'applied',
+    termCount: 3, termSessions: 2, hinted: true,
   },
   {
     id: 2, wrongForm: 'prea', rightForm: 'Priya', count: 4,
     firstSeen: now - 40 * 24 * 60 * min, lastSeen: now - 60 * min,
     sourceApps: ['Slack'], reversals: 0, state: 'applied',
+    termCount: 4, termSessions: 3, hinted: true,
   },
   {
     id: 3, wrongForm: 'tail wind', rightForm: 'Tailwind', count: 5,
     firstSeen: now - 20 * 24 * 60 * min, lastSeen: now - 3 * 24 * 60 * min,
     sourceApps: ['Code'], reversals: 2, state: 'suspended',
+    termCount: 0, termSessions: 0, hinted: false,
   },
   {
     id: 4, wrongForm: 'post hog', rightForm: 'PostHog', count: 2,
     firstSeen: now - 5 * 24 * 60 * min, lastSeen: now - 24 * 60 * min,
     sourceApps: ['Chrome'], reversals: 0, state: 'candidate',
+    termCount: 2, termSessions: 1, hinted: false,
   },
 ]
 

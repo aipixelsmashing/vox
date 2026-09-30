@@ -299,16 +299,37 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                 }
                 // Open the streaming session so the engine works while the user speaks.
                 // With the focused-field setting off this happens before the target is
-                // captured, with no hints, exactly as before the setting existed; with it
-                // on, the field has to be read first so the hints can go in at session
-                // start. Hints exist only when the field gave some (context::hints_for).
-                let (hint, read_field) = {
+                // captured; with it on, the field has to be read first so the hints can
+                // go in at session start. With learned terms turned on, those and the
+                // dictionary are hints by themselves and need no field
+                // (context::hints_for).
+                let (hint, read_field, learned, dictionary, vocabulary_switches) = {
                     let s = deps.settings.read();
-                    (language_hint(&s), s.privacy.read_focused_field)
+                    (
+                        language_hint(&s),
+                        s.privacy.read_focused_field,
+                        context::learned_terms(&s, &deps.history),
+                        context::dictionary_terms(&s),
+                        s.learning.apply_learned_terms,
+                    )
                 };
                 terms = Vec::new();
                 if !read_field {
-                    streaming = start_stream(&deps, hint.clone(), Vec::new());
+                    terms = context::hints_for(
+                        learned.clone(),
+                        dictionary.clone(),
+                        Vec::new(),
+                        vocabulary_switches,
+                    );
+                    if !terms.is_empty() {
+                        tracing::info!(
+                            "context: {} hints sent, {} learned, {} from the dictionary, the field not read",
+                            terms.len(),
+                            learned.len(),
+                            dictionary.len()
+                        );
+                    }
+                    streaming = start_stream(&deps, hint.clone(), terms.clone());
                 }
                 target = match deps.injector.capture_target() {
                     Ok(t) => Some(t),
@@ -324,12 +345,12 @@ fn run(deps: Deps, rx: crossbeam_channel::Receiver<Event>) {
                         None => (Vec::new(), "no target"),
                     };
                     let from_field = field.len();
-                    let vocabulary =
-                        context::vocabulary_terms(&deps.settings.read(), &deps.history);
-                    terms = context::hints_for(vocabulary, field);
+                    let from_learned = learned.len();
+                    terms = context::hints_for(learned, dictionary, field, vocabulary_switches);
                     tracing::info!(
-                        "context: {} hints sent, {} candidates from the field ({}), read in {} ms",
+                        "context: {} hints sent, {} learned, {} candidates from the field ({}), read in {} ms",
                         terms.len(),
+                        from_learned,
                         from_field,
                         note,
                         t0.elapsed().as_millis()

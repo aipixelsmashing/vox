@@ -28,46 +28,55 @@ const MAX_TERM_CHARS: usize = 40;
 
 // ─── Vocabulary the user chose ───────────────────────────────────────────────
 
-/// Applied learned terms (when `learning.applyLearnedTerms` is on) and the manual
-/// dictionary's right-hand sides. These rank ahead of anything read from the field and
-/// count towards the same cap, because the user chose them (docs/LEARNING.md).
-pub fn vocabulary_terms(
+/// The hinted learned terms, when `learning.applyLearnedTerms` is on. Hinting needs only
+/// the right form, so it keys on the right form: three corrections to it, however it was
+/// mangled (docs/LEARNING.md). Nothing here reads the field; `privacy.readFocusedField`
+/// has no say in it.
+pub fn learned_terms(
     settings: &crate::settings::Settings,
     history: &crate::history::Store,
 ) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    if settings.learning.apply_learned_terms {
-        if let Ok(terms) = history.vocab_list() {
-            out.extend(
-                terms
-                    .into_iter()
-                    .filter(|t| t.state == "applied")
-                    .map(|t| t.right_form),
-            );
-        }
-    }
-    out.extend(
-        settings
-            .output
-            .dictionary
-            .iter()
-            .map(|r| r.to.trim().to_string())
-            .filter(|t| !t.is_empty()),
-    );
-    merge(out, Vec::new())
-}
-
-/// The hints for one dictation. The recogniser moves to the dictation module only when
-/// the field gave it something: that module drops the last word of a streamed
-/// dictation now and then (docs/spikes/s5-context.md), a cost worth paying for a name on
-/// screen and not otherwise. So no field terms means no hints at all, and the manual
-/// dictionary and learned terms stay post-processing replacements; they ride along as
-/// hints only when the module is already switched for the field's sake.
-pub fn hints_for(vocabulary: Vec<String>, field: Vec<String>) -> Vec<String> {
-    if field.is_empty() {
+    if !settings.learning.apply_learned_terms {
         return Vec::new();
     }
-    merge(vocabulary, field)
+    let min = settings
+        .learning
+        .min_occurrences
+        .max(crate::learning::MIN_OCCURRENCES);
+    history.vocab_hinted(min).unwrap_or_default()
+}
+
+/// The manual dictionary's right-hand sides.
+pub fn dictionary_terms(settings: &crate::settings::Settings) -> Vec<String> {
+    settings
+        .output
+        .dictionary
+        .iter()
+        .map(|r| r.to.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// The hints for one dictation. Hints move the recogniser to the dictation module, which
+/// drops the last word of a streamed dictation now and then (docs/spikes/s5-context.md).
+/// What is worth that: a name on screen, and, when the user has turned
+/// `learning.applyLearnedTerms` on (`vocabulary_switches`), a word they taught Vox by
+/// correcting it or typed into the dictionary themselves. A word typed in deliberately is
+/// not weaker than one Vox inferred. With that setting off the dictionary stays a
+/// post-processing replacement and rides along as hints only when the field switched the
+/// module anyway. Learned terms first, then the dictionary, then the field's, because the
+/// user chose the first two.
+pub fn hints_for(
+    learned: Vec<String>,
+    dictionary: Vec<String>,
+    field: Vec<String>,
+    vocabulary_switches: bool,
+) -> Vec<String> {
+    let vocabulary = !learned.is_empty() || !dictionary.is_empty();
+    if field.is_empty() && !(vocabulary_switches && vocabulary) {
+        return Vec::new();
+    }
+    merge(learned.into_iter().chain(dictionary).collect(), field)
 }
 
 /// Vocabulary first, then the field's terms nearest the caret; case-insensitive
@@ -545,18 +554,63 @@ mod tests {
     }
 
     #[test]
-    fn no_field_terms_means_no_hints_at_all() {
-        let vocab = vec!["Kubernetes".to_string(), "OurCompany".to_string()];
-        assert!(
-            hints_for(vocab.clone(), Vec::new()).is_empty(),
-            "dictionary alone never switches the module"
-        );
-        let with = hints_for(vocab.clone(), vec!["Priya".into()]);
+    fn the_users_vocabulary_switches_the_module_when_they_turned_it_on() {
+        let learned = vec!["Adi".to_string()];
+        let dictionary = vec!["Kubernetes".to_string(), "OurCompany".to_string()];
+        let none = Vec::<String>::new;
+        // learning.applyLearnedTerms on.
         assert_eq!(
-            with,
-            vec!["Kubernetes", "OurCompany", "Priya"],
-            "once switched, the vocabulary rides along, ahead"
+            hints_for(learned.clone(), none(), none(), true),
+            vec!["Adi"],
+            "a learned term switches it with no field read at all"
         );
+        assert_eq!(
+            hints_for(none(), dictionary.clone(), none(), true),
+            vec!["Kubernetes", "OurCompany"],
+            "a word typed in deliberately is not weaker than one Vox inferred"
+        );
+        assert_eq!(
+            hints_for(
+                learned.clone(),
+                dictionary.clone(),
+                vec!["Priya".into()],
+                true
+            ),
+            vec!["Adi", "Kubernetes", "OurCompany", "Priya"],
+            "learned, then the dictionary, then the field"
+        );
+        assert!(hints_for(none(), none(), none(), true).is_empty());
+        // Off: only the field switches the module, and the dictionary rides along.
+        assert!(
+            hints_for(none(), dictionary.clone(), none(), false).is_empty(),
+            "with the setting off the dictionary alone never switches the module"
+        );
+        assert_eq!(
+            hints_for(none(), dictionary, vec!["Priya".into()], false),
+            vec!["Kubernetes", "OurCompany", "Priya"],
+        );
+    }
+
+    #[test]
+    fn learned_terms_wait_on_their_own_setting_and_no_other() {
+        let store = crate::history::Store::open_in_memory().unwrap();
+        store
+            .vocab_observe("Eddie", "Adi", "Notes", 1, 10, 3)
+            .unwrap();
+        store.vocab_observe("AD", "Adi", "Notes", 1, 11, 3).unwrap();
+        store
+            .vocab_observe("A de", "Adi", "Notes", 2, 12, 3)
+            .unwrap();
+        let mut s = crate::settings::Settings::default();
+        assert!(learned_terms(&s, &store).is_empty(), "off by default");
+        s.privacy.read_focused_field = true;
+        assert!(
+            learned_terms(&s, &store).is_empty(),
+            "reading the field does not turn learning on"
+        );
+        s.privacy.read_focused_field = false;
+        s.learning.apply_learned_terms = true;
+        assert_eq!(learned_terms(&s, &store), vec!["Adi"]);
     }
 
     #[test]

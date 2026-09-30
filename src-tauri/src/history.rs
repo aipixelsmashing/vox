@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS vocab_candidates (
   reversals   INTEGER NOT NULL DEFAULT 0,
   state       TEXT NOT NULL,
   sessions    INTEGER NOT NULL DEFAULT 1,
-  last_session INTEGER
+  last_session INTEGER,
+  session_ids TEXT
 );
 "#;
 
@@ -237,6 +238,58 @@ pub struct VocabTerm {
     pub source_apps: Vec<String>,
     pub reversals: u32,
     pub state: String,
+    /// Corrections to this right form over every way it was mangled, and the distinct
+    /// sessions they were seen in. The same on every row that shares the right form.
+    pub term_count: u32,
+    pub term_sessions: u32,
+    /// The right form has reached the threshold and is passed to the recogniser as a hint.
+    pub hinted: bool,
+}
+
+/// What one correction did (docs/LEARNING.md, "Two thresholds"). The pair is the wrong form
+/// with the right form; the term is the right form alone, however it was mangled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VocabObserved {
+    pub count: u32,
+    pub sessions: u32,
+    /// This correction took the pair to applied.
+    pub promoted: bool,
+    pub term_count: u32,
+    pub term_sessions: u32,
+    /// This correction made the right form a hinted term.
+    pub hinted: bool,
+}
+
+/// One pair's evidence, as the term-level sums need it.
+struct PairEvidence {
+    count: u32,
+    sessions: u32,
+    session_ids: Vec<i64>,
+}
+
+fn parse_session_ids(ids: Option<String>) -> Vec<i64> {
+    ids.map(|s| s.split(',').filter_map(|x| x.parse().ok()).collect())
+        .unwrap_or_default()
+}
+
+/// Corrections and distinct sessions for one right form, over all its pairs. A session two
+/// pairs share counts once. A row from before session ids were kept knows how many
+/// sessions it saw but not which; those it cannot name count as its own.
+fn term_totals(pairs: &[PairEvidence]) -> (u32, u32) {
+    let count = pairs.iter().map(|p| p.count).sum();
+    let named: std::collections::BTreeSet<i64> = pairs
+        .iter()
+        .flat_map(|p| p.session_ids.iter().copied())
+        .collect();
+    let unnamed: u32 = pairs
+        .iter()
+        .map(|p| p.sessions.saturating_sub(p.session_ids.len() as u32))
+        .sum();
+    (count, named.len() as u32 + unnamed)
+}
+
+fn is_hinted(count: u32, sessions: u32, min_occurrences: u32) -> bool {
+    count >= min_occurrences && sessions >= crate::learning::MIN_SESSIONS
 }
 
 /// What Diagnostics shows: outcomes by app, the median release-to-text, and how many
@@ -250,7 +303,47 @@ pub struct Stats {
 }
 
 impl Store {
+    /// Every pair, newest first, each carrying its right form's totals. `min_occurrences`
+    /// is the threshold a right form is hinted at.
+    pub fn vocab_list_with(&self, min_occurrences: u32) -> anyhow::Result<Vec<VocabTerm>> {
+        let mut terms = self.vocab_pairs()?;
+        let conn = self.conn.lock();
+        let mut totals: std::collections::HashMap<String, (u32, u32)> = Default::default();
+        for t in &mut terms {
+            let (count, sessions) = match totals.get(&t.right_form) {
+                Some(hit) => *hit,
+                None => {
+                    let got = term_totals(&pairs_for(&conn, &t.right_form)?);
+                    totals.insert(t.right_form.clone(), got);
+                    got
+                }
+            };
+            t.term_count = count;
+            t.term_sessions = sessions;
+            t.hinted = is_hinted(count, sessions, min_occurrences);
+        }
+        Ok(terms)
+    }
+
+    /// [`Store::vocab_list_with`] at the built-in threshold.
     pub fn vocab_list(&self) -> anyhow::Result<Vec<VocabTerm>> {
+        self.vocab_list_with(crate::learning::MIN_OCCURRENCES)
+    }
+
+    /// The right forms that have reached the threshold, most recently corrected first:
+    /// what the recogniser is given as hints. A pair the user kept changing back, or
+    /// rejected, is no evidence for its right form.
+    pub fn vocab_hinted(&self, min_occurrences: u32) -> anyhow::Result<Vec<String>> {
+        let mut out: Vec<String> = Vec::new();
+        for t in self.vocab_list_with(min_occurrences)? {
+            if t.hinted && !out.contains(&t.right_form) {
+                out.push(t.right_form);
+            }
+        }
+        Ok(out)
+    }
+
+    fn vocab_pairs(&self) -> anyhow::Result<Vec<VocabTerm>> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
             "SELECT id, wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state
@@ -275,6 +368,9 @@ impl Store {
                     .unwrap_or_default(),
                 reversals: r.get(7)?,
                 state: r.get(8)?,
+                term_count: 0,
+                term_sessions: 0,
+                hinted: false,
             })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
@@ -295,11 +391,15 @@ impl Store {
         Ok(n)
     }
 
-    /// One observed correction (docs/LEARNING.md, "How capture works"). Upserts the
-    /// candidate matched on the wrong form case-insensitively and the right form exactly,
-    /// counts it, counts the session if it is a new one, adds the app name, and promotes a
-    /// candidate to applied once it has `min_occurrences` corrections over at least
-    /// [`crate::learning::MIN_SESSIONS`] sessions. Returns (count, sessions, promoted).
+    /// One observed correction (docs/LEARNING.md, "How capture works"). Upserts the pair
+    /// matched on the wrong form case-insensitively and the right form exactly, counts it,
+    /// counts the session if it is a new one, and adds the app name.
+    ///
+    /// Two thresholds, both `min_occurrences` corrections over at least
+    /// [`crate::learning::MIN_SESSIONS`] sessions. The *pair* reaching it by itself becomes
+    /// applied: a literal replacement. The *right form* reaching it over all its pairs,
+    /// however it was mangled, becomes a hinted term; that is computed from the pairs
+    /// and not stored, so deleting a pair takes its evidence with it.
     /// Only ever stores the two forms: the caller has already reduced the edit to them.
     pub fn vocab_observe(
         &self,
@@ -309,11 +409,81 @@ impl Store {
         session: i64,
         now: i64,
         min_occurrences: u32,
-    ) -> anyhow::Result<(u32, u32, bool)> {
+    ) -> anyhow::Result<VocabObserved> {
         let conn = self.conn.lock();
+        let (before_count, before_sessions) = term_totals(&pairs_for(&conn, right)?);
+        let was_hinted = is_hinted(before_count, before_sessions, min_occurrences);
+        let (count, sessions, promoted) =
+            observe_pair(&conn, wrong, right, app, session, now, min_occurrences)?;
+        let (term_count, term_sessions) = term_totals(&pairs_for(&conn, right)?);
+        Ok(VocabObserved {
+            count,
+            sessions,
+            promoted,
+            term_count,
+            term_sessions,
+            hinted: !was_hinted && is_hinted(term_count, term_sessions, min_occurrences),
+        })
+    }
+
+    /// `vocabulary.txt`: the hinted terms, one per line, then one `wrong → right` per
+    /// line, applied pairs first.
+    pub fn vocab_export_to(&self, dir: &Path) -> anyhow::Result<(PathBuf, usize)> {
+        let mut terms = self.vocab_list()?;
+        let mut hinted: Vec<(String, u32)> = Vec::new();
+        for t in terms.iter().filter(|t| t.hinted) {
+            if !hinted.iter().any(|(form, _)| *form == t.right_form) {
+                hinted.push((t.right_form.clone(), t.term_count));
+            }
+        }
+        hinted.sort_by_key(|(form, _)| form.to_lowercase());
+        terms.sort_by_key(|t| (t.state != "applied", t.right_form.to_lowercase()));
+        let mut body: String = hinted
+            .iter()
+            .map(|(form, count)| format!("{form} (hinted, {count}×)\n"))
+            .collect();
+        body.extend(terms.iter().map(|t| {
+            format!(
+                "{} → {} ({}, {}×)\n",
+                t.wrong_form, t.right_form, t.state, t.count
+            )
+        }));
+        let path = dir.join("vocabulary.txt");
+        std::fs::write(&path, body)?;
+        Ok((path, terms.len()))
+    }
+}
+
+/// The evidence for one right form: its pairs, except those the user turned down.
+fn pairs_for(conn: &Connection, right: &str) -> anyhow::Result<Vec<PairEvidence>> {
+    let mut stmt = conn.prepare(
+        "SELECT count, sessions, session_ids FROM vocab_candidates
+         WHERE right_form = ?1 AND state NOT IN ('suspended', 'rejected')",
+    )?;
+    let rows = stmt.query_map(params![right], |r| {
+        Ok(PairEvidence {
+            count: r.get(0)?,
+            sessions: r.get(1)?,
+            session_ids: parse_session_ids(r.get(2)?),
+        })
+    })?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+/// The pair's own row and its own threshold. Returns (count, sessions, promoted).
+fn observe_pair(
+    conn: &Connection,
+    wrong: &str,
+    right: &str,
+    app: &str,
+    session: i64,
+    now: i64,
+    min_occurrences: u32,
+) -> anyhow::Result<(u32, u32, bool)> {
+    {
         let existing = conn
             .query_row(
-                "SELECT id, count, sessions, last_session, source_apps, state
+                "SELECT id, count, sessions, last_session, source_apps, state, session_ids
                  FROM vocab_candidates
                  WHERE lower(wrong_form) = lower(?1) AND right_form = ?2",
                 params![wrong, right],
@@ -325,25 +495,31 @@ impl Store {
                         r.get::<_, Option<i64>>(3)?,
                         r.get::<_, Option<String>>(4)?,
                         r.get::<_, String>(5)?,
+                        r.get::<_, Option<String>>(6)?,
                     ))
                 },
             )
             .optional()?;
-        let Some((id, count, sessions, last_session, apps, state)) = existing else {
+        let Some((id, count, sessions, last_session, apps, state, ids)) = existing else {
             conn.execute(
                 "INSERT INTO vocab_candidates
-                   (wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state, sessions, last_session)
-                 VALUES (?1, ?2, 1, ?3, ?3, ?4, 0, 'candidate', 1, ?5)",
-                params![wrong, right, now, app, session],
+                   (wrong_form, right_form, count, first_seen, last_seen, source_apps, reversals, state, sessions, last_session, session_ids)
+                 VALUES (?1, ?2, 1, ?3, ?3, ?4, 0, 'candidate', 1, ?5, ?6)",
+                params![wrong, right, now, app, session, session.to_string()],
             )?;
             return Ok((1, 1, false));
         };
         let count = count + 1;
-        let sessions = if last_session == Some(session) {
+        let mut ids = parse_session_ids(ids);
+        let sessions = if last_session == Some(session) || ids.contains(&session) {
             sessions
         } else {
             sessions + 1
         };
+        if !ids.contains(&session) {
+            ids.push(session);
+        }
+        let ids = ids.iter().map(i64::to_string).collect::<Vec<_>>().join(",");
         let mut apps: Vec<String> = apps
             .map(|a| {
                 a.split(',')
@@ -361,31 +537,15 @@ impl Store {
         let state = if promoted { "applied" } else { state.as_str() };
         conn.execute(
             "UPDATE vocab_candidates
-             SET count = ?2, last_seen = ?3, source_apps = ?4, state = ?5, sessions = ?6, last_session = ?7
+             SET count = ?2, last_seen = ?3, source_apps = ?4, state = ?5, sessions = ?6, last_session = ?7, session_ids = ?8
              WHERE id = ?1",
-            params![id, count, now, apps.join(","), state, sessions, session],
+            params![id, count, now, apps.join(","), state, sessions, session, ids],
         )?;
         Ok((count, sessions, promoted))
     }
+}
 
-    /// `vocabulary.txt`: one `wrong → right` per line, applied terms first.
-    pub fn vocab_export_to(&self, dir: &Path) -> anyhow::Result<(PathBuf, usize)> {
-        let mut terms = self.vocab_list()?;
-        terms.sort_by_key(|t| (t.state != "applied", t.right_form.to_lowercase()));
-        let body: String = terms
-            .iter()
-            .map(|t| {
-                format!(
-                    "{} → {} ({}, {}×)\n",
-                    t.wrong_form, t.right_form, t.state, t.count
-                )
-            })
-            .collect();
-        let path = dir.join("vocabulary.txt");
-        std::fs::write(&path, body)?;
-        Ok((path, terms.len()))
-    }
-
+impl Store {
     pub fn stats(&self) -> anyhow::Result<Stats> {
         let conn = self.conn.lock();
         let mut stmt = conn.prepare(
@@ -463,6 +623,16 @@ fn migrate(conn: &Connection) -> anyhow::Result<()> {
     }
     if !vocab_columns.iter().any(|c| c == "last_session") {
         conn.execute_batch("ALTER TABLE vocab_candidates ADD COLUMN last_session INTEGER;")?;
+    }
+    // Which sessions, not only how many: a right form's sessions are counted over all its
+    // pairs, and two pairs fixed in one sitting must count that sitting once. A row from
+    // before names the one session it still knows.
+    if !vocab_columns.iter().any(|c| c == "session_ids") {
+        conn.execute_batch(
+            "ALTER TABLE vocab_candidates ADD COLUMN session_ids TEXT;
+             UPDATE vocab_candidates SET session_ids = CAST(last_session AS TEXT)
+             WHERE last_session IS NOT NULL;",
+        )?;
     }
     Ok(())
 }
@@ -745,6 +915,95 @@ mod tests {
         assert_eq!(s.by_app[1], ("com.other".into(), 0, 1));
     }
 
+    fn pair(seen: VocabObserved) -> (u32, u32, bool) {
+        (seen.count, seen.sessions, seen.promoted)
+    }
+
+    #[test]
+    fn a_session_two_pairs_share_counts_once_for_the_right_form() {
+        let p = |count, sessions, ids: &[i64]| PairEvidence {
+            count,
+            sessions,
+            session_ids: ids.to_vec(),
+        };
+        assert_eq!(term_totals(&[]), (0, 0));
+        assert_eq!(term_totals(&[p(1, 1, &[10]), p(1, 1, &[10])]), (2, 1));
+        assert_eq!(term_totals(&[p(2, 2, &[10, 20]), p(1, 1, &[20])]), (3, 2));
+        // From before session ids were kept: three sessions, one of them named.
+        assert_eq!(term_totals(&[p(4, 3, &[20]), p(1, 1, &[20])]), (5, 3));
+        assert_eq!(term_totals(&[p(2, 1, &[])]), (2, 1));
+    }
+
+    #[test]
+    fn a_table_from_before_session_ids_names_the_session_it_knows() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE vocab_candidates (
+               id INTEGER PRIMARY KEY, wrong_form TEXT NOT NULL, right_form TEXT NOT NULL,
+               count INTEGER NOT NULL DEFAULT 1, first_seen INTEGER NOT NULL, last_seen INTEGER NOT NULL,
+               source_apps TEXT, reversals INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL,
+               sessions INTEGER NOT NULL DEFAULT 1, last_session INTEGER);
+             INSERT INTO vocab_candidates VALUES (1, 'Eddie', 'Adi', 1, 1, 1, 'Notes', 0, 'candidate', 1, 100);
+             INSERT INTO vocab_candidates VALUES (2, 'AD', 'Adi', 1, 2, 2, 'Notes', 0, 'candidate', 1, 100);
+             INSERT INTO vocab_candidates VALUES (3, 'A de', 'Adi', 1, 3, 3, 'Notes', 0, 'candidate', 1, 200);",
+        )
+        .unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        migrate(&conn).unwrap();
+        migrate(&conn).unwrap();
+        let store = Store {
+            conn: Mutex::new(conn),
+        };
+        // Three corrections to one name over two sittings, each mangled its own way.
+        assert_eq!(store.vocab_hinted(3).unwrap(), vec!["Adi".to_string()]);
+        let seen = store
+            .vocab_observe("eddie", "Adi", "Notes", 200, 4, 3)
+            .unwrap();
+        assert_eq!((seen.count, seen.sessions), (2, 2));
+        assert_eq!((seen.term_count, seen.term_sessions), (4, 2));
+        assert!(!seen.hinted, "it already was");
+    }
+
+    #[test]
+    fn a_pair_the_user_turned_down_is_no_evidence_for_its_right_form() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .vocab_observe("Eddie", "Adi", "Notes", 1, 10, 3)
+            .unwrap();
+        store.vocab_observe("AD", "Adi", "Notes", 1, 11, 3).unwrap();
+        store
+            .vocab_observe("A de", "Adi", "Notes", 2, 12, 3)
+            .unwrap();
+        assert_eq!(store.vocab_hinted(3).unwrap(), vec!["Adi".to_string()]);
+        store
+            .conn
+            .lock()
+            .execute(
+                "UPDATE vocab_candidates SET state = 'suspended' WHERE wrong_form = 'AD'",
+                [],
+            )
+            .unwrap();
+        assert!(store.vocab_hinted(3).unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_export_lists_hinted_terms_then_the_pairs() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .vocab_observe("Eddie", "Adi", "Notes", 1, 10, 3)
+            .unwrap();
+        store.vocab_observe("AD", "Adi", "Notes", 1, 11, 3).unwrap();
+        store
+            .vocab_observe("A de", "Adi", "Notes", 2, 12, 3)
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let (path, n) = store.vocab_export_to(dir.path()).unwrap();
+        assert_eq!(n, 3);
+        let body = std::fs::read_to_string(path).unwrap();
+        assert!(body.starts_with("Adi (hinted, 3×)\n"), "{body}");
+        assert_eq!(body.matches(" → Adi (candidate, 1×)").count(), 3);
+    }
+
     #[test]
     fn vocab_reads_forgets_and_exports() {
         let store = Store::open_in_memory().unwrap();
@@ -789,9 +1048,11 @@ mod tests {
         };
         // Two old corrections count as one session: a third in a new session promotes.
         assert_eq!(
-            store
-                .vocab_observe("Prea", "Priya", "Code", 7, 3, 3)
-                .unwrap(),
+            pair(
+                store
+                    .vocab_observe("Prea", "Priya", "Code", 7, 3, 3)
+                    .unwrap()
+            ),
             (3, 2, true)
         );
         let t = &store.vocab_list().unwrap()[0];
@@ -804,24 +1065,24 @@ mod tests {
     fn observe_counts_sessions_distinctly_and_never_repromotes() {
         let store = Store::open_in_memory().unwrap();
         assert_eq!(
-            store.vocab_observe("a", "B", "Notes", 1, 10, 3).unwrap(),
+            pair(store.vocab_observe("a", "B", "Notes", 1, 10, 3).unwrap()),
             (1, 1, false)
         );
         assert_eq!(
-            store.vocab_observe("a", "B", "Notes", 1, 11, 3).unwrap(),
+            pair(store.vocab_observe("a", "B", "Notes", 1, 11, 3).unwrap()),
             (2, 1, false)
         );
         assert_eq!(
-            store.vocab_observe("a", "B", "", 2, 12, 3).unwrap(),
+            pair(store.vocab_observe("a", "B", "", 2, 12, 3).unwrap()),
             (3, 2, true)
         );
         assert_eq!(
-            store.vocab_observe("a", "B", "Notes", 3, 13, 3).unwrap(),
+            pair(store.vocab_observe("a", "B", "Notes", 3, 13, 3).unwrap()),
             (4, 3, false),
             "already applied"
         );
         assert_eq!(
-            store.vocab_observe("a", "C", "Notes", 3, 13, 3).unwrap(),
+            pair(store.vocab_observe("a", "C", "Notes", 3, 13, 3).unwrap()),
             (1, 1, false),
             "a different right form is its own row"
         );

@@ -56,8 +56,11 @@ export function VocabularyPane({ settings, patch }: { settings: Settings; patch:
   }
 
   const learningOn = settings.learning.captureCorrections
-  const learned = terms?.filter((t) => t.state === 'applied' || t.state === 'suspended') ?? []
-  const waiting = terms?.filter((t) => t.state === 'candidate') ?? []
+  // A hinted right form is in use even while each of its pairs is still a candidate, so
+  // its rows belong with what Vox has learned, not with what is waiting.
+  const inUse = (t: VocabTerm) => t.state === 'applied' || t.state === 'suspended' || t.hinted
+  const learned = terms?.filter(inUse) ?? []
+  const waiting = terms?.filter((t) => t.state === 'candidate' && !t.hinted) ?? []
 
   return (
     <>

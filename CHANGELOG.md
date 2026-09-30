@@ -59,6 +59,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Changed
+- A name Vox gets wrong a different way each time is now learned: three corrections to the
+  same word, however it was misheard, make it a word the recogniser is told to expect.
+  Replacing one specific mishearing still needs that same fix three times.
+- With "Apply what it has learned" on, learned words and the words in your dictionary
+  are now used in every dictation, whether or not Vox may read the field you are
+  dictating into. The cost: the last word of
+  a dictation is dropped now and then while it is on.
+- A fix is only counted once you have finished typing it. Vox used to be able to catch a
+  word half-typed and store that.
 - Vox keeps watching your last three dictations for fixes, not only the latest one. Dictate
   a sentence, dictate the next, then go back and fix a name in the first: that fix now
   counts.

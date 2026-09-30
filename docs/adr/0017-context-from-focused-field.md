@@ -32,7 +32,12 @@ opt into knowingly, exactly as `learning.applyLearnedTerms` is. Design in
 ## Consequences
 
 - The main accuracy lever the product has, one toggle away, for users who want it.
-- Users who never turn it on get today's engine and today's behaviour, unchanged.
+- Users who never turn it on get today's engine and today's behaviour, unchanged —
+  unless they turn on `learning.applyLearnedTerms`, which since 2026-09-29 switches the
+  module by itself once a term is learned or the dictionary has an entry, without
+  reading any field
+  ([LEARNING.md](../LEARNING.md#how-terms-are-applied)). This setting governs reading
+  the field and nothing else.
 - The 20-term cap bounds the injection risk per dictation; the nearest-first order puts the
   bound where the relevant names are. If real use shows the cap is too tight, raising it is
   a measured change against the wrong-word rate, not a default.

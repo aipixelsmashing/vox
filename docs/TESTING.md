@@ -234,22 +234,41 @@ Cannot be automated: a real field, a real edit, a real focus change. The exit cr
 is the table filling up correctly from real use ([LEARNING.md](LEARNING.md#inspecting-what-has-been-captured)
 has the `sqlite3` query).
 
-1. Dictate a sentence with a mangled name into Notes, fix the name within a minute: the
-   log shows `watch: registered` then `watch: read N: candidate recorded`, and the row is
-   in the table with `count 1`, `sessions 1`, `state candidate`, `source_apps Notes`.
-2. Same fix again in the same sitting, then once more after a relaunch or four hours
-   later: `count 3`, `sessions 2`, `state applied`. Three in one sitting stays `candidate`.
-3. Fix a homophone ("their" → "there"): `watch: … edit guarded` and no row.
-4. Rewrite the whole sentence, or delete the name, or add a word: no row.
-5. Fix a name, then keep typing after the dictation: the row is still recorded.
-6. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
+1. Dictate a sentence with a mangled name into Notes, fix the name within a minute and
+   stay in Notes: the log shows `watch: registered`, then `watch: read N: change seen,
+   waiting for it to settle`, then about three seconds later `candidate recorded`, and
+   the row is in the table with `count 1`, `sessions 1`, `state candidate`,
+   `source_apps Notes`.
+2. The same wrong form fixed the same way again in the same sitting, then once more after
+   a relaunch or four hours later: `count 3`, `sessions 2`, `state applied`. Three in one
+   sitting stays `candidate`.
+3. A name mangled a different way each time, fixed to the same right form three times
+   over two sittings: three rows, each `count 1` and `state candidate`, and the third
+   logs `its right form 3 times in 2 sessions, now hinted`. The right-form query in
+   [LEARNING.md](LEARNING.md#inspecting-what-has-been-captured) shows `corrections 3`.
+   Settings → Vocabulary lists the three under "Words Vox has learned". Delete one: the
+   other two move to "Waiting".
+4. With a hinted term in the table, `learning.applyLearnedTerms` on and
+   `privacy.readFocusedField` off, dictate the name: the log shows `context: N hints
+   sent, 1 learned, the field not read` and the name comes out right. Turn
+   `applyLearnedTerms` off: no `context:` line, and the recogniser is the one it was.
+   The same with an empty table and one dictionary entry: `0 learned, 1 from the
+   dictionary`, and with the setting off, no `context:` line.
+   Over twenty dictations with it on, note how often the last word is missing.
+5. Fix a name slowly: select the word, type the first two letters, and stop for a second
+   while a read is due (T+2 s or T+10 s). No row for the half-typed word; one row for the
+   finished one.
+6. Fix a homophone ("their" → "there"): `watch: … edit guarded` and no row.
+7. Rewrite the whole sentence, or delete the name, or add a word: no row.
+8. Fix a name, then keep typing after the dictation: the row is still recorded.
+9. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
    and no row. Dictate into a password field: no `watch:` line at all.
-7. Dictate a sentence with a mangled name in the middle, dictate a second sentence after
+10. Dictate a sentence with a mangled name in the middle, dictate a second sentence after
    it in the same field, then fix the name in the first within a minute: two
    `watch: registered` lines with no `watch: cancelled` between them, then `candidate
    recorded`, and one row (not two). A fourth dictation in a row logs one
    `watch: cancelled`, for the oldest.
-8. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
+11. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
 
 ### Long-form and learning
