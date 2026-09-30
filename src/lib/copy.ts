@@ -128,11 +128,11 @@ export const copy = {
     },
     vocabulary: {
       title: 'Learning',
-      note: 'Vox can watch the text field for a short while after it inserts something and notice when you fix a word. After the same fix three times, it starts making it for you. It stores the wrong form, the right form, a count, a date and which apps — never the sentences.',
+      note: "Vox can watch the text field for a short while after it inserts something and notice when you fix a word. After you've corrected a word three times, Vox starts listening for it. It stores the wrong form, the right form, a count, a date and which apps — never the sentences.",
       capture: 'Watch my corrections',
       captureHint: 'Local, kilobytes, deletable any time.',
       apply: 'Apply what it has learned',
-      applyHint: 'Off by default. Every applied term is listed below with a delete button.',
+      applyHint: 'Off by default. While it is on, the last word of a dictation is dropped now and then. Every learned word is listed below with a delete button.',
       learnedTitle: 'Words Vox has learned',
       empty: 'No words learned yet. Vox picks them up when you correct it.',
       off: "Learning is off. Vox won't watch your corrections. Turn it on to teach it your words.",

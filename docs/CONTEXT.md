@@ -42,7 +42,7 @@ key-down
   │     read AXValue + AXSelectedTextRange of the focused element      ~1–10 ms
   │     take the window around the caret          ≤ 2 000 chars each side
   │     extract hint terms, nearest the caret first, at most 20
-  │     add hinted learned terms + manual dictionary
+  │     add hinted learned terms + manual dictionary, ahead of them
   │     engine.stream_start(hint, context)         → AnalysisContext.contextualStrings
   └── … speaking …
 key-up
@@ -106,16 +106,20 @@ terms.
 
 What shipped in M3, where it departs from or sharpens the design above:
 
-- **The module switches only for the field.** `DictationTranscriber` drops the last word
-  of a streamed dictation now and then (the volatile tail, below), a cost worth paying
-  when a name on screen is about to be said and not otherwise. So the session moves to it
-  only when the field yielded at least one term; with the setting off, or a field that
-  gave nothing, it is `SpeechTranscriber` with no hints, unchanged. Hinted learned terms
-  and the manual dictionary's right-hand sides are added as hints, ranked ahead, only
-  when the module is already switched for the field's sake
-  ([LEARNING.md](LEARNING.md#how-terms-are-applied)); replacement stays post-processing.
-- **The dictation module is readied in the background**, when the setting is on at launch
-  and when it is turned on: its assets are installed if missing (Apple's download, like
+- **The module switches for the field, and for learned terms.** `DictationTranscriber`
+  drops the last word of a streamed dictation now and then (the volatile tail, below), a
+  cost worth paying when a name on screen is about to be said, or when the user has
+  taught Vox a word and turned `learning.applyLearnedTerms` on
+  ([LEARNING.md](LEARNING.md#how-terms-are-applied)). So the session moves to it when the
+  field yielded at least one term or there is at least one hinted learned term. This
+  setting governs reading the field and nothing else: with it off and nothing learned, or
+  learned terms off and a field that gave nothing, it is `SpeechTranscriber` with no
+  hints, unchanged. The manual dictionary alone never switches it. The manual
+  dictionary's right-hand sides are added as hints, ranked after learned terms and ahead
+  of the field's, only when the module is switched anyway; replacement stays
+  post-processing.
+- **The dictation module is readied in the background**, when this setting or
+  `learning.applyLearnedTerms` is on at launch and when either is turned on: its assets are installed if missing (Apple's download, like
   the speech module's on first run) and it is warmed once. If a dictation starts before
   that has finished, the session runs on `SpeechTranscriber`, the hints are dropped, and
   the log says so with a count. Nothing on the dictation path ever waits for it.

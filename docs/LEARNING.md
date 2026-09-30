@@ -122,13 +122,21 @@ Rules that keep this honest:
 
 ## How terms are applied
 
-**Hinted terms** are passed to the recogniser as `AnalysisContext.contextualStrings`,
-ranked ahead of the field's terms, when it is already on the dictation module because the
-focused field supplied hints ([CONTEXT.md](CONTEXT.md), spike S5). That fixes the error
-rather than patching it. They never switch the module on their own: that module costs a
-dropped last word now and then, which is worth it for a name on screen and not otherwise.
-So a hinted term whose pairs are all still candidates does nothing in a field that gave no
-hints; that is the price of the rule above, and it is accepted.
+**Hinted terms** are passed to the recogniser as `AnalysisContext.contextualStrings` on
+every dictation, ranked ahead of the manual dictionary and the field's terms
+([CONTEXT.md](CONTEXT.md), spike S5). That fixes the error rather than patching it.
+
+Hints need the dictation module, and **learned terms switch to it on their own**: with
+`learning.applyLearnedTerms` on and at least one hinted term, every dictation runs on it,
+whatever field it goes into. `privacy.readFocusedField` governs reading the field and
+nothing else; learned terms neither need it nor turn it on.
+
+**What that costs.** The dictation module drops the last word of a dictation now and
+then: on the S5 fixture it lost one short word at the end in three streamed runs of three
+([spikes/s5-context.md](spikes/s5-context.md)). Turning learned terms on is accepting that
+on every dictation, in exchange for the names coming out right. The setting's description
+says so. With the setting off, or on with nothing learned yet, the recogniser is the one
+it always was.
 
 **Applied pairs** become a post-recognition replacement list, the same mechanism as the
 manual dictionary (M7).

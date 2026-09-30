@@ -37,7 +37,8 @@ drives migrations; each migration is a pure function with a test.
 
   "learning": {
     "captureCorrections": true,    // store candidates locally; costs nothing, asset compounds
-    "applyLearnedTerms": false,    // off by default for the first year — docs/LEARNING.md
+    "applyLearnedTerms": false,    // off by default for the first year — docs/LEARNING.md.
+                                   // on: the last word of a dictation is dropped now and then
     "minOccurrences": 3
   },
 
@@ -110,7 +111,7 @@ drives migrations; each migration is a pure function with a test.
 | `audio.preroll` | `off` | Keeping the mic stream open is a privacy posture, not a default |
 | `engine.modelId` | `auto` | Apple's model on macOS 26+ (no download, ~60 MB idle), Parakeet elsewhere |
 | `learning.captureCorrections` | `true` | Local, kilobytes, and the corpus takes months to build. Delete it any time |
-| `learning.applyLearnedTerms` | `false` | A system that learns silently can be confidently wrong. Earn the default with a year of data |
+| `learning.applyLearnedTerms` | `false` | A system that learns silently can be confidently wrong. Earn the default with a year of data. It also has a cost: once a word is learned, every dictation runs on the recognition module that takes hints, which drops the last word now and then ([LEARNING.md](LEARNING.md#how-terms-are-applied)) |
 | `output.onFocusChange` | `clipboard` | Typing into whatever the user switched to is worse than not typing |
 | `privacy.readFocusedField` | `false` | Vox reading the user's documents is a capability to opt into knowingly, like `learning.applyLearnedTerms`. In the Privacy pane because it is about what Vox may read, not a speed trade-off ([adr/0017](adr/0017-context-from-focused-field.md)) |
 | `history.maxItems` | `200` | Enough to recover from a bad day, small enough that a wipe is quick |

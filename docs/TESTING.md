@@ -248,20 +248,25 @@ has the `sqlite3` query).
    [LEARNING.md](LEARNING.md#inspecting-what-has-been-captured) shows `corrections 3`.
    Settings → Vocabulary lists the three under "Words Vox has learned". Delete one: the
    other two move to "Waiting".
-4. Fix a name slowly: select the word, type the first two letters, and stop for a second
+4. With a hinted term in the table, `learning.applyLearnedTerms` on and
+   `privacy.readFocusedField` off, dictate the name: the log shows `context: N hints
+   sent, 1 learned, the field not read` and the name comes out right. Turn
+   `applyLearnedTerms` off: no `context:` line, and the recogniser is the one it was.
+   Over twenty dictations with it on, note how often the last word is missing.
+5. Fix a name slowly: select the word, type the first two letters, and stop for a second
    while a read is due (T+2 s or T+10 s). No row for the half-typed word; one row for the
    finished one.
-5. Fix a homophone ("their" → "there"): `watch: … edit guarded` and no row.
-6. Rewrite the whole sentence, or delete the name, or add a word: no row.
-7. Fix a name, then keep typing after the dictation: the row is still recorded.
-8. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
+6. Fix a homophone ("their" → "there"): `watch: … edit guarded` and no row.
+7. Rewrite the whole sentence, or delete the name, or add a word: no row.
+8. Fix a name, then keep typing after the dictation: the row is still recorded.
+9. Dictate, switch to another app, fix the text there later: `watch: ended … focus left`
    and no row. Dictate into a password field: no `watch:` line at all.
-9. Dictate a sentence with a mangled name in the middle, dictate a second sentence after
+10. Dictate a sentence with a mangled name in the middle, dictate a second sentence after
    it in the same field, then fix the name in the first within a minute: two
    `watch: registered` lines with no `watch: cancelled` between them, then `candidate
    recorded`, and one row (not two). A fourth dictation in a row logs one
    `watch: cancelled`, for the oldest.
-10. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
+11. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
 
 ### Long-form and learning

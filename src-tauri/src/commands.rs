@@ -374,10 +374,12 @@ pub fn settings_set(
     *state.settings.write() = merged.clone();
     settings::SETTINGS_GEN.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     tracing::info!("settings updated: {touched}");
+    // Get the word list and the dictation module ready now, in the background, so the
+    // next dictation does not pay for either inside its 150 ms (docs/CONTEXT.md).
     if merged.privacy.read_focused_field {
-        // Get the word list and the dictation module ready now, in the background, so the
-        // next dictation does not pay for either inside its 150 ms (docs/CONTEXT.md).
         crate::context::warm();
+    }
+    if merged.privacy.read_focused_field || merged.learning.apply_learned_terms {
         state.engine.prepare_context();
     }
     Ok(merged)

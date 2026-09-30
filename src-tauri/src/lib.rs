@@ -112,10 +112,16 @@ pub fn run() {
                 });
             }
 
-            if settings.read().privacy.read_focused_field {
-                // The word list and the dictation module, ready before the first key-down.
-                context::warm();
-                engine.prepare_context();
+            {
+                // Ready before the first key-down: the word list for reading the field,
+                // and the dictation module for hints of either kind.
+                let s = settings.read();
+                if s.privacy.read_focused_field {
+                    context::warm();
+                }
+                if s.privacy.read_focused_field || s.learning.apply_learned_terms {
+                    engine.prepare_context();
+                }
             }
 
             let injector: Arc<dyn inject::TextInjector> =

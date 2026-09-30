@@ -89,8 +89,9 @@ pub trait SpeechEngine: Send {
     fn stream_start(&mut self, _hint: &LanguageHint, _context: &[String]) -> Result<(), Error> {
         Err(Error::Unavailable("streaming not supported".into()))
     }
-    /// Get whatever the hinted path needs ready, off the critical path. Called when the
-    /// context setting is on; a no-op for engines whose hints need nothing.
+    /// Get whatever the hinted path needs ready, off the critical path. Called when
+    /// either source of hints is on (the focused field, learned terms); a no-op for
+    /// engines whose hints need nothing.
     fn prepare_context(&mut self) {}
     fn stream_push(&mut self, _pcm: &[f32]) -> Result<(), Error> {
         Err(Error::Unavailable("streaming not supported".into()))
