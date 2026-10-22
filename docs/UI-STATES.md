@@ -10,12 +10,12 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 
 | Screen | Window | Reached by |
 | --- | --- | --- |
-| Tray menu | Native, not web | Click the tray icon |
+| Panel menu | The cog in the history panel's header, drawn in the page | The cog, or ⌘, for Settings |
 | History panel | Frameless, always-on-top, 380px | Tray, or `Cmd/Ctrl+Shift+Space` |
 | Long-form panel | Frameless, resizable | Locking the hotkey |
 | Recording overlay | Click-through, near the caret | Automatic while recording |
 | Toast | Frameless, never focused, bottom centre, 4.5 s | Every failure notification |
-| Settings | Ordinary window, 6 panes | Tray |
+| Settings | Ordinary window, 6 panes | The panel's cog menu, or ⌘, in the panel |
 | Onboarding | Ordinary window, 6 steps | First launch |
 
 ## History panel

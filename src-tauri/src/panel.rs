@@ -83,6 +83,7 @@ pub fn toggle_history(app: &AppHandle) {
 /// place, and "Insert" would type into it. Losing focus is the other way the panel closes,
 /// and hides the window only: focus has already gone where the user sent it.
 pub fn hide_history(app: &AppHandle) {
+    tracing::info!("history: hide requested");
     if let Some(w) = app.get_webview_window(HISTORY_WINDOW) {
         let _ = w.hide();
     }
@@ -140,6 +141,7 @@ pub fn show_history(app: &AppHandle) {
                     let handle = w.clone();
                     w.on_window_event(move |e| {
                         if let tauri::WindowEvent::Focused(false) = e {
+                            tracing::info!("history: focus lost, hiding");
                             let _ = handle.hide();
                         }
                     });
@@ -157,8 +159,9 @@ pub fn show_history(app: &AppHandle) {
     if let Some(pos) = anchor_position(app) {
         let _ = window.set_position(pos);
     }
-    let _ = window.show();
-    let _ = window.set_focus();
+    let shown = window.show();
+    let focused = window.set_focus();
+    tracing::info!("history: shown ({shown:?}), focused ({focused:?})");
 }
 
 /// Under the tray icon, centred on it, clamped to the monitor the icon is on. Falls back to

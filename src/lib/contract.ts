@@ -233,6 +233,11 @@ export interface Commands {
   settings_open(): Promise<void>
   /** The system's Larger Text factor (1 when untouched); the panel scales its text by it. */
   ui_text_scale(): Promise<{ scale: number }>
+  /** Runtime, not a setting: whether the hotkey is ignored. The cog menu's Pause dictation. */
+  pause_get(): Promise<{ paused: boolean }>
+  pause_set(a: { paused: boolean }): Promise<{ paused: boolean }>
+  /** The cog menu's Quit Vox. */
+  app_quit(): Promise<void>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
   /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
@@ -278,6 +283,9 @@ export const COMMAND_NAMES = [
   'onboarding_open',
   'settings_open',
   'ui_text_scale',
+  'pause_get',
+  'pause_set',
+  'app_quit',
   'toast_current',
   'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]

@@ -2,20 +2,27 @@
 //! a distinct always-listening variant when pre-roll is enabled — an open microphone must
 //! never be invisible. See docs/UI-SPEC.md.
 //!
-//! Left click opens the history panel directly, no menu: the panel carries search, the rows
-//! and the Settings cog. Right click shows a native menu with only what has no home in the
-//! panel: Pause dictation · Check for updates… · Quit Vox (docs/UI-SPEC.md).
+//! Either click opens the history panel; there is no native menu. The panel's header cog is
+//! the menu: Settings… · Pause dictation · Check for updates… · Quit Vox (docs/UI-SPEC.md).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use parking_lot::Mutex;
 
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 use crate::panel;
 
 pub const TRAY_ID: &str = "main";
+
+/// Two click events closer together than this are one click delivered twice. macOS can hand
+/// a status item's mouse-up to more than one responder, and a doubled click toggles the panel
+/// open and shut again, which reads as "clicking the icon does nothing".
+const CLICK_DEBOUNCE: Duration = Duration::from_millis(250);
+static LAST_CLICK: Mutex<Option<Instant>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IconState {
@@ -58,37 +65,33 @@ pub fn idle_state(settings: &crate::settings::Settings) -> IconState {
 pub fn install(
     app: &tauri::App,
     settings: Arc<parking_lot::RwLock<crate::settings::Settings>>,
-    paused: Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
-    let pause = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
-    // Disabled until the updater is configured (M5: a real public key in tauri.conf.json).
-    // Present but grey rather than absent, so the menu never silently does nothing.
-    let updates = MenuItem::with_id(app, "updates", "Check for updates…", false, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Vox", true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[
-            &pause,
-            &updates,
-            &PredefinedMenuItem::separator(app)?,
-            &quit,
-        ],
-    )?;
-
     let initial = idle_state(&settings.read());
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon(initial))
         .icon_as_template(true)
-        .tooltip("Vox — hold right Option and speak")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
+        .tooltip("Vox — hold the key and speak")
         .on_tray_icon_event(|tray, event| match event {
             TrayIconEvent::Click {
-                button: MouseButton::Left,
+                button,
                 button_state: MouseButtonState::Up,
                 rect,
                 ..
             } => {
+                let now = Instant::now();
+                let mut last = LAST_CLICK.lock();
+                if last.is_some_and(|t| now.duration_since(t) < CLICK_DEBOUNCE) {
+                    tracing::info!(
+                        "tray: {button:?} click within {CLICK_DEBOUNCE:?} of the last, ignored"
+                    );
+                    return;
+                }
+                *last = Some(now);
+                drop(last);
+                tracing::info!(
+                    "tray: {button:?} click, panel visible={}",
+                    panel::is_visible(tray.app_handle())
+                );
                 panel::remember_tray_rect(tray.app_handle(), rect);
                 panel::toggle_history(tray.app_handle());
             }
@@ -97,25 +100,27 @@ pub fn install(
             }
             _ => {}
         })
-        .on_menu_event(move |app, event| match event.id.as_ref() {
-            "pause" => {
-                let now = !paused.load(Ordering::Relaxed);
-                paused.store(now, Ordering::Relaxed);
-                let _ = pause.set_checked(now);
-                set_state(
-                    app,
-                    if now {
-                        IconState::Attention
-                    } else {
-                        idle_state(&settings.read())
-                    },
-                );
-            }
-            "quit" => app.exit(0),
-            _ => {}
-        })
         .build(app)?;
     Ok(())
+}
+
+/// Pause from the panel's cog menu: the hotkey does nothing while paused and the tray badges.
+pub fn set_paused(
+    app: &tauri::AppHandle,
+    paused: &AtomicBool,
+    settings: &crate::settings::Settings,
+    now: bool,
+) {
+    paused.store(now, Ordering::Relaxed);
+    tracing::info!("dictation {}", if now { "paused" } else { "resumed" });
+    set_state(
+        app,
+        if now {
+            IconState::Attention
+        } else {
+            idle_state(settings)
+        },
+    );
 }
 
 /// The icon must change within one frame of key-down regardless of pipeline state: feedback

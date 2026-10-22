@@ -847,6 +847,34 @@ pub fn settings_open(app: AppHandle) -> CmdResult<()> {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PausedDto {
+    pub paused: bool,
+}
+
+/// Whether the hotkey is ignored right now. Runtime state, not a setting: a relaunch resumes.
+#[tauri::command]
+pub fn pause_get(state: State<'_, AppState>) -> CmdResult<PausedDto> {
+    Ok(PausedDto {
+        paused: state.paused.load(std::sync::atomic::Ordering::Relaxed),
+    })
+}
+
+/// The cog menu's "Pause dictation": the hotkey does nothing and the tray badges until resumed.
+#[tauri::command]
+pub fn pause_set(app: AppHandle, state: State<'_, AppState>, paused: bool) -> CmdResult<PausedDto> {
+    crate::tray::set_paused(&app, &state.paused, &state.settings.read(), paused);
+    Ok(PausedDto { paused })
+}
+
+/// The cog menu's "Quit Vox". Nothing to flush: settings save on change, history on insert.
+#[tauri::command]
+pub fn app_quit(app: AppHandle) {
+    tracing::info!("quit from the panel menu");
+    app.exit(0);
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TextScaleDto {
     pub scale: f64,
 }

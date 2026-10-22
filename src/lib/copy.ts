@@ -26,6 +26,14 @@ export const copy = {
     less: 'Less',
     copied: 'Copied',
     settings: 'Settings',
+    menu: {
+      label: 'Vox menu',
+      settings: 'Settings…',
+      pause: 'Pause dictation',
+      updates: 'Check for updates…',
+      updatesHint: 'Arrives with the first signed release',
+      quit: 'Quit Vox',
+    },
     live: {
       arming: 'Opening the microphone…',
       recording: 'Listening…',

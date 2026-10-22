@@ -71,10 +71,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Changed
 - The app declares macOS 26 as its minimum, so on an older Mac the system says so when you
   open it, instead of Vox installing and then reporting that transcription is unavailable.
-- The menu bar icon: a left click opens the history panel straight away, and a right click
-  shows a short menu with Pause dictation, Check for updates and Quit. Settings moved to a
-  cog in the panel's header, which also shows "Listening…" and the elapsed seconds while
-  you dictate, instead of a row at the top of the list.
+- The menu bar icon opens the history panel on any click; it no longer has a menu of its
+  own. The cog in the panel's header is the menu: Settings…, Pause dictation, Check for
+  updates and Quit Vox. The header also shows "Listening…" and the elapsed seconds while you
+  dictate, instead of a row at the top of the list.
 - The history panel looks like a Mac panel: the desktop shows through it, blurred, as in
   Control Center; the selected transcript and the search field's focus ring take the accent
   colour you chose in System Settings instead of amber; rows are inset and rounded with no
@@ -101,6 +101,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   counts.
 
 ### Fixed
+- Clicking the menu bar icon reliably opens the panel. (The panel's show, hide and
+  focus-loss are now recorded in the log so a click that goes nowhere can be told from one
+  that opened and immediately closed.)
 - Choosing Fn (the Globe key) as the dictation key did nothing: holding it never started a
   recording, and nothing said why. It now works. The keyboard library Vox uses dropped the
   key; Vox builds with a corrected copy until the fix is released upstream.
