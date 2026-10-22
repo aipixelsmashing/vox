@@ -72,7 +72,7 @@ pub fn run() {
 
             let history = Arc::new(history::Store::open(&settings::data_dir()?)?);
             let paused = Arc::new(AtomicBool::new(false));
-            tray::install(app, paused.clone())?;
+            tray::install(app, settings.clone(), paused.clone())?;
 
             // Ask for what we need and say what is missing, in the deck's words. Blocks on
             // the microphone prompt, so not on the main thread.

@@ -84,6 +84,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   counts.
 
 ### Fixed
+- The menu bar icon was a solid square. macOS draws a menu bar icon from its transparency
+  alone, and the images had an opaque background. They are redrawn: an outline microphone
+  at rest, filled inside a ring while listening, inside an open arc while working, with a
+  corner badge when something needs you, and with a small dot whenever the microphone is
+  kept open between dictations.
 - Closing the history panel — by clicking a row, Enter, Escape, the shortcut or the menu bar
   icon — returns you to the app you were in. Before, Vox stayed in front, so a setup or
   settings window left open behind other apps came forward in the panel's place.

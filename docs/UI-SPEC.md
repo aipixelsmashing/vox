@@ -26,12 +26,16 @@ Four states, distinguishable by silhouette and not by colour alone:
 | State | Icon | Meaning |
 | --- | --- | --- |
 | Idle | Outline mark | Ready |
-| Recording | Filled mark with a live level ring | Listening now |
-| Transcribing | Filled mark, indeterminate progress | Working |
-| Attention | Outline mark with a badge | Missing permission, model, or a failed insert |
+| Recording | Filled mark inside a ring | Listening now |
+| Transcribing | Filled mark inside an open arc | Working |
+| Attention | Outline mark with a corner badge | Missing permission, model, paused, or a failed insert |
 
-Plus a distinct **always-listening** variant when `audio.preroll` is enabled, because an open
-microphone stream must never be invisible.
+Plus a distinct **always-listening** variant (outline mark with a dot) whenever `audio.preroll`
+is not `off`, because an open microphone stream must never be invisible. It is the resting
+state in place of Idle: after every dictation and on unpause.
+
+All five are monochrome template images, drawn by macOS in the menu bar's own colour; the
+live, amber level ring is the overlay's ([UI-KIT.md](UI-KIT.md#icon-states) says why).
 
 Tray menu, native and short:
 

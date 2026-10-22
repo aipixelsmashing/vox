@@ -25,26 +25,49 @@ pub enum IconState {
     AlwaysListening,
 }
 
-fn icon(state: IconState) -> Image<'static> {
-    let bytes: &'static [u8] = match state {
-        IconState::Idle | IconState::AlwaysListening => include_bytes!("../icons/tray-idle.png"),
-        IconState::Recording => include_bytes!("../icons/tray-recording.png"),
-        IconState::Transcribing => include_bytes!("../icons/tray-transcribing.png"),
-        IconState::Attention => include_bytes!("../icons/tray-attention.png"),
-    };
-    Image::from_bytes(bytes).expect("tray icons are valid PNGs at build time")
+/// The PNG for each state. Template images: macOS reads the alpha channel only and draws the
+/// opaque pixels in the menu bar's own colour, so each file is black on transparent and the
+/// silhouette alone carries the state (docs/UI-KIT.md). The 2x files are embedded; the menu
+/// bar scales the 22 pt canvas to its 18 pt row, and a 1x bitmap would be upscaled on a
+/// Retina display. Drawn by scripts/make-tray-icons.py; tests/guards.rs checks the alpha.
+pub fn icon_bytes(state: IconState) -> &'static [u8] {
+    match state {
+        IconState::Idle => include_bytes!("../icons/tray-idle@2x.png"),
+        IconState::Recording => include_bytes!("../icons/tray-recording@2x.png"),
+        IconState::Transcribing => include_bytes!("../icons/tray-transcribing@2x.png"),
+        IconState::Attention => include_bytes!("../icons/tray-attention@2x.png"),
+        IconState::AlwaysListening => include_bytes!("../icons/tray-always-listening@2x.png"),
+    }
 }
 
-pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> {
+fn icon(state: IconState) -> Image<'static> {
+    Image::from_bytes(icon_bytes(state)).expect("tray icons are valid PNGs at build time")
+}
+
+/// The resting state: the always-listening variant whenever pre-roll keeps the microphone
+/// open, because an open microphone must never be invisible (docs/UI-SPEC.md).
+pub fn idle_state(settings: &crate::settings::Settings) -> IconState {
+    if settings.audio.preroll == "off" {
+        IconState::Idle
+    } else {
+        IconState::AlwaysListening
+    }
+}
+
+pub fn install(
+    app: &tauri::App,
+    settings: Arc<parking_lot::RwLock<crate::settings::Settings>>,
+    paused: Arc<AtomicBool>,
+) -> anyhow::Result<()> {
     let history = MenuItem::with_id(app, "history", "Show history", true, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Vox", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
             &history,
-            &settings,
+            &settings_item,
             &PredefinedMenuItem::separator(app)?,
             &pause,
             &PredefinedMenuItem::separator(app)?,
@@ -52,8 +75,9 @@ pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> 
         ],
     )?;
 
+    let initial = idle_state(&settings.read());
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon(IconState::Idle))
+        .icon(icon(initial))
         .icon_as_template(true)
         .tooltip("Vox — hold right Option and speak")
         .menu(&menu)
@@ -85,7 +109,7 @@ pub fn install(app: &tauri::App, paused: Arc<AtomicBool>) -> anyhow::Result<()> 
                     if now {
                         IconState::Attention
                     } else {
-                        IconState::Idle
+                        idle_state(&settings.read())
                     },
                 );
             }
