@@ -120,6 +120,9 @@ Cannot be automated: the assertion is that a human hears it.
 3. With the output routed to headphones, the cue is not audible in the room and the
    transcript is unaffected either way.
 
+**Passed 2026-10-21** by the maintainer in Notes, build a5f619e: gate 1, including the
+silent first tap of the lock gesture.
+
 ### History panel (M3)
 
 Cannot be automated: a real tray, a real focus change, a real clipboard.
@@ -241,6 +244,9 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
     says which, and the external-keyboard note shows. Set it to Do Nothing: the warning
     goes at the next visit. Hold Fn in Notes: recording, as with right Option.
 
+**Passed 2026-10-21** by the maintainer in Notes, build a5f619e on macOS 27.0: items 1, 9
+and 10, with Fn as the binding (the hold, the double-tap lock, and the Fn pane notes).
+
 ### Injection compatibility matrix
 
 The application list in [TEXT-INJECTION.md](TEXT-INJECTION.md), per platform, recording for
@@ -290,6 +296,10 @@ has the `sqlite3` query).
    `watch: cancelled`, for the oldest.
 11. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
+
+**Passed 2026-10-21** by the maintainer in Notes, build a5f619e: gates 3 and 4 (a term
+hinted from three manglings over two sittings, shown as one row in Vocabulary, and a
+learned-term dictation coming out right with the field not read). Gate 1 passed 2026-09-29.
 
 ### Long-form and learning
 

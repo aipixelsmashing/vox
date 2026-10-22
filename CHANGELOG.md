@@ -66,6 +66,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Changed
+- The app declares macOS 26 as its minimum, so on an older Mac the system says so when you
+  open it, instead of Vox installing and then reporting that transcription is unavailable.
 - The menu bar icon: a left click opens the history panel straight away, and a right click
   shows a short menu with Pause dictation, Check for updates and Quit. Settings moved to a
   cog in the panel's header, which also shows "Listening…" and the elapsed seconds while
