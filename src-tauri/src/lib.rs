@@ -73,6 +73,12 @@ pub fn run() {
             let history = Arc::new(history::Store::open(&settings::data_dir()?)?);
             let paused = Arc::new(AtomicBool::new(false));
             tray::install(app, settings.clone())?;
+            // The panel's cog menu (commands::panel_menu) reports here.
+            app.on_menu_event(|app, event| match event.id.as_ref() {
+                "settings" => panel::show_settings(app),
+                "quit" => app.exit(0),
+                _ => {}
+            });
 
             // Ask for what we need and say what is missing, in the deck's words. Blocks on
             // the microphone prompt, so not on the main thread.
@@ -198,6 +204,7 @@ pub fn run() {
             commands::pause_get,
             commands::pause_set,
             commands::app_quit,
+            commands::panel_menu,
             commands::toast_current,
             commands::toast_fit,
         ])

@@ -238,6 +238,8 @@ export interface Commands {
   pause_set(a: { paused: boolean }): Promise<{ paused: boolean }>
   /** The cog menu's Quit Vox. */
   app_quit(): Promise<void>
+  /** Pops the native app menu (Settings…, Check for updates…, Quit Vox) at a point in the panel window. */
+  panel_menu(a: { x: number; y: number }): Promise<void>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
   /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
@@ -286,6 +288,7 @@ export const COMMAND_NAMES = [
   'pause_get',
   'pause_set',
   'app_quit',
+  'panel_menu',
   'toast_current',
   'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]

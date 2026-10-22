@@ -53,9 +53,8 @@ export function HistoryPanel() {
   const [confirmingWipe, setConfirmingWipe] = useState(false)
   const [live, setLive] = useState<PipelineState>({ state: 'idle' })
   const [textSize, setTextSize] = useState<TextSize>('medium')
-  const [menuOpen, setMenuOpen] = useState(false)
   const [paused, setPaused] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const cogRef = useRef<HTMLButtonElement>(null)
   /** The Mac's Larger Text factor, applied on top of the person's choice in Vox. */
   const [systemScale, setSystemScale] = useState(1)
   /** Per-row transient feedback: a copy confirmation or a failed re-insert's message. */
@@ -112,23 +111,13 @@ export function HistoryPanel() {
     document.documentElement.style.setProperty('--text-scale', String(TEXT_FACTOR[textSize] * systemScale))
   }, [textSize, systemScale])
 
-  // The cog menu closes on a click anywhere else, like a menu.
-  useEffect(() => {
-    if (!menuOpen) return
-    const onDown = (ev: MouseEvent) => {
-      if (!menuRef.current?.contains(ev.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    const first = menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')
-    first?.focus()
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [menuOpen])
-
-  const menuItems = () =>
-    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])') ?? [])
+  /** The cog pops the native app menu under itself; the core owns the items. */
+  const openMenu = () => {
+    const r = cogRef.current?.getBoundingClientRect()
+    void commands.panel_menu({ x: r ? r.left : 0, y: r ? r.bottom + 2 : 0 })
+  }
 
   const togglePause = async () => {
-    setMenuOpen(false)
     try {
       const r = await commands.pause_set({ paused: !paused })
       setPaused(r.paused)
@@ -234,31 +223,6 @@ export function HistoryPanel() {
   const onKeyDown = (ev: KeyboardEvent) => {
     const n = entries?.length ?? 0
     const inSearch = document.activeElement === searchRef.current
-    if (menuOpen) {
-      // A menu owns the keyboard while it is open: arrows move, Enter chooses, Escape closes.
-      const items = menuItems()
-      const at = items.indexOf(document.activeElement as HTMLElement)
-      switch (ev.key) {
-        case 'ArrowDown':
-          ev.preventDefault()
-          items[(at + 1) % items.length]?.focus()
-          return
-        case 'ArrowUp':
-          ev.preventDefault()
-          items[(at - 1 + items.length) % items.length]?.focus()
-          return
-        case 'Escape':
-          ev.preventDefault()
-          setMenuOpen(false)
-          searchRef.current?.focus()
-          return
-        case 'Tab':
-          setMenuOpen(false)
-          return
-        default:
-          return
-      }
-    }
     if (ev.metaKey && !ev.ctrlKey && !ev.altKey) {
       // The Mac's own chords: ⌘, for Settings, ⌘+ / ⌘− for text size, as in every app.
       if (ev.key === ',') {
@@ -415,14 +379,33 @@ export function HistoryPanel() {
             )}
           </span>
         )}
-        <div ref={menuRef} style={{ position: 'relative', display: 'flex' }}>
+        {/* Pause: a visible toggle, mic.slash while paused, so an ignored hotkey is never a mystery */}
         <button
           style={{ ...buttonStyle, display: 'flex', padding: 6, color: 'var(--ink-dim)' }}
-          aria-label={copy.history.menu.label}
-          title={copy.history.menu.label}
+          aria-label={paused ? copy.history.resume : copy.history.pause}
+          title={paused ? copy.history.resume : copy.history.pause}
+          aria-pressed={paused}
+          onClick={() => void togglePause()}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <rect x="6" y="1.5" width="4" height="8" rx="2" stroke="currentColor" strokeWidth="1.4" />
+            <path
+              d="M3.75 7.25v.5a4.25 4.25 0 0 0 8.5 0v-.5M8 12v2.25M5.5 14.25h5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            {paused && <path d="M2.5 2.5l11 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />}
+          </svg>
+        </button>
+        {paused && <span className="meta">{copy.history.paused}</span>}
+        <button
+          ref={cogRef}
+          style={{ ...buttonStyle, display: 'flex', padding: 6, color: 'var(--ink-dim)' }}
+          aria-label={copy.history.menu}
+          title={copy.history.menu}
           aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((o) => !o)}
+          onClick={openMenu}
         >
           {/* gearshape at SF regular weight, not a sun: the same glyph Settings uses everywhere */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -430,36 +413,6 @@ export function HistoryPanel() {
             <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.4" />
           </svg>
         </button>
-        {menuOpen && (
-          <div role="menu" aria-label={copy.history.menu.label} className="menu">
-            <button
-              role="menuitem"
-              className="menu-item"
-              onClick={() => {
-                setMenuOpen(false)
-                void commands.settings_open()
-              }}
-            >
-              {copy.history.menu.settings}
-            </button>
-            <button role="menuitemcheckbox" aria-checked={paused} className="menu-item" onClick={() => void togglePause()}>
-              <span className="menu-check" aria-hidden>
-                {paused ? '✓' : ''}
-              </span>
-              {copy.history.menu.pause}
-            </button>
-            <div className="menu-rule" role="separator" />
-            {/* Disabled until the updater is configured (M5): present, never silently nothing. */}
-            <button role="menuitem" className="menu-item" aria-disabled="true" disabled title={copy.history.menu.updatesHint}>
-              {copy.history.menu.updates}
-            </button>
-            <div className="menu-rule" role="separator" />
-            <button role="menuitem" className="menu-item" onClick={() => void commands.app_quit()}>
-              {copy.history.menu.quit}
-            </button>
-          </div>
-        )}
-        </div>
       </div>
 
       <div

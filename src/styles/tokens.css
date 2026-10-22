@@ -17,7 +17,8 @@
   /* Selection and keyboard focus take the accent colour the person chose in
      System Settings, like every list on the Mac. Never amber: amber means
      listening and nothing else. The hex is the fallback where the keyword is
-     unknown; WebKit and Chromium both resolve it to the live system accent.  */
+     unknown; WebKit and Chromium both resolve it to the live system accent.
+     The text on it is white, as it is on every macOS accent (see below).     */
   --accent:      #007AFF;
   --accent-text: #FFFFFF;
 
@@ -33,7 +34,7 @@
   --text-scale: 1;
   --t-transcript-size: calc(13px * var(--text-scale));  --t-transcript-lh: 1.45;
   --t-body-size:       13px;  --t-body-lh:       1.45;
-  --t-meta-size:       calc(11px * var(--text-scale));  --t-meta-lh:       1.3;
+  --t-meta-size:       calc(12px * var(--text-scale));  --t-meta-lh:       1.3;
   --t-title-size:      15px;  --t-title-lh:      1.3;
 
   /* Space — 4px base. A tray utility is dense; 8px wastes panel height.      */
@@ -52,8 +53,12 @@
 }
 
 @supports (color: AccentColor) {
-  :root { --accent: AccentColor; --accent-text: AccentColorText; }
+  :root { --accent: AccentColor; }
 }
+/* --accent-text stays a fixed white on purpose. WebKit accepts the
+   AccentColorText keyword but computes it to a dark colour in the light
+   appearance (measured in Safari and in the app, 2026-10-22), which put dark
+   text on the blue highlight. macOS itself draws white on every accent.     */
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -85,7 +90,9 @@ body {
 .transcript {
   font-size: var(--t-transcript-size);
   line-height: var(--t-transcript-lh);
-  color: var(--ink);
+  /* No colour of its own: it is --ink through the body, and the selected
+     row's text colour on a selected row. A fixed --ink here once left dark
+     text on the accent in light mode.                                        */
 }
 
 .meta {
@@ -128,36 +135,20 @@ html[data-material="css"] .panel {
   margin: var(--s-6);
 }
 
-/* History rows are a source list, not a table: inset, rounded, no hairlines,
-   the selection in the system accent with its own text colour. Row actions
-   show on the selected row only (docs/HISTORY.md).                          */
-.hrow { margin: 0 var(--s-2); padding: var(--s-2); border-radius: var(--radius-input); }
-.hrow:first-of-type { margin-top: var(--s-1); }
+/* History rows take an NSMenu item's metrics: text 14px from the panel edge,
+   the highlight inset 5px with a 4px radius, 3px above and below the text.
+   No hairlines. The selected row is the accent with the system's selected-
+   text colour on it, metadata at reduced opacity; its actions show only
+   there (docs/HISTORY.md, docs/UI-KIT.md).                                    */
+.hrow { margin: 0 5px; padding: 3px 9px; border-radius: 4px; min-height: 22px; box-sizing: border-box; }
+.hrow:first-of-type { margin-top: 5px; }
 .hrow[aria-selected="true"] { background: var(--accent); color: var(--accent-text); }
+.hrow[aria-selected="true"] .transcript { color: var(--accent-text); }
 .hrow[aria-selected="true"] .meta,
-.hrow[aria-selected="true"] .fail { color: var(--accent-text); opacity: 0.85; }
+.hrow[aria-selected="true"] .fail { color: var(--accent-text); opacity: 0.8; }
 .hrow .actions { visibility: hidden; }
 .hrow[aria-selected="true"] .actions { visibility: visible; }
 .fail { color: var(--fail); }
-
-/* The cog menu: a menu, drawn in the page because the tray has none. Accent
-   highlight on the hovered or focused item, as in every Mac menu.          */
-.menu {
-  position: absolute; top: calc(100% + var(--s-1)); right: 0; z-index: 10;
-  min-width: 200px; padding: var(--s-1);
-  background: var(--panel); color: var(--ink);
-  border: 1px solid var(--rule); border-radius: var(--radius-input);
-  box-shadow: 0 8px 24px #00000033;
-}
-.menu-item {
-  display: flex; align-items: center; width: 100%; box-sizing: border-box;
-  padding: var(--s-1) var(--s-2); border: none; border-radius: 4px;
-  background: none; color: inherit; font: inherit; text-align: left; cursor: default;
-}
-.menu-item:hover:not([disabled]), .menu-item:focus-visible { background: var(--accent); color: var(--accent-text); outline: none; }
-.menu-item[disabled] { color: var(--ink-dim); }
-.menu-check { display: inline-block; width: var(--s-4); }
-.menu-rule { height: 1px; margin: var(--s-1) var(--s-2); background: var(--rule); }
 
 /* Keyboard focus is always visible. Non-negotiable — the history panel is
    fully operable without a mouse, and that is a requirement, not polish.
