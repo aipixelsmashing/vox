@@ -22,7 +22,7 @@ selection and focus.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--accent` | `AccentColor` | `AccentColor` | **Selection and keyboard focus**, with `--accent-text` on top. The colour chosen in System Settings → Appearance, as in every list on the Mac; `#007AFF` where the keyword is unknown |
+| `--accent` | `AccentColor` | `AccentColor` | **Selection and keyboard focus**, with `--accent-text` (a fixed `#FFFFFF`) on top. The colour chosen in System Settings → Appearance, as in every list on the Mac; `#007AFF` where the keyword is unknown |
 | `--ink` | `#16171A` | `#E9E9EC` | Primary text |
 | `--ink-dim` | `#5C5F66` | `#9A9CA3` | Secondary text, provenance, timestamps |
 | `--panel` | `#FFFFFF` | `#1C1D20` | Panel and window backgrounds |
@@ -47,7 +47,9 @@ failed row carries words as well as a colour.
 **Selection is the system accent, never amber.** The focus ring used to be amber, which broke
 the first rule above: amber was then listening *and* focus. Focus rings and the selected row
 take `--accent`, the colour the person chose for exactly this purpose, and the selected row's
-text takes `--accent-text` (white on every accent except graphite). That is what
+text takes `--accent-text`, a fixed white: macOS draws white on every accent, and the CSS
+`AccentColorText` keyword is not used because WebKit computes it to a dark colour in the light
+appearance (measured 2026-10-22; it put dark text on the highlight). That is what
 [focus-and-selection.md](https://developer.apple.com/design/human-interface-guidelines/focus-and-selection)
 asks for: a highlight in a list, a ring in a text field, both in the app's accent.
 

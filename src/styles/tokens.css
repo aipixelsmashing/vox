@@ -17,7 +17,8 @@
   /* Selection and keyboard focus take the accent colour the person chose in
      System Settings, like every list on the Mac. Never amber: amber means
      listening and nothing else. The hex is the fallback where the keyword is
-     unknown; WebKit and Chromium both resolve it to the live system accent.  */
+     unknown; WebKit and Chromium both resolve it to the live system accent.
+     The text on it is white, as it is on every macOS accent (see below).     */
   --accent:      #007AFF;
   --accent-text: #FFFFFF;
 
@@ -54,12 +55,10 @@
 @supports (color: AccentColor) {
   :root { --accent: AccentColor; }
 }
-/* Kept separate from the accent itself: a browser that knows AccentColor but
-   not AccentColorText would otherwise drop both and leave the selected row's
-   text at the inherited ink. White is right on every macOS accent anyway.   */
-@supports (color: AccentColorText) {
-  :root { --accent-text: AccentColorText; }
-}
+/* --accent-text stays a fixed white on purpose. WebKit accepts the
+   AccentColorText keyword but computes it to a dark colour in the light
+   appearance (measured in Safari and in the app, 2026-10-22), which put dark
+   text on the blue highlight. macOS itself draws white on every accent.     */
 
 @media (prefers-color-scheme: dark) {
   :root {
