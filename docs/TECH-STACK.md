@@ -89,8 +89,11 @@ has no C or Objective-C surface — `objc2-speech` wraps only the older `SFSpeec
 API and cannot reach it. The engine is therefore ~150 lines of Swift (`SpeechTranscriber`,
 `SpeechAnalyzer`, `AssetInventory`) exposed through `@_cdecl` functions, compiled by
 `build.rs` with `swiftc` into a static library and linked into the binary, the same shape
-`axuielement` uses for its own bridge. Deployment target stays macOS 15 so the binary loads on
-an older OS and reports the engine unavailable rather than failing to launch.
+`axuielement` uses for its own bridge. The compile-time deployment target stays macOS 15, so
+the binary itself loads on an older OS and reports the engine unavailable rather than
+crashing; the bundle, though, declares macOS 26 as its minimum (`tauri.conf.json`), so Finder
+refuses to open it there with the system's own message instead of installing an app that
+cannot transcribe.
 
 Two modules of the framework are in play: `SpeechTranscriber`, used when there are no
 hints, and `DictationTranscriber`, used whenever contextual strings exist, because only the
