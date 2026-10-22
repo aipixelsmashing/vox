@@ -53,24 +53,20 @@ asks for: a highlight in a list, a ring in a text field, both in the app's accen
 
 ## Typography
 
-Two faces, with a clear division of labour.
+One typeface: the system's, `system-ui`, which is San Francisco on a Mac. A utility that
+sits beside native windows should use the same letterforms they do, and every system panel
+(Spotlight, Control Center, Notification Center) is set in one face. Transcripts are the
+user's own prose, not interface furniture, and the panel says so by **size and colour
+only**: transcripts at 13 in `--ink`, metadata at 11 in `--ink-dim`, titles by weight.
+Nothing is bundled and nothing is fetched (no CDN — see [THREAT-MODEL.md](THREAT-MODEL.md)).
 
-**Chrome — the system UI font.** `system-ui` on every platform. A utility that sits beside
-native windows should use the same letterforms they do. Shipping a branded sans for menu labels
-would make Vox look like a visitor.
-
-**Transcripts — the system serif**, `ui-serif`, which is New York on Apple platforms.
-Transcripts are the user's own prose, not interface furniture, and giving them a serif marks
-that difference the instant you look at the panel. New York is the face Apple drew to pair
-with San Francisco, so the two sit together the way they do in Books and Notes; both ship
-with the OS, so nothing is bundled and nothing is fetched (no CDN — see
-[THREAT-MODEL.md](THREAT-MODEL.md)). Elsewhere `ui-serif` falls back to Georgia. Literata was
-the earlier choice; it was bundled, and it was a third voice beside the two the OS already
-speaks.
+Two earlier choices are gone for the record: Literata, bundled, was a third voice beside the
+two the OS speaks; New York via `ui-serif` paired with San Francisco but still made the
+panel the one menu bar panel on the Mac set in a serif.
 
 | Token | Size / line-height | Use |
 | --- | --- | --- |
-| `--t-transcript` | 14 / 1.5, `ui-serif` | Transcript text in the panel and long-form. New York sets larger on the body than Literata did, so 14px reads as 15px did |
+| `--t-transcript` | 13 / 1.45, `--ink` | Transcript text in the panel and long-form |
 | `--t-body` | 13 / 1.45, system-ui | Labels, settings, buttons |
 | `--t-meta` | 11 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance |
 | `--t-title` | 15 / 1.3, system-ui, 600 | Window and pane titles |

@@ -77,9 +77,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   colour you chose in System Settings instead of amber; rows are inset and rounded with no
   lines between them; Copy, Insert and × appear on the row you are on rather than on every
   row; the icons match the weight of the system's own.
-- Transcripts are set in the system serif, New York on a Mac, at a slightly smaller size.
-  It is the face Apple designed to sit beside the interface font, it ships with the OS, and
-  Vox no longer bundles a typeface of its own.
+- Transcripts are set in the system typeface like the rest of the panel, at 13 points, and
+  told apart from labels by colour and size rather than by a second font. Vox no longer
+  bundles a typeface of its own.
 - Settings → Vocabulary shows one row per learned word, with every way it was misheard
   listed beneath it, and the delete button removes the word with all of them. The count and
   the export sit in the header above the list, with a filter field once there are more than
