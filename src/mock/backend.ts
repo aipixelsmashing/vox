@@ -114,6 +114,7 @@ if (typeof window !== 'undefined') {
 let micTest = false
 let lastToast: string | null = null
 
+let mockPaused = false
 /** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
 let mockSettings: Settings = structuredClone(fx.settings)
 
@@ -252,6 +253,9 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async mic_test_stop() { micTest = false },
   async onboarding_open() { /* already looking at it in a browser tab */ },
+  async pause_get() { return { paused: mockPaused } },
+  async pause_set({ paused }: { paused: boolean }) { mockPaused = paused; return { paused } },
+  async app_quit() { /* a browser tab has nothing to quit */ },
   /** ?textScale=1.3 stands in for the Mac's Larger Text setting. */
   async ui_text_scale() {
     const v = Number(new URLSearchParams(location.search).get('textScale') ?? '1')

@@ -53,6 +53,9 @@ export function HistoryPanel() {
   const [confirmingWipe, setConfirmingWipe] = useState(false)
   const [live, setLive] = useState<PipelineState>({ state: 'idle' })
   const [textSize, setTextSize] = useState<TextSize>('medium')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   /** The Mac's Larger Text factor, applied on top of the person's choice in Vox. */
   const [systemScale, setSystemScale] = useState(1)
   /** Per-row transient feedback: a copy confirmation or a failed re-insert's message. */
@@ -87,11 +90,16 @@ export function HistoryPanel() {
       .ui_text_scale()
       .then((r) => !cancelled && setSystemScale(r.scale))
       .catch(() => {})
+    commands
+      .pause_get()
+      .then((r) => !cancelled && setPaused(r.paused))
+      .catch(() => {})
     // The window is hidden, not closed, between uses: re-read on each return so a change
     // made in Settings (or in System Settings) shows up without a relaunch.
     const onFocus = () => {
       void read()
       commands.ui_text_scale().then((r) => !cancelled && setSystemScale(r.scale)).catch(() => {})
+      commands.pause_get().then((r) => !cancelled && setPaused(r.paused)).catch(() => {})
     }
     window.addEventListener('focus', onFocus)
     return () => {
@@ -103,6 +111,31 @@ export function HistoryPanel() {
   useEffect(() => {
     document.documentElement.style.setProperty('--text-scale', String(TEXT_FACTOR[textSize] * systemScale))
   }, [textSize, systemScale])
+
+  // The cog menu closes on a click anywhere else, like a menu.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (ev: MouseEvent) => {
+      if (!menuRef.current?.contains(ev.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    const first = menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')
+    first?.focus()
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [menuOpen])
+
+  const menuItems = () =>
+    Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])') ?? [])
+
+  const togglePause = async () => {
+    setMenuOpen(false)
+    try {
+      const r = await commands.pause_set({ paused: !paused })
+      setPaused(r.paused)
+    } catch {
+      /* the tray still shows the truth */
+    }
+  }
 
   /** ⌘+ / ⌘−: one step, persisted; the core's merged answer is the truth. */
   const stepTextSize = async (delta: 1 | -1) => {
@@ -201,6 +234,31 @@ export function HistoryPanel() {
   const onKeyDown = (ev: KeyboardEvent) => {
     const n = entries?.length ?? 0
     const inSearch = document.activeElement === searchRef.current
+    if (menuOpen) {
+      // A menu owns the keyboard while it is open: arrows move, Enter chooses, Escape closes.
+      const items = menuItems()
+      const at = items.indexOf(document.activeElement as HTMLElement)
+      switch (ev.key) {
+        case 'ArrowDown':
+          ev.preventDefault()
+          items[(at + 1) % items.length]?.focus()
+          return
+        case 'ArrowUp':
+          ev.preventDefault()
+          items[(at - 1 + items.length) % items.length]?.focus()
+          return
+        case 'Escape':
+          ev.preventDefault()
+          setMenuOpen(false)
+          searchRef.current?.focus()
+          return
+        case 'Tab':
+          setMenuOpen(false)
+          return
+        default:
+          return
+      }
+    }
     if (ev.metaKey && !ev.ctrlKey && !ev.altKey) {
       // The Mac's own chords: ⌘, for Settings, ⌘+ / ⌘− for text size, as in every app.
       if (ev.key === ',') {
@@ -357,11 +415,14 @@ export function HistoryPanel() {
             )}
           </span>
         )}
+        <div ref={menuRef} style={{ position: 'relative', display: 'flex' }}>
         <button
           style={{ ...buttonStyle, display: 'flex', padding: 6, color: 'var(--ink-dim)' }}
-          aria-label={copy.history.settings}
-          title={copy.history.settings}
-          onClick={() => void commands.settings_open()}
+          aria-label={copy.history.menu.label}
+          title={copy.history.menu.label}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((o) => !o)}
         >
           {/* gearshape at SF regular weight, not a sun: the same glyph Settings uses everywhere */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
@@ -369,6 +430,36 @@ export function HistoryPanel() {
             <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.4" />
           </svg>
         </button>
+        {menuOpen && (
+          <div role="menu" aria-label={copy.history.menu.label} className="menu">
+            <button
+              role="menuitem"
+              className="menu-item"
+              onClick={() => {
+                setMenuOpen(false)
+                void commands.settings_open()
+              }}
+            >
+              {copy.history.menu.settings}
+            </button>
+            <button role="menuitemcheckbox" aria-checked={paused} className="menu-item" onClick={() => void togglePause()}>
+              <span className="menu-check" aria-hidden>
+                {paused ? '✓' : ''}
+              </span>
+              {copy.history.menu.pause}
+            </button>
+            <div className="menu-rule" role="separator" />
+            {/* Disabled until the updater is configured (M5): present, never silently nothing. */}
+            <button role="menuitem" className="menu-item" aria-disabled="true" disabled title={copy.history.menu.updatesHint}>
+              {copy.history.menu.updates}
+            </button>
+            <div className="menu-rule" role="separator" />
+            <button role="menuitem" className="menu-item" onClick={() => void commands.app_quit()}>
+              {copy.history.menu.quit}
+            </button>
+          </div>
+        )}
+        </div>
       </div>
 
       <div

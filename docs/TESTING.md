@@ -127,10 +127,13 @@ silent first tap of the lock gesture.
 
 Cannot be automated: a real tray, a real focus change, a real clipboard.
 
-1. Left-click the tray icon: the panel opens under it, focused, search box ready. Click
-   elsewhere: it hides. Left-click again: it toggles. Right-click: the menu, with only
-   Pause dictation, Check for updates… (disabled until M5) and Quit Vox. The cog in the
-   panel header opens Settings.
+1. Click the tray icon, with either button: the panel opens under it, focused, search box
+   ready, and the log shows `tray: … click` then `history: shown` (a second click event
+   within 250 ms is logged as ignored: macOS can deliver one click twice). Click elsewhere: it hides
+   (`history: focus lost, hiding`). Click the icon again: it toggles. The cog in the panel
+   header opens a menu with Settings…, Pause dictation, Check for updates… (disabled until
+   M5) and Quit Vox; arrows move, Enter chooses, Escape closes it. Pause: the hotkey does
+   nothing, the tray badges, the item shows a check; choose it again: it resumes.
 2. `history.panelHotkey` (default ⌘⇧Space): toggles the panel from any app, and the app
    underneath does nothing with the chord.
 3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,

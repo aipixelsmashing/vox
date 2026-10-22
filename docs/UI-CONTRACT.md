@@ -66,6 +66,9 @@ Grouped by pane. Full signatures in `contract.ts`.
 | Command | In | Out |
 | --- | --- | --- |
 | `settings_open` | — | `void` — shows the Settings window. The history panel's cog; Settings is not in the tray menu |
+| `pause_get` | — | `{ paused }` — whether the hotkey is ignored. Runtime state, not a setting; a relaunch resumes |
+| `pause_set` | `{ paused }` | `{ paused }` — the cog menu's Pause dictation; the tray badges while paused |
+| `app_quit` | — | never returns — the cog menu's Quit Vox |
 | `ui_text_scale` | — | `{ scale }` — the Mac's Larger Text factor from the preferred body font, 1 when untouched. The panel multiplies `ui.textSize` by it |
 | `panel_hide` | — | `void` — hides the panel window the call came from. Escape, clicking a row (copy and close) and a successful re-insert all end here; the UI never touches the window API directly |
 

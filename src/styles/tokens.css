@@ -140,6 +140,25 @@ html[data-material="css"] .panel {
 .hrow[aria-selected="true"] .actions { visibility: visible; }
 .fail { color: var(--fail); }
 
+/* The cog menu: a menu, drawn in the page because the tray has none. Accent
+   highlight on the hovered or focused item, as in every Mac menu.          */
+.menu {
+  position: absolute; top: calc(100% + var(--s-1)); right: 0; z-index: 10;
+  min-width: 200px; padding: var(--s-1);
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: var(--radius-input);
+  box-shadow: 0 8px 24px #00000033;
+}
+.menu-item {
+  display: flex; align-items: center; width: 100%; box-sizing: border-box;
+  padding: var(--s-1) var(--s-2); border: none; border-radius: 4px;
+  background: none; color: inherit; font: inherit; text-align: left; cursor: default;
+}
+.menu-item:hover:not([disabled]), .menu-item:focus-visible { background: var(--accent); color: var(--accent-text); outline: none; }
+.menu-item[disabled] { color: var(--ink-dim); }
+.menu-check { display: inline-block; width: var(--s-4); }
+.menu-rule { height: 1px; margin: var(--s-1) var(--s-2); background: var(--rule); }
+
 /* Keyboard focus is always visible. Non-negotiable — the history panel is
    fully operable without a mouse, and that is a requirement, not polish.
    The ring is the system accent, as it is in every Mac text field.          */

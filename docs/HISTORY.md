@@ -41,9 +41,10 @@ Behaviour:
 
 - **The header** holds the search field, the state of a dictation in progress while there is
   one (an amber dot and "Listening…" with the elapsed seconds, then "Transcribing…", then
-  "Placing the text…", in the deck's words), and the cog that opens Settings. Settings is
-  not in the tray menu, so the cog is the route to it. The live state sits in the header
-  rather than as a row so the list never shifts under the pointer when a dictation starts.
+  "Placing the text…", in the deck's words), and the cog, which is the app's menu:
+  Settings…, Pause dictation, Check for updates…, Quit Vox ([UI-SPEC.md](UI-SPEC.md#tray-icon)).
+  The tray icon has no menu of its own. The live state sits in the header rather than as a
+  row so the list never shifts under the pointer when a dictation starts.
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
 - **The selected row** is the one under the pointer or the arrow keys, drawn in the system

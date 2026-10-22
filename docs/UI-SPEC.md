@@ -37,26 +37,30 @@ state in place of Idle: after every dictation and on unpause.
 All five are monochrome template images, drawn by macOS in the menu bar's own colour; the
 live, amber level ring is the overlay's ([UI-KIT.md](UI-KIT.md#icon-states) says why).
 
-**Left click opens the history panel directly**, no menu: the panel is what the icon is for,
-and it has the search, the rows and, in its header, the cog that opens Settings. **Right click**
-shows a native menu with only the things that have no home in the panel:
+**Any click on the icon opens the history panel**, left or right; there is no native menu.
+The panel is what the icon is for, and the cog in its header is the menu:
 
 ```
-Pause dictation
+Settings…
+✓ Pause dictation
+─────────────────────────
 Check for updates…
 ─────────────────────────
 Quit Vox
 ```
 
 `Pause dictation` is one click and unmistakable — for meetings, screen shares, and the moment
-you realise you don't want a key you're about to press to start recording. `Check for
-updates…` is disabled until the updater is configured (M5); it never silently does nothing.
+you realise you don't want a key you're about to press to start recording; it is runtime
+state, not a setting, and a relaunch resumes. `Check for updates…` is disabled until the
+updater is configured (M5); it never silently does nothing. The menu is drawn in the page
+(a tray icon without a menu has none to lend), with the accent highlight, arrow keys, Enter
+and Escape of a Mac menu.
 
 ## History panel
 
 Specified in [HISTORY.md](HISTORY.md). Its header carries the search field, the live state of
 a dictation in progress ("Listening…" with the elapsed seconds, then "Transcribing…" and
-"Placing the text…"), and the Settings cog.
+"Placing the text…"), and the cog that holds the menu above.
 
 It is a popover in the macOS sense: a transparent window under the menu bar icon, carrying
 `NSVisualEffectView`'s popover material (through Tauri's window effects) and the system's own
