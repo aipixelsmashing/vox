@@ -98,10 +98,18 @@ distinguish amber from grey.
 | State | Silhouette |
 | --- | --- |
 | Idle | Outline mark |
-| Listening | Filled mark + amber level ring |
-| Transcribing | Filled mark + rotating tick |
-| Attention | Outline mark + corner badge |
-| Always listening | Outline mark + persistent amber dot (pre-roll enabled) |
+| Listening | Filled mark inside a closed ring |
+| Transcribing | Filled mark inside an open arc (one frame of the rotating tick) |
+| Attention | Outline mark + corner badge, top right |
+| Always listening | Outline mark + persistent dot, bottom right (pre-roll enabled) |
+
+The tray icons are macOS **template images**: the system reads only their alpha channel and
+draws the opaque pixels in the menu bar's own colour, light or dark. Amber cannot appear
+there, and a coloured, non-template icon is invisible in one of the two menu bar
+appearances. So the tray carries state by silhouette alone, and the amber level ring lives on
+the recording overlay beside the caret ([UI-SPEC.md](UI-SPEC.md#recording-overlay)). The
+files are drawn by `scripts/make-tray-icons.py`, black on transparent, at 22 px and 44 px;
+`tests/guards.rs` fails the build if one of them ever ships with an opaque background again.
 
 ## What good looks like
 

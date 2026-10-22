@@ -100,8 +100,14 @@ outcome instead (`dictation: … outcome "clipboard_only"`, `refused: …`, `can
 7. Tap right Option for under 120 ms: nothing happens.
 8. Hold in a password field: "Not inserted — a password field is active." and nothing on
    the clipboard.
-9. Pause dictation from the tray: the hotkey does nothing; unpause: it works again.
+9. Pause dictation from the tray: the hotkey does nothing and the icon shows the corner
+   badge; unpause: it works again and the icon is the outline mark.
 10. Quit from the tray: the process exits; nothing keeps running.
+11. The tray icon is a microphone silhouette, not a solid square, in both a light and a dark
+    menu bar (System Settings → Appearance). Idle is the outline; while the key is held it is
+    the filled mark in a ring; after release, the filled mark in an open arc until the text
+    lands. With `audio.preroll` set to anything but `off`, the resting icon carries a dot at
+    the bottom right.
 
 ### Sound cues (M3)
 

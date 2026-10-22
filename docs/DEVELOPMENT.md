@@ -18,6 +18,10 @@ scripts/make-dev-identity.sh   # once: a self-signed "Vox Dev" code-signing cert
 scripts/install-dev.sh         # build, sign, install to /Applications, launch
 ```
 
+The tray icons under `src-tauri/icons/tray-*.png` are generated, not hand-edited:
+`python3 scripts/make-tray-icons.py` (needs Pillow) redraws all five states at 1x and 2x
+from the geometry in the script. Commit the script change and the PNGs together.
+
 `pnpm tauri dev` also works, but a tray app that needs three TCC grants keyed to its
 signature is easier to live with as a real bundle in /Applications: grant once, relaunch,
 done. The first launch shows the three permission prompts and opens System Settings on the

@@ -691,7 +691,7 @@ fn emit_level(app: &tauri::AppHandle, rms: f32) {
 /// Back to Idle: tray, state event, and the overlay comes down the moment the text is
 /// placed (or the dictation is dropped). Every path out of a dictation ends here.
 fn go_idle(deps: &Deps) {
-    tray::set_state(&deps.app, tray::IconState::Idle);
+    tray::set_state(&deps.app, tray::idle_state(&deps.settings.read()));
     panel::hide_overlay(&deps.app);
     emit_state(&deps.app, PipelineStateDto::Idle);
 }

@@ -379,3 +379,40 @@ fn capture_is_on_and_application_off_by_default() {
         serde_json::Value::Bool(false)
     );
 }
+
+/// The tray icons are macOS template images: only their alpha is drawn, in the menu bar's
+/// colour. A file with an opaque background therefore shows as a solid square, which is how
+/// the menu bar looked until 2026-10-21. Every state must have transparent pixels, and
+/// every visible pixel must be black so the file is also honest when drawn as-is.
+#[test]
+fn tray_icons_are_template_images() {
+    use vox_lib::tray::{icon_bytes, IconState};
+    for state in [
+        IconState::Idle,
+        IconState::Recording,
+        IconState::Transcribing,
+        IconState::Attention,
+        IconState::AlwaysListening,
+    ] {
+        let image = tauri::image::Image::from_bytes(icon_bytes(state))
+            .unwrap_or_else(|e| panic!("{state:?}: not a decodable PNG: {e}"));
+        assert_eq!(
+            (image.width(), image.height()),
+            (44, 44),
+            "{state:?}: 2x canvas is 44 px"
+        );
+        let px: Vec<&[u8]> = image.rgba().chunks(4).collect();
+        let transparent = px.iter().filter(|p| p[3] < 128).count();
+        let visible = px.iter().filter(|p| p[3] > 0).count();
+        assert!(
+            transparent > px.len() / 2,
+            "{state:?}: mostly transparent, not a square"
+        );
+        assert!(visible > 0, "{state:?}: draws something");
+        assert!(
+            px.iter()
+                .all(|p| p[3] == 0 || (p[0] <= 8 && p[1] <= 8 && p[2] <= 8)),
+            "{state:?}: visible pixels are black"
+        );
+    }
+}
