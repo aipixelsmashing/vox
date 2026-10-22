@@ -443,6 +443,19 @@ fn main() {
             "reference tap saw {} raw events, {} TapDisabled notices",
             r.seen, r.disabled
         );
+        // Whatever is still buffered was never claimed by a keytap event: keys the OS
+        // delivered to the tap that keytap did not report. Fn (keycode 63) would show here.
+        if !r.recent.is_empty() {
+            println!("raw events keytap did not report ({}):", r.recent.len());
+            let t0_ticks = instant_to_ticks(t0);
+            for rec in &r.recent {
+                let rel_ms = ticks_to_ms(i128::from(rec.cb_ticks) - i128::from(t0_ticks));
+                println!(
+                    "  +{rel_ms:10.3}ms  {:<12}  kc={:<3} flags=0x{:08x}",
+                    rec.kind, rec.keycode, rec.flags
+                );
+            }
+        }
     }
     println!("latency (ms):");
     println!("{}", hid_to_tap.line("hid→tap"));

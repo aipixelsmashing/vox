@@ -84,6 +84,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   counts.
 
 ### Fixed
+- Choosing Fn (the Globe key) as the dictation key did nothing: holding it never started a
+  recording, and nothing said why. It now works. The keyboard library Vox uses dropped the
+  key; Vox builds with a corrected copy until the fix is released upstream.
 - The menu bar icon was a solid square. macOS draws a menu bar icon from its transparency
   alone, and the images had an opaque background. They are redrawn: an outline microphone
   at rest, filled inside a ring while listening, inside an open arc while working, with a

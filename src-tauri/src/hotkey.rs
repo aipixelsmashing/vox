@@ -766,9 +766,11 @@ mod tests {
 
     #[test]
     fn fn_is_a_binding_like_any_other() {
+        // The saved name must be keytap's own for the key, or the binding dies silently.
+        assert_eq!(key_name(Key::Function), FN_KEY);
         let mut m = Matcher::new(&hk(&[FN_KEY], Mode::Hold));
-        assert_eq!(m.feed("Function", true), Some(Action::Start));
-        assert_eq!(m.feed("Function", false), Some(Action::End));
+        assert_eq!(m.feed(&key_name(Key::Function), true), Some(Action::Start));
+        assert_eq!(m.feed(&key_name(Key::Function), false), Some(Action::End));
     }
 
     #[test]

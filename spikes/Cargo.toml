@@ -7,3 +7,8 @@ members = ["s1-hotkey", "s2-inject", "s3-engine", "s4-footprint", "s5-context"]
 
 [profile.release]
 debug = 1
+
+# Same patched keytap as src-tauri/Cargo.toml: 0.4.0 drops the Fn key (docs/spikes/s1-hotkey.md,
+# 2026-10-21), so a rerun of s1-hotkey against the registry crate would still show nothing.
+[patch.crates-io]
+keytap = { git = "https://github.com/aipixelsmashing/keytap", rev = "0bae304ab4854cd7e5922743cecf57992fbd9c0d" }
