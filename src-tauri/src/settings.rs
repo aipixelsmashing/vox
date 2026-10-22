@@ -264,6 +264,9 @@ pub struct Ui {
     pub level_overlay: bool,
     pub launch_at_login: bool,
     pub language: String,
+    /// History panel text: "small" | "medium" | "large" (12, 13, 15 px before the system's
+    /// own Larger Text scaling). Stepped by ⌘+ / ⌘- in the panel as well as from Settings.
+    pub text_size: String,
 }
 
 impl Default for Ui {
@@ -274,6 +277,7 @@ impl Default for Ui {
             level_overlay: true,
             launch_at_login: true,
             language: "system".into(),
+            text_size: "medium".into(),
         }
     }
 }

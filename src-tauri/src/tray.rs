@@ -2,8 +2,9 @@
 //! a distinct always-listening variant when pre-roll is enabled — an open microphone must
 //! never be invisible. See docs/UI-SPEC.md.
 //!
-//! Menu: Show history · Settings… · Pause dictation · Quit Vox. Left click opens the history
-//! panel directly; the menu is on right click.
+//! Left click opens the history panel directly, no menu: the panel carries search, the rows
+//! and the Settings cog. Right click shows a native menu with only what has no home in the
+//! panel: Pause dictation · Check for updates… · Quit Vox (docs/UI-SPEC.md).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -59,17 +60,16 @@ pub fn install(
     settings: Arc<parking_lot::RwLock<crate::settings::Settings>>,
     paused: Arc<AtomicBool>,
 ) -> anyhow::Result<()> {
-    let history = MenuItem::with_id(app, "history", "Show history", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let pause = CheckMenuItem::with_id(app, "pause", "Pause dictation", true, false, None::<&str>)?;
+    // Disabled until the updater is configured (M5: a real public key in tauri.conf.json).
+    // Present but grey rather than absent, so the menu never silently does nothing.
+    let updates = MenuItem::with_id(app, "updates", "Check for updates…", false, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Vox", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[
-            &history,
-            &settings_item,
-            &PredefinedMenuItem::separator(app)?,
             &pause,
+            &updates,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
@@ -98,8 +98,6 @@ pub fn install(
             _ => {}
         })
         .on_menu_event(move |app, event| match event.id.as_ref() {
-            "history" => panel::show_history(app),
-            "settings" => panel::show_settings(app),
             "pause" => {
                 let now = !paused.load(Ordering::Relaxed);
                 paused.store(now, Ordering::Relaxed);

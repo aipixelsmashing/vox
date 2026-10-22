@@ -5,7 +5,6 @@
 
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import '@fontsource/literata/400.css'
 import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'
@@ -29,8 +28,22 @@ function Placeholder({ name }: { name: string }) {
   )
 }
 
+/**
+ * The history window's background is the native popover material in the app, and in the mock
+ * an optional CSS approximation (?material=css) so the look can be reviewed in a browser.
+ */
+function applyMaterial(win: string) {
+  const material = isMock ? new URLSearchParams(location.search).get('material') : 'native'
+  if (win === 'history' && (material === 'native' || material === 'css')) {
+    document.documentElement.dataset.material = material
+  } else {
+    delete document.documentElement.dataset.material
+  }
+}
+
 function App() {
   const win = currentWindow()
+  applyMaterial(win)
   return (
     <>
       {win === 'history' && <HistoryPanel />}

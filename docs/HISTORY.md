@@ -19,7 +19,7 @@ can't do a scrolling list with search and per-row actions across all three platf
 
 ```
 ┌──────────────────────────────────────────┐
-│  Search transcripts…                  ⚙  │
+│  Search transcripts…   ● Listening… 4 s ⚙│
 ├──────────────────────────────────────────┤
 │  2 min ago · Slack · 34 words            │
 │  Can you take a look at the deploy…      │
@@ -39,8 +39,17 @@ can't do a scrolling list with search and per-row actions across all three platf
 
 Behaviour:
 
+- **The header** holds the search field, the state of a dictation in progress while there is
+  one (an amber dot and "Listening…" with the elapsed seconds, then "Transcribing…", then
+  "Placing the text…", in the deck's words), and the cog that opens Settings. Settings is
+  not in the tray menu, so the cog is the route to it. The live state sits in the header
+  rather than as a row so the list never shifts under the pointer when a dictation starts.
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
+- **The selected row** is the one under the pointer or the arrow keys, drawn in the system
+  accent colour as in any Mac list. Copy, Insert and × appear on the selected row only, so the
+  resting list is metadata and transcript and nothing else; the keyboard reaches all three
+  without them (Enter, ⌘Enter, Delete).
 - **Closing** — however the panel closes, focus goes back to the app it was opened over.
   Vox does not stay frontmost, so none of its other windows comes forward in its place.
 - **Copy** — clipboard, marked private so it stays out of clipboard history and cloud sync.
@@ -57,6 +66,7 @@ Behaviour:
 - **Empty state**: "Nothing dictated yet. Hold right Option and speak."
 
 Keyboard: arrow keys move, Enter copies, Cmd/Ctrl+Enter inserts, Delete removes, Escape closes,
+⌘+ and ⌘− step the text size (persisted, `ui.textSize`), ⌘, opens Settings,
 typing filters. The panel is fully operable without a mouse.
 
 ## Storage

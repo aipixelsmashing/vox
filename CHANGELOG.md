@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
+  ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
+  ⌘, opens Settings from the panel.
 - Tap the dictation key twice to keep listening hands-free; tap once to stop. Escape still
   cancels. This replaces the earlier design of pressing L while holding the key.
 - The start tone plays once a press has lasted the minimum hold, so a brush of the key, or
@@ -68,6 +71,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Changed
 - The app declares macOS 26 as its minimum, so on an older Mac the system says so when you
   open it, instead of Vox installing and then reporting that transcription is unavailable.
+- The menu bar icon: a left click opens the history panel straight away, and a right click
+  shows a short menu with Pause dictation, Check for updates and Quit. Settings moved to a
+  cog in the panel's header, which also shows "Listening…" and the elapsed seconds while
+  you dictate, instead of a row at the top of the list.
+- The history panel looks like a Mac panel: the desktop shows through it, blurred, as in
+  Control Center; the selected transcript and the search field's focus ring take the accent
+  colour you chose in System Settings instead of amber; rows are inset and rounded with no
+  lines between them; Copy, Insert and × appear on the row you are on rather than on every
+  row; the icons match the weight of the system's own.
+- Transcripts are set in the system typeface like the rest of the panel, at 13 points, and
+  told apart from labels by colour and size rather than by a second font. Vox no longer
+  bundles a typeface of its own.
 - Settings → Vocabulary shows one row per learned word, with every way it was misheard
   listed beneath it, and the delete button removes the word with all of them. The count and
   the export sit in the header above the list, with a filter field once there are more than

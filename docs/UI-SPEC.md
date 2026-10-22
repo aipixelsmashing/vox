@@ -37,12 +37,11 @@ state in place of Idle: after every dictation and on unpause.
 All five are monochrome template images, drawn by macOS in the menu bar's own colour; the
 live, amber level ring is the overlay's ([UI-KIT.md](UI-KIT.md#icon-states) says why).
 
-Tray menu, native and short:
+**Left click opens the history panel directly**, no menu: the panel is what the icon is for,
+and it has the search, the rows and, in its header, the cog that opens Settings. **Right click**
+shows a native menu with only the things that have no home in the panel:
 
 ```
-Show history          ⌘⇧Space
-Settings…
-─────────────────────────
 Pause dictation
 Check for updates…
 ─────────────────────────
@@ -50,11 +49,22 @@ Quit Vox
 ```
 
 `Pause dictation` is one click and unmistakable — for meetings, screen shares, and the moment
-you realise you don't want a key you're about to press to start recording.
+you realise you don't want a key you're about to press to start recording. `Check for
+updates…` is disabled until the updater is configured (M5); it never silently does nothing.
 
 ## History panel
 
-Specified in [HISTORY.md](HISTORY.md).
+Specified in [HISTORY.md](HISTORY.md). Its header carries the search field, the live state of
+a dictation in progress ("Listening…" with the elapsed seconds, then "Transcribing…" and
+"Placing the text…"), and the Settings cog.
+
+It is a popover in the macOS sense: a transparent window under the menu bar icon, carrying
+`NSVisualEffectView`'s popover material (through Tauri's window effects) and the system's own
+shadow, 12px corners, dismissed by clicking anywhere else. The page paints no background of
+its own, so Reduce Transparency is answered by the material rather than by Vox. The HIG
+prefers a menu for a menu bar extra; this panel is the documented exception (a searchable
+scrolling list with per-row actions, [HISTORY.md](HISTORY.md#the-panel)), and the right-click
+menu stays a menu.
 
 ## Settings
 

@@ -8,6 +8,7 @@
 //! can rank that app's transcripts first and "Insert" can go back to it.
 
 use parking_lot::Mutex;
+use tauri::window::{Effect, EffectState, EffectsBuilder};
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const HISTORY_WINDOW: &str = "history";
@@ -33,6 +34,8 @@ static TOAST_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 const WIDTH: f64 = 380.0;
 const HEIGHT: f64 = 520.0;
 const GAP_BELOW_TRAY: f64 = 6.0;
+/// Matches `--radius-panel` in src/styles/tokens.css; the material is clipped to it.
+const PANEL_RADIUS: f64 = 12.0;
 
 /// Last known tray icon rectangle in logical pixels: (x, y, width, height). Updated on every
 /// tray event that carries one, so the panel can open under the icon even from the menu.
@@ -121,6 +124,18 @@ pub fn show_history(app: &AppHandle) {
             .build();
             match built {
                 Ok(w) => {
+                    // The popover material: NSVisualEffectView behind the page, which paints
+                    // no background of its own (src/styles/tokens.css). The material already
+                    // answers Reduce Transparency, and the window keeps its system shadow.
+                    if let Err(e) = w.set_effects(
+                        EffectsBuilder::new()
+                            .effect(Effect::Popover)
+                            .state(EffectState::Active)
+                            .radius(PANEL_RADIUS)
+                            .build(),
+                    ) {
+                        tracing::warn!("history window material: {e}");
+                    }
                     // Losing focus means the user moved on; the panel goes away by itself.
                     let handle = w.clone();
                     w.on_window_event(move |e| {

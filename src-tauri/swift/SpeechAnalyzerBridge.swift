@@ -9,6 +9,7 @@
 //
 // Transcripts are returned to Rust and never logged here.
 
+import AppKit
 import AVFoundation
 import CoreMedia
 import Foundation
@@ -668,6 +669,17 @@ public func vox_notify(_ cTitle: UnsafePointer<CChar>, _ cBody: UnsafePointer<CC
         }
     }
     return true
+}
+
+// MARK: - System text size
+
+/// The factor System Settings → Accessibility → Display → Text size applies to body text:
+/// the preferred body font over its 13 pt default. 1.0 when the setting is untouched. The
+/// history panel multiplies its own text-size step by this (docs/UI-KIT.md).
+@_cdecl("vox_text_scale")
+public func vox_text_scale() -> Double {
+    let body = NSFont.preferredFont(forTextStyle: .body).pointSize
+    return body > 0 ? body / 13.0 : 1.0
 }
 
 // MARK: - Microphone permission (AVCaptureDevice is the only API for it)

@@ -25,6 +25,7 @@ export const copy = {
     more: 'More',
     less: 'Less',
     copied: 'Copied',
+    settings: 'Settings',
     live: {
       arming: 'Opening the microphone…',
       recording: 'Listening…',
@@ -88,6 +89,10 @@ export const copy = {
       soundCuesHint: 'Rising to start, falling to stop, so you know the microphone is open even when the menu bar is on another screen.',
       overlay: 'Show a level meter near the cursor',
       overlayHint: 'A small pill with the level and the elapsed time. It never takes focus and goes away when the text is placed.',
+      panelTitle: 'History panel',
+      textSize: 'Text size',
+      textSizeHint: '⌘+ and ⌘− change it while the panel is open. The Mac’s Larger Text setting (Accessibility → Display) applies on top.',
+      textSizes: { small: 'Small', medium: 'Medium', large: 'Large' },
       setupTitle: 'Setup',
       runAgain: 'Run setup again',
       runAgainHint: 'The six first-launch steps, from wherever you left them.',

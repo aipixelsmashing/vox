@@ -252,6 +252,17 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async mic_test_stop() { micTest = false },
   async onboarding_open() { /* already looking at it in a browser tab */ },
+  /** ?textScale=1.3 stands in for the Mac's Larger Text setting. */
+  async ui_text_scale() {
+    const v = Number(new URLSearchParams(location.search).get('textScale') ?? '1')
+    return { scale: Number.isFinite(v) && v > 0 ? v : 1 }
+  },
+  async settings_open() {
+    // A browser tab has one window: switch it, the way the dev overlay does.
+    const q = new URLSearchParams(location.search)
+    q.set('window', 'settings')
+    location.search = q.toString()
+  },
   async toast_current() { return lastToast ? { message: lastToast } : null },
   async toast_fit() { /* a browser tab sizes itself */ },
 

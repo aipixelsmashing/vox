@@ -17,10 +17,12 @@ a desktop" and they cost legibility at the sizes we actually use.
 
 ## Colour
 
-Six values, plus one failure colour used nowhere else.
+Six values, one failure colour used nowhere else, and the person's own accent colour for
+selection and focus.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
+| `--accent` | `AccentColor` | `AccentColor` | **Selection and keyboard focus**, with `--accent-text` on top. The colour chosen in System Settings → Appearance, as in every list on the Mac; `#007AFF` where the keyword is unknown |
 | `--ink` | `#16171A` | `#E9E9EC` | Primary text |
 | `--ink-dim` | `#5C5F66` | `#9A9CA3` | Secondary text, provenance, timestamps |
 | `--panel` | `#FFFFFF` | `#1C1D20` | Panel and window backgrounds |
@@ -42,26 +44,40 @@ Adding a colour for "it worked" would mean drawing attention to the 99% case.
 State is never carried by colour alone — the tray icon silhouette differs per state, and every
 failed row carries words as well as a colour.
 
+**Selection is the system accent, never amber.** The focus ring used to be amber, which broke
+the first rule above: amber was then listening *and* focus. Focus rings and the selected row
+take `--accent`, the colour the person chose for exactly this purpose, and the selected row's
+text takes `--accent-text` (white on every accent except graphite). That is what
+[focus-and-selection.md](https://developer.apple.com/design/human-interface-guidelines/focus-and-selection)
+asks for: a highlight in a list, a ring in a text field, both in the app's accent.
+
 ## Typography
 
-Two faces, with a clear division of labour.
+One typeface: the system's, `system-ui`, which is San Francisco on a Mac. A utility that
+sits beside native windows should use the same letterforms they do, and every system panel
+(Spotlight, Control Center, Notification Center) is set in one face. Transcripts are the
+user's own prose, not interface furniture, and the panel says so by **size and colour
+only**: transcripts at 13 in `--ink`, metadata at 11 in `--ink-dim`, titles by weight.
+Nothing is bundled and nothing is fetched (no CDN — see [THREAT-MODEL.md](THREAT-MODEL.md)).
 
-**Chrome — the system UI font.** `system-ui` on every platform. A utility that sits beside
-native windows should use the same letterforms they do. Shipping a branded sans for menu labels
-would make Vox look like a visitor.
-
-**Transcripts — Literata**, bundled locally (no CDN — see [THREAT-MODEL.md](THREAT-MODEL.md)).
-Transcripts are the user's own prose, not interface furniture, and giving them a serif marks
-that difference the instant you look at the panel. Literata is drawn for screen reading at
-small sizes, which is the whole job here.
+Two earlier choices are gone for the record: Literata, bundled, was a third voice beside the
+two the OS speaks; New York via `ui-serif` paired with San Francisco but still made the
+panel the one menu bar panel on the Mac set in a serif.
 
 | Token | Size / line-height | Use |
 | --- | --- | --- |
-| `--t-transcript` | 15 / 1.55, Literata | Transcript text in the panel and long-form |
+| `--t-transcript` | 13 / 1.45, `--ink` | Transcript text in the panel and long-form. Scales with `--text-scale` (below) |
 | `--t-body` | 13 / 1.45, system-ui | Labels, settings, buttons |
 | `--t-meta` | 11 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance |
 | `--t-title` | 15 / 1.3, system-ui, 600 | Window and pane titles |
 | `--t-numeric` | 12 / 1.3, `tabular-nums` | Timers, byte counts, diagnostics |
+
+**Text size is the person's.** `ui.textSize` (Settings → Dictation → History panel, or ⌘+ and
+⌘− while the panel is open) steps transcripts and metadata together through `--text-scale`:
+small 12/10, medium 13/11, large 15/12.5. The Mac's own Larger Text setting (Accessibility →
+Display) multiplies on top, read from the preferred body font at open; chrome stays at 13 so
+the panel's controls keep their native size. macOS has no Dynamic Type, so this is the
+nearest honest equivalent.
 
 No all-caps labels. No letter-spacing on anything under 20px. Sentence case everywhere,
 including buttons.
@@ -70,12 +86,16 @@ including buttons.
 
 - **4px base grid.** A tray utility is dense; an 8px grid wastes the panel's limited height.
 - **Panel width 380px.** Fits beside a tray icon on a laptop without covering the work behind it.
-- **Row height 56px** in the history panel: two lines of transcript plus metadata, and a
-  comfortable pointer target.
-- **Hairlines, not cards.** Rows are separated by 1px rules. Nothing floats, nothing has a
-  shadow except the panel itself, which has one because it is a real window over other windows.
-- **Radius 6px** on the panel and on inputs; **0** on rows. Radius signals "this is a separate
-  surface", so applying it to everything destroys the signal.
+- **History rows are a source list, not a table.** Inset 8px from the panel edge, 8px of
+  padding, no rules between them; the selected row is a rounded accent-coloured highlight, the
+  way Finder's sidebar and Spotlight's results select. Metadata, two lines of transcript, and
+  the row's actions only on the selected row, so the resting list is text and nothing else.
+- **Hairlines, not cards.** Where a rule is needed (the header, the footer) it is 1px. Nothing
+  floats, nothing has a shadow except the panel itself, which is a real window over other
+  windows and takes the system's own shadow and the popover material.
+- **Radius 12px** on the panel, as a menu bar panel on macOS 26; **6px** on inputs and on the
+  selected row; **0** on everything else. Radius signals "this is a separate surface", so
+  applying it to everything destroys the signal.
 - Left-aligned throughout. Numbers right-aligned in diagnostics tables.
 
 ## Motion

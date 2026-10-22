@@ -59,6 +59,7 @@ fn build_swift_bridge() {
         "CoreMedia",
         "Speech",
         "UserNotifications",
+        "AppKit", // vox_text_scale: NSFont.preferredFont, the system's Larger Text factor
         "Carbon",
         "IOKit",
     ] {
@@ -88,6 +89,7 @@ fn build_swift_bridge() {
         "swift_Concurrency",
         "swiftDispatch",
         "swiftAVFoundation",
+        "swiftAppKit",
         "swiftCoreMedia",
         "swiftObjectiveC",
         "swiftDarwin",
