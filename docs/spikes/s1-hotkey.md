@@ -60,6 +60,10 @@ thread wake. Steady-state events sat between 0.6 and 5 ms.
 
 ## Open items
 
+- Fn (`Key::Function`, keycode 63) was not pressed in this run. Since 2026-09-29 it is a
+  binding option; the first hold of it on this machine should show as a dictation in the
+  log, and the harness table should list `Function` if it is run again.
+
 - Confirm which application was focused during the run and that the typed letters arrived
   there (i.e. the listen-only tap did not consume them). Expected yes; not yet stated.
 - Not measured: behaviour when the tap thread is starved under heavy load, and whether

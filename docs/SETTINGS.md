@@ -13,7 +13,7 @@ drives migrations; each migration is a pure function with a test.
   "version": 2,                    // 1 → 2 moved the panel hotkey off ⌘⇧V
 
   "hotkey": {
-    "keys": ["AltRight"],          // keytap key names; multiple = chord
+    "keys": ["AltRight"],          // keytap key names; multiple = chord; ["Function"] is Fn (HOTKEYS.md)
     "mode": "hold",                // hold | toggle | double-tap-hold
     "minHoldMs": 120,              // shorter presses are ignored
     "consume": false,              // swallow the key system-wide (macOS/Windows only)
@@ -43,7 +43,6 @@ drives migrations; each migration is a pure function with a test.
   },
 
   "longForm": {
-    "lockKey": "KeyL",             // pressed while the hotkey is held
     "maxSessionMin": 30,
     "defaultDestination": "clipboard",  // clipboard | new-file | insert | append-file
     "fileDirectory": null

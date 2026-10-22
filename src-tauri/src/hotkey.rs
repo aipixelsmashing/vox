@@ -8,6 +8,7 @@
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use keytap::{EventKind, Key, Tap};
 use parking_lot::RwLock;
@@ -26,7 +27,19 @@ pub enum Mode {
     DoubleTapHold,
 }
 
+/// A press released within this long is a tap, for the lock gesture.
+pub const TAP_MAX: Duration = Duration::from_millis(300);
+/// The second tap has to go down within this long of the first coming up.
+pub const DOUBLE_TAP_GAP: Duration = Duration::from_millis(400);
+
 /// Matches a chord against the raw key stream. Pure, so it is testable without a tap.
+///
+/// In `hold` mode there is one gesture beyond hold-and-release (docs/HOTKEYS.md, "The
+/// lock"): two quick taps lock a session that runs hands-free until a single tap ends it.
+/// The first tap is an ordinary short press (Start, End; the pipeline discards it as under
+/// the minimum hold). The second tap's down is an ordinary Start, and its release, being
+/// quick and close on the first, is `Lock` instead of End: recording carries on. The next
+/// press ends it on its down, and that press's release is silent.
 #[derive(Debug)]
 pub struct Matcher {
     keys: Vec<String>,
@@ -34,6 +47,14 @@ pub struct Matcher {
     mode: Mode,
     held: HashSet<String>,
     active: bool,
+    /// A session is running hands-free; the next press ends it.
+    locked: bool,
+    /// When the current press went down.
+    pressed_at: Option<Instant>,
+    /// When the last tap came up, for the double-tap window.
+    last_tap_up: Option<Instant>,
+    /// The current press went down quickly after a tap: its release locks if it is a tap.
+    arming: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +62,9 @@ pub enum Action {
     Start,
     End,
     Cancel,
+    /// The chord was released but the session continues, locked. Nothing goes to the
+    /// pipeline; the next `End` does.
+    Lock,
 }
 
 impl Matcher {
@@ -51,6 +75,10 @@ impl Matcher {
             mode: hotkey.mode,
             held: HashSet::new(),
             active: false,
+            locked: false,
+            pressed_at: None,
+            last_tap_up: None,
+            arming: false,
         }
     }
 
@@ -60,6 +88,11 @@ impl Matcher {
 
     /// Feed one event. `name` is keytap's `Key` Debug name, e.g. "AltRight".
     pub fn feed(&mut self, name: &str, down: bool) -> Option<Action> {
+        self.feed_at(name, down, Instant::now())
+    }
+
+    /// [`Matcher::feed`] with the clock supplied, so the taps can be tested.
+    pub fn feed_at(&mut self, name: &str, down: bool, now: Instant) -> Option<Action> {
         if down && name == self.cancel {
             return self
                 .active
@@ -74,7 +107,47 @@ impl Matcher {
         }
         let now_all = self.all_down();
         match self.mode {
-            Mode::Hold | Mode::DoubleTapHold => {
+            Mode::Hold => {
+                if !was_all && now_all {
+                    if self.locked {
+                        // The stop tap. Its release is silent.
+                        self.locked = false;
+                        self.active = false;
+                        self.pressed_at = None;
+                        self.last_tap_up = None;
+                        self.arming = false;
+                        return Some(Action::End);
+                    }
+                    if self.active {
+                        return None;
+                    }
+                    self.active = true;
+                    self.pressed_at = Some(now);
+                    self.arming = self
+                        .last_tap_up
+                        .is_some_and(|up| now.duration_since(up) <= DOUBLE_TAP_GAP);
+                    Some(Action::Start)
+                } else if was_all && !now_all && self.active && !self.locked {
+                    let tap = self
+                        .pressed_at
+                        .is_some_and(|down| now.duration_since(down) <= TAP_MAX);
+                    self.pressed_at = None;
+                    if tap && self.arming {
+                        self.arming = false;
+                        self.last_tap_up = None;
+                        self.locked = true;
+                        return Some(Action::Lock);
+                    }
+                    self.arming = false;
+                    self.active = false;
+                    self.last_tap_up = tap.then_some(now);
+                    Some(Action::End)
+                } else {
+                    None
+                }
+            }
+            // Two taps then hold is how this mode starts, so no double-tap lock here.
+            Mode::DoubleTapHold => {
                 if !was_all && now_all && !self.active {
                     self.active = true;
                     Some(Action::Start)
@@ -104,12 +177,61 @@ impl Matcher {
     /// next press starts fresh instead of reading as a release.
     pub fn reset(&mut self) {
         self.active = false;
+        self.locked = false;
+        self.pressed_at = None;
+        self.last_tap_up = None;
+        self.arming = false;
     }
 
     pub fn is_active(&self) -> bool {
         self.active
     }
+
+    pub fn is_locked(&self) -> bool {
+        self.locked
+    }
 }
+
+/// What macOS does with the Fn (Globe) key on its own: System Settings → Keyboard, "Press
+/// 🌐 key to". Anything but Do Nothing fires alongside every Vox press, so the pane says
+/// so when Fn is chosen (docs/HOTKEYS.md, "Fn as the key").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GlobeSetting {
+    DoNothing,
+    ChangeInputSource,
+    Emoji,
+    Dictation,
+    /// Not set, so macOS's own default applies, which is not Do Nothing; or unreadable.
+    Unknown,
+}
+
+/// Reads `AppleFnUsageType` from the HIToolbox defaults. A short-lived `defaults` process;
+/// only ever run when the user picks or has Fn, never on the dictation path.
+#[cfg(target_os = "macos")]
+pub fn globe_key_setting() -> GlobeSetting {
+    let out = std::process::Command::new("/usr/bin/defaults")
+        .args(["read", "com.apple.HIToolbox", "AppleFnUsageType"])
+        .output();
+    let Ok(out) = out else {
+        return GlobeSetting::Unknown;
+    };
+    match String::from_utf8_lossy(&out.stdout).trim() {
+        "0" => GlobeSetting::DoNothing,
+        "1" => GlobeSetting::ChangeInputSource,
+        "2" => GlobeSetting::Emoji,
+        "3" => GlobeSetting::Dictation,
+        _ => GlobeSetting::Unknown,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn globe_key_setting() -> GlobeSetting {
+    GlobeSetting::Unknown
+}
+
+/// keytap's name for the macOS Fn key.
+pub const FN_KEY: &str = "Function";
 
 pub fn key_name(key: Key) -> String {
     format!("{key:?}")
@@ -297,6 +419,9 @@ pub fn spawn(
                     Action::Start => {
                         dictating.store(true, Ordering::Release);
                         pipeline.send(pipeline::Event::HotkeyDown)
+                    }
+                    Action::Lock => {
+                        tracing::info!("hotkey: session locked; a tap ends it");
                     }
                     Action::End => {
                         dictating.store(false, Ordering::Release);
@@ -523,6 +648,127 @@ mod tests {
         assert_eq!(m.feed("K", false), None);
         assert_eq!(m.feed("AltRight", false), Some(Action::End));
         assert_eq!(m.feed("AltLeft", true), None, "left is not right");
+    }
+
+    #[test]
+    fn two_taps_lock_a_session_and_one_tap_ends_it() {
+        let ms = Duration::from_millis;
+        let t0 = Instant::now();
+        let mut m = Matcher::new(&hk(&["AltRight"], Mode::Hold));
+        // First tap: an ordinary short press, which the pipeline discards.
+        assert_eq!(m.feed_at("AltRight", true, t0), Some(Action::Start));
+        assert_eq!(m.feed_at("AltRight", false, t0 + ms(80)), Some(Action::End));
+        // Second tap, 200 ms later: its down starts recording and its release locks.
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(280)),
+            Some(Action::Start)
+        );
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(370)),
+            Some(Action::Lock)
+        );
+        assert!(m.is_locked() && m.is_active());
+        // Keys typed meanwhile are nothing to us.
+        assert_eq!(m.feed_at("K", true, t0 + ms(5000)), None);
+        assert_eq!(m.feed_at("K", false, t0 + ms(5050)), None);
+        // One tap ends it, on the way down; its release is silent.
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(30_000)),
+            Some(Action::End)
+        );
+        assert!(!m.is_locked() && !m.is_active());
+        assert_eq!(m.feed_at("AltRight", false, t0 + ms(30_060)), None);
+        // And that tap does not arm another lock.
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(30_200)),
+            Some(Action::Start)
+        );
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(30_260)),
+            Some(Action::End)
+        );
+    }
+
+    #[test]
+    fn a_slow_second_press_or_a_held_second_press_does_not_lock() {
+        let ms = Duration::from_millis;
+        let t0 = Instant::now();
+        let mut m = Matcher::new(&hk(&["AltRight"], Mode::Hold));
+        // Tap, then a second press 600 ms later: too slow, an ordinary dictation.
+        m.feed_at("AltRight", true, t0);
+        m.feed_at("AltRight", false, t0 + ms(80));
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(680)),
+            Some(Action::Start)
+        );
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(760)),
+            Some(Action::End)
+        );
+        // Tap, then quickly a real hold: a dictation, not a lock. (Well clear of the tap
+        // that ended the previous case, which would otherwise arm this one.)
+        m.feed_at("AltRight", true, t0 + ms(2000));
+        m.feed_at("AltRight", false, t0 + ms(2080));
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(2200)),
+            Some(Action::Start)
+        );
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(4200)),
+            Some(Action::End)
+        );
+        // A hold followed by a tap: the hold was not a tap, so nothing is armed.
+        m.feed_at("AltRight", true, t0 + ms(5000));
+        m.feed_at("AltRight", false, t0 + ms(7000));
+        m.feed_at("AltRight", true, t0 + ms(7100));
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(7180)),
+            Some(Action::End)
+        );
+        assert!(!m.is_locked());
+    }
+
+    #[test]
+    fn escape_ends_a_locked_session_and_the_lock_stays_out_of_other_modes() {
+        let ms = Duration::from_millis;
+        let t0 = Instant::now();
+        let mut m = Matcher::new(&hk(&["AltRight"], Mode::Hold));
+        m.feed_at("AltRight", true, t0);
+        m.feed_at("AltRight", false, t0 + ms(80));
+        m.feed_at("AltRight", true, t0 + ms(200));
+        assert_eq!(
+            m.feed_at("AltRight", false, t0 + ms(280)),
+            Some(Action::Lock)
+        );
+        assert_eq!(
+            m.feed_at("Escape", true, t0 + ms(2000)),
+            Some(Action::Cancel)
+        );
+        m.reset();
+        assert!(!m.is_locked());
+        assert_eq!(
+            m.feed_at("AltRight", true, t0 + ms(3000)),
+            Some(Action::Start)
+        );
+
+        for mode in [Mode::Toggle, Mode::DoubleTapHold] {
+            let mut m = Matcher::new(&hk(&["AltRight"], mode));
+            m.feed_at("AltRight", true, t0);
+            m.feed_at("AltRight", false, t0 + ms(80));
+            m.feed_at("AltRight", true, t0 + ms(200));
+            assert_ne!(
+                m.feed_at("AltRight", false, t0 + ms(280)),
+                Some(Action::Lock),
+                "{mode:?} has no lock gesture"
+            );
+        }
+    }
+
+    #[test]
+    fn fn_is_a_binding_like_any_other() {
+        let mut m = Matcher::new(&hk(&[FN_KEY], Mode::Hold));
+        assert_eq!(m.feed("Function", true), Some(Action::Start));
+        assert_eq!(m.feed("Function", false), Some(Action::End));
     }
 
     #[test]

@@ -73,6 +73,26 @@ A hold shorter than `minHoldMs` (default 120 ms) is discarded rather than transc
 stray brush of the key does nothing. In `toggle` mode a `maxRecordingSec` cap prevents an
 unnoticed session recording for an hour.
 
+## The lock: hands-free without a second key
+
+Long-form sessions ([LONG-FORM.md](LONG-FORM.md)) need the key let go of. The first design
+was a lock key pressed while the hotkey was held (`L`); it is a gesture on the same key now,
+so there is nothing to remember and nothing that collides with what the foreground app does
+with Option+L:
+
+| Gesture, in `hold` mode | Result |
+| --- | --- |
+| Tap, tap (the second down within 400 ms of the first up, each press under 300 ms) | Recording starts on the second tap's down and carries on after its release. |
+| One tap, while locked | Recording ends on the tap's down; its release does nothing. |
+| Escape | Cancels, as always. |
+
+The first tap is an ordinary short press: recording opens and is discarded as under
+`minHoldMs`, silently, because the start cue plays only once a press has lasted that long.
+The lock belongs to `hold` mode only: `toggle` is already hands-free, and `double-tap-hold` uses the
+double tap to start. The recording cap (`audio.maxRecordingSec`) still applies to a locked
+session until M6 brings the long-form pipeline; the lock arrived with the hotkey design
+because it is a hotkey question.
+
 ## Problem 4: cancelling
 
 While recording, **Escape cancels**: capture stops, audio is dropped, nothing is transcribed,
@@ -121,13 +141,34 @@ rather than asking the user to type a shortcut string. It rejects bindings that 
 be destructive (a lone letter key, a lone Enter, anything with no modifier and no function key)
 with an explanation rather than a silent refusal.
 
+### Fn as the key
+
+Fn (the Globe key on Apple keyboards) is a first-class choice, not the default. `keytap` names
+it `Function` (keycode 63, a flag change like the other modifiers), so `"keys": ["Function"]`
+matches like any modifier. Two things are true of it that are not true of right Option, and
+the pane says both when Fn is chosen:
+
+- **macOS uses the key itself.** System Settings → Keyboard, "Press 🌐 key to", fires on a
+  bare press: Change Input Source, Show Emoji & Symbols, or Start Dictation. Vox reads
+  `AppleFnUsageType` from the HIToolbox defaults when Fn is captured and while it is the
+  binding, and tells the user to set it to Do Nothing unless it already is. Vox does not
+  change it: that is the user's setting.
+- **Some external keyboards never send Fn.** On many third-party boards Fn is handled in the
+  keyboard's own firmware and the Mac never sees a key. The pane says so; if holding it does
+  nothing, choose another key.
+
+[S1](spikes/s1-hotkey.md) measured right Option only; Fn on the built-in keyboard is an open
+item there until it has been seen in the log.
+
 ## Recording feedback
 
 The user must never be uncertain whether Vox is listening.
 
 - Tray icon changes to a distinct recording state, plus a subtle animation of input level.
 - Optional short click on start and stop (default on; sound cues matter for a device where the
-  visible indicator may be on another monitor).
+  visible indicator may be on another monitor). The start cue plays once the press has lasted
+  `minHoldMs`, after the microphone is open and never ahead of it, so a tap that is discarded
+  makes no sound and the cue never delays the first syllable.
 - Optional small overlay near the caret showing a live level meter and elapsed time.
 - If recognition is still running when a subsequent key-down arrives, that key-down is ignored
   and the tray icon flashes a "busy" state rather than queuing a second dictation.

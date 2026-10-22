@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { commands, toDisplayError } from '../../lib/commands'
-import type { AudioDevice, HotkeyBinding, Settings } from '../../lib/contract'
+import type { AudioDevice, GlobeSetting, HotkeyBinding, Settings } from '../../lib/contract'
 import { copy } from '../../lib/copy'
 import { useVoxEvent } from '../../lib/events'
 import type { DeepPartial } from '../../lib/useSettings'
@@ -17,7 +17,10 @@ const KEY_NAMES: Record<string, string> = {
   MetaLeft: 'Left Command',
   ShiftRight: 'Right Shift',
   ShiftLeft: 'Left Shift',
+  Function: 'Fn (🌐)',
 }
+
+const FN_KEY = 'Function'
 
 export function describeKeys(keys: string[]): string {
   return keys.map((k) => KEY_NAMES[k] ?? k).join(' + ')
@@ -30,10 +33,28 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
   const [devices, setDevices] = useState<AudioDevice[] | null>(null)
   const [level, setLevel] = useState(0)
   const [levelSeen, setLevelSeen] = useState(false)
+  /** What macOS does with Fn on its own; asked only while Fn is the binding. */
+  const [globe, setGlobe] = useState<GlobeSetting | null>(null)
 
   useEffect(() => {
     commands.audio_devices().then(setDevices).catch(() => setDevices([]))
   }, [])
+
+  const usesFn = settings.hotkey.keys.includes(FN_KEY)
+  useEffect(() => {
+    if (!usesFn) {
+      setGlobe(null)
+      return
+    }
+    let cancelled = false
+    commands
+      .globe_key_setting()
+      .then((g) => !cancelled && setGlobe(g.setting))
+      .catch(() => !cancelled && setGlobe('unknown'))
+    return () => {
+      cancelled = true
+    }
+  }, [usesFn])
 
   useVoxEvent('vox://level', ({ rms }) => {
     setLevel(rms)
@@ -50,6 +71,7 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
     try {
       const b = await commands.hotkey_capture_start()
       setCaptured(b)
+      if (b.globe) setGlobe(b.globe)
       await patch({ hotkey: { keys: b.keys } })
     } catch (e) {
       setCaptureError(toDisplayError(e).userMessage)
@@ -59,17 +81,34 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
   }
 
   const altGr = captured?.altGr === true
+  const c = copy.settings.dictation
+  // Fn: say what macOS itself does with the key until that is Do Nothing, and that some
+  // keyboards never send it (docs/HOTKEYS.md, "Fn as the key").
+  const fnNotes = usesFn && (
+    <>
+      {globe && globe !== 'doNothing' && (
+        <div style={{ color: 'var(--fail)' }}>{c.globeWarning(c.globeDoes[globe])}</div>
+      )}
+      <div>{c.fnKeyboards}</div>
+    </>
+  )
 
   return (
     <>
-      <Section title={copy.settings.dictation.title}>
+      <Section title={c.title}>
         <Row
-          label={copy.settings.dictation.hotkey}
+          label={c.hotkey}
           hint={
-            capturing ? copy.settings.dictation.pressKeys
-            : altGr ? <span style={{ color: 'var(--fail)' }}>{copy.settings.dictation.altGrWarning}</span>
+            capturing ? c.pressKeys
+            : altGr ? <span style={{ color: 'var(--fail)' }}>{c.altGrWarning}</span>
             : captureError ? <span style={{ color: 'var(--fail)' }}>{captureError}</span>
-            : copy.settings.dictation.hotkeyHint
+            : (
+              <>
+                <div>{c.hotkeyHint}</div>
+                {settings.hotkey.mode === 'hold' && <div>{c.lockHint}</div>}
+                {fnNotes}
+              </>
+            )
           }
         >
           <span>{describeKeys(settings.hotkey.keys)}</span>

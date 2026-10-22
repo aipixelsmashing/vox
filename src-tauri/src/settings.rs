@@ -158,8 +158,6 @@ impl Default for Learning {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LongForm {
-    /// Pressed while the hotkey is held to lock a session.
-    pub lock_key: String,
     pub max_session_min: u32,
     pub default_destination: crate::longform::Destination,
     pub file_directory: Option<PathBuf>,
@@ -168,7 +166,6 @@ pub struct LongForm {
 impl Default for LongForm {
     fn default() -> Self {
         Self {
-            lock_key: "KeyL".into(),
             max_session_min: 30,
             default_destination: crate::longform::Destination::Clipboard,
             file_directory: None,
@@ -512,6 +509,16 @@ mod tests {
         assert_eq!(json["output"]["onFocusChange"], "clipboard");
         assert_eq!(json["longForm"]["defaultDestination"], "clipboard");
         assert_eq!(json["hotkey"]["mode"], "hold");
+    }
+
+    /// The lock used to be a key pressed while the hotkey was held (`longForm.lockKey`); it
+    /// is a gesture now, and a file that still names the key parses.
+    #[test]
+    fn a_file_with_the_old_lock_key_parses() {
+        let old = r#"{"version":2,"longForm":{"lockKey":"KeyL","maxSessionMin":20}}"#;
+        let s = Settings::parse(old).unwrap();
+        assert_eq!(s.long_form.max_session_min, 20);
+        assert!(!serde_json::to_string(&s).unwrap().contains("lockKey"));
     }
 
     #[test]

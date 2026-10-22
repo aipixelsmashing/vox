@@ -173,6 +173,7 @@ pub fn run() {
             commands::settings_get,
             commands::settings_set,
             commands::hotkey_capture_start,
+            commands::globe_key_setting,
             commands::permissions_status,
             commands::permissions_open_pane,
             commands::audio_devices,
