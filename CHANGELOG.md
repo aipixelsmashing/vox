@@ -89,6 +89,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   at rest, filled inside a ring while listening, inside an open arc while working, with a
   corner badge when something needs you, and with a small dot whenever the microphone is
   kept open between dictations.
+- Updated the TLS libraries used by the update check past three advisories
+  (RUSTSEC-2026-0346, RUSTSEC-2026-0347 and RUSTSEC-2026-0382) and replaced a yanked
+  helper crate. The first two did not affect Vox, which has no custom session store and does
+  not use Encrypted Client Hello; the third concerned certificate verification, which the
+  update check does rely on.
 - Closing the history panel — by clicking a row, Enter, Escape, the shortcut or the menu bar
   icon — returns you to the app you were in. Before, Vox stayed in front, so a setup or
   settings window left open behind other apps came forward in the panel's place.
