@@ -837,6 +837,14 @@ pub struct ToastMessage {
     pub message: String,
 }
 
+/// The history panel's cog. Settings left the tray menu (docs/UI-SPEC.md), so this is the
+/// route to it from the panel.
+#[tauri::command]
+pub fn settings_open(app: AppHandle) -> CmdResult<()> {
+    panel::show_settings(&app);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
     Ok(panel::toast_current().map(|message| ToastMessage { message }))

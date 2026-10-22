@@ -66,6 +66,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Changed
+- The menu bar icon: a left click opens the history panel straight away, and a right click
+  shows a short menu with Pause dictation, Check for updates and Quit. Settings moved to a
+  cog in the panel's header, which also shows "Listening…" and the elapsed seconds while
+  you dictate, instead of a row at the top of the list.
+- Transcripts are set in the system serif, New York on a Mac, at a slightly smaller size.
+  It is the face Apple designed to sit beside the interface font, it ships with the OS, and
+  Vox no longer bundles a typeface of its own.
 - Settings → Vocabulary shows one row per learned word, with every way it was misheard
   listed beneath it, and the delete button removes the word with all of them. The count and
   the export sit in the header above the list, with a filter field once there are more than

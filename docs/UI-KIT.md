@@ -50,14 +50,18 @@ Two faces, with a clear division of labour.
 native windows should use the same letterforms they do. Shipping a branded sans for menu labels
 would make Vox look like a visitor.
 
-**Transcripts — Literata**, bundled locally (no CDN — see [THREAT-MODEL.md](THREAT-MODEL.md)).
+**Transcripts — the system serif**, `ui-serif`, which is New York on Apple platforms.
 Transcripts are the user's own prose, not interface furniture, and giving them a serif marks
-that difference the instant you look at the panel. Literata is drawn for screen reading at
-small sizes, which is the whole job here.
+that difference the instant you look at the panel. New York is the face Apple drew to pair
+with San Francisco, so the two sit together the way they do in Books and Notes; both ship
+with the OS, so nothing is bundled and nothing is fetched (no CDN — see
+[THREAT-MODEL.md](THREAT-MODEL.md)). Elsewhere `ui-serif` falls back to Georgia. Literata was
+the earlier choice; it was bundled, and it was a third voice beside the two the OS already
+speaks.
 
 | Token | Size / line-height | Use |
 | --- | --- | --- |
-| `--t-transcript` | 15 / 1.55, Literata | Transcript text in the panel and long-form |
+| `--t-transcript` | 14 / 1.5, `ui-serif` | Transcript text in the panel and long-form. New York sets larger on the body than Literata did, so 14px reads as 15px did |
 | `--t-body` | 13 / 1.45, system-ui | Labels, settings, buttons |
 | `--t-meta` | 11 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance |
 | `--t-title` | 15 / 1.3, system-ui, 600 | Window and pane titles |

@@ -218,31 +218,42 @@ export function HistoryPanel() {
       aria-label="History"
       style={{ display: 'flex', flexDirection: 'column', maxHeight: 520 }}
     >
-      <input
-        ref={searchRef}
-        type="search"
-        aria-label={copy.history.searchPlaceholder}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={copy.history.searchPlaceholder}
-        disabled={enabled === false}
+      {/* Header: search, the live dictation state while there is one, and the way to Settings.
+          The tray menu no longer lists Settings (docs/UI-SPEC.md), so this cog is the route. */}
+      <div
         style={{
-          border: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--s-2)',
           borderBottom: '1px solid var(--rule)',
           background: 'var(--field)',
-          padding: 'var(--s-3)',
-          font: 'inherit',
-          color: 'inherit',
+          paddingRight: 'var(--s-2)',
           borderRadius: 'var(--radius-panel) var(--radius-panel) 0 0',
         }}
-      />
-
-      <div ref={listRef} role="listbox" aria-label="Transcripts" style={{ overflowY: 'auto', flex: 1 }}>
+      >
+        <input
+          ref={searchRef}
+          type="search"
+          aria-label={copy.history.searchPlaceholder}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={copy.history.searchPlaceholder}
+          disabled={enabled === false}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: 'none',
+            background: 'transparent',
+            padding: 'var(--s-3)',
+            font: 'inherit',
+            color: 'inherit',
+          }}
+        />
         {liveLabel && (
-          <div
-            className="row"
+          <span
             role="status"
-            style={{ padding: 'var(--s-3)', display: 'flex', alignItems: 'center', gap: 'var(--s-2)' }}
+            className="meta"
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-2)', whiteSpace: 'nowrap' }}
           >
             <span
               aria-hidden
@@ -253,15 +264,31 @@ export function HistoryPanel() {
                 background: live.state === 'recording' ? 'var(--signal)' : 'var(--ink-dim)',
               }}
             />
-            <span className="meta">
-              {liveLabel}
-              {live.state === 'recording' && (
-                <span className="numeric"> · {Math.round(live.elapsedMs / 1000)} s</span>
-              )}
-            </span>
-          </div>
+            {liveLabel}
+            {live.state === 'recording' && (
+              <span className="numeric">{Math.round(live.elapsedMs / 1000)} s</span>
+            )}
+          </span>
         )}
+        <button
+          style={{ ...buttonStyle, display: 'flex', padding: 'var(--s-1)', color: 'var(--ink-dim)' }}
+          aria-label={copy.history.settings}
+          title={copy.history.settings}
+          onClick={() => void commands.settings_open()}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <circle cx="8" cy="8" r="2.25" stroke="currentColor" strokeWidth="1.5" />
+            <path
+              d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
 
+      <div ref={listRef} role="listbox" aria-label="Transcripts" style={{ overflowY: 'auto', flex: 1 }}>
         {enabled === false && (
           <p className="meta" style={{ padding: 'var(--s-4)' }}>
             {copy.history.disabled}

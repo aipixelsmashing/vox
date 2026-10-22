@@ -19,7 +19,7 @@ can't do a scrolling list with search and per-row actions across all three platf
 
 ```
 ┌──────────────────────────────────────────┐
-│  Search transcripts…                  ⚙  │
+│  Search transcripts…   ● Listening… 4 s ⚙│
 ├──────────────────────────────────────────┤
 │  2 min ago · Slack · 34 words            │
 │  Can you take a look at the deploy…      │
@@ -39,6 +39,11 @@ can't do a scrolling list with search and per-row actions across all three platf
 
 Behaviour:
 
+- **The header** holds the search field, the state of a dictation in progress while there is
+  one (an amber dot and "Listening…" with the elapsed seconds, then "Transcribing…", then
+  "Placing the text…", in the deck's words), and the cog that opens Settings. Settings is
+  not in the tray menu, so the cog is the route to it. The live state sits in the header
+  rather than as a row so the list never shifts under the pointer when a dictation starts.
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
 - **Closing** — however the panel closes, focus goes back to the app it was opened over.

@@ -5,7 +5,6 @@
 
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import '@fontsource/literata/400.css'
 import './styles/tokens.css'
 import { currentWindow } from './mock/scenarios'
 import { HistoryPanel } from './windows/HistoryPanel'

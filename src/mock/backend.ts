@@ -252,6 +252,12 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async mic_test_stop() { micTest = false },
   async onboarding_open() { /* already looking at it in a browser tab */ },
+  async settings_open() {
+    // A browser tab has one window: switch it, the way the dev overlay does.
+    const q = new URLSearchParams(location.search)
+    q.set('window', 'settings')
+    location.search = q.toString()
+  },
   async toast_current() { return lastToast ? { message: lastToast } : null },
   async toast_fit() { /* a browser tab sizes itself */ },
 

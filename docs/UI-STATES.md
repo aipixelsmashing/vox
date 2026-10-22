@@ -76,7 +76,7 @@ These can appear over any screen and are the ones most often forgotten:
 | Engine crashed | One error, not one per attempt; engine restarts silently | `engine-crashed` |
 | Offline lock on | Update and download controls disabled with an inline reason | `offline-locked` |
 | Contract version mismatch | Single full-window message: restart Vox | `contract-mismatch` |
-| Dictation in progress | History panel shows a live row at the top | `recording` |
+| Dictation in progress | History panel shows the live state in its header, beside the search field | `recording` |
 | Text could not be placed | Toast at the bottom of the screen with the deck's reason, plus the system notification on signed builds | `recording-fails` |
 
 ## Copy deck
@@ -115,7 +115,7 @@ Empty states are invitations, not apologies:
 | Screen | String |
 | --- | --- |
 | History | "Nothing dictated yet. Hold right Option and speak." |
-| History, while a dictation is in progress (live row) | "Opening the microphone…" · "Listening…" · "Transcribing…" · "Placing the text…" |
+| History, while a dictation is in progress (header) | "Opening the microphone…" · "Listening…" · "Transcribing…" · "Placing the text…" |
 | History, any list still loading | "Loading…" |
 | Vocabulary, learning on | "No words learned yet. Vox picks them up when you correct it." |
 | Vocabulary, learning off | "Learning is off. Vox won't watch your corrections. Turn it on to teach it your words." |

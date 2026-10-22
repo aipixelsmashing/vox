@@ -17,12 +17,15 @@
 
   /* Type --------------------------------------------------------------------
      Chrome uses the system face so Vox sits beside native windows without
-     announcing itself. Transcripts use a serif because they are the user's
-     prose, not interface furniture. Bundled locally — no CDN.               */
+     announcing itself. Transcripts use the system serif (New York on Apple
+     platforms, via ui-serif) because they are the user's prose, not
+     interface furniture. Both faces ship with the OS: nothing bundled, no CDN. */
   --font-ui:     system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-text:   "Literata", Georgia, serif;
+  --font-text:   ui-serif, Georgia, "Times New Roman", serif;
 
-  --t-transcript-size: 15px;  --t-transcript-lh: 1.55;
+  /* 14px, not 15: New York sets larger on the body than Literata did at the
+     same size, and 14/1.5 lands two lines in the 56px row with the metadata. */
+  --t-transcript-size: 14px;  --t-transcript-lh: 1.5;
   --t-body-size:       13px;  --t-body-lh:       1.45;
   --t-meta-size:       11px;  --t-meta-lh:       1.3;
   --t-title-size:      15px;  --t-title-lh:      1.3;

@@ -25,6 +25,7 @@ export const copy = {
     more: 'More',
     less: 'Less',
     copied: 'Copied',
+    settings: 'Settings',
     live: {
       arming: 'Opening the microphone…',
       recording: 'Listening…',

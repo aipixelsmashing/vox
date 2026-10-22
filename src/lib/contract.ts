@@ -226,6 +226,8 @@ export interface Commands {
   mic_test_stop(): Promise<void>
   /** Shows the onboarding window at its saved step ("Run setup again" in Settings). */
   onboarding_open(): Promise<void>
+  /** Shows the Settings window; the history panel's cog. The tray menu no longer lists it. */
+  settings_open(): Promise<void>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
   /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
@@ -269,6 +271,7 @@ export const COMMAND_NAMES = [
   'mic_test_start',
   'mic_test_stop',
   'onboarding_open',
+  'settings_open',
   'toast_current',
   'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]

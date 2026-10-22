@@ -125,8 +125,9 @@ Cannot be automated: the assertion is that a human hears it.
 Cannot be automated: a real tray, a real focus change, a real clipboard.
 
 1. Left-click the tray icon: the panel opens under it, focused, search box ready. Click
-   elsewhere: it hides. Left-click again: it toggles. Right-click: the menu, with "Show
-   history" doing the same.
+   elsewhere: it hides. Left-click again: it toggles. Right-click: the menu, with only
+   Pause dictation, Check for updates… (disabled until M5) and Quit Vox. The cog in the
+   panel header opens Settings.
 2. `history.panelHotkey` (default ⌘⇧Space): toggles the panel from any app, and the app
    underneath does nothing with the chord.
 3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,
