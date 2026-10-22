@@ -133,6 +133,11 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
 3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,
    Space expands a long row, Escape closes, typing filters — all without the mouse, and all
    after having clicked a button first (WebKit leaves focus on the body after a click).
+3a. The panel shows the desktop through it, blurred, and the selected row and the search
+   field's focus ring take the accent colour from System Settings → Appearance (change it:
+   the panel follows). Turn on Reduce Transparency in System Settings → Accessibility →
+   Display: the panel goes opaque without a relaunch. Copy, Insert and × show on the
+   selected row only.
 4. Dictate while the panel is open: a live row appears at the top and the new transcript
    arrives in the list when the dictation ends.
 5. "Insert" on a row with a text field focused in the app underneath: the panel hides and

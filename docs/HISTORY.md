@@ -46,6 +46,10 @@ Behaviour:
   rather than as a row so the list never shifts under the pointer when a dictation starts.
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
+- **The selected row** is the one under the pointer or the arrow keys, drawn in the system
+  accent colour as in any Mac list. Copy, Insert and × appear on the selected row only, so the
+  resting list is metadata and transcript and nothing else; the keyboard reaches all three
+  without them (Enter, ⌘Enter, Delete).
 - **Closing** — however the panel closes, focus goes back to the app it was opened over.
   Vox does not stay frontmost, so none of its other windows comes forward in its place.
 - **Copy** — clipboard, marked private so it stays out of clipboard history and cloud sync.

@@ -58,6 +58,14 @@ Specified in [HISTORY.md](HISTORY.md). Its header carries the search field, the 
 a dictation in progress ("Listening…" with the elapsed seconds, then "Transcribing…" and
 "Placing the text…"), and the Settings cog.
 
+It is a popover in the macOS sense: a transparent window under the menu bar icon, carrying
+`NSVisualEffectView`'s popover material (through Tauri's window effects) and the system's own
+shadow, 12px corners, dismissed by clicking anywhere else. The page paints no background of
+its own, so Reduce Transparency is answered by the material rather than by Vox. The HIG
+prefers a menu for a menu bar extra; this panel is the documented exception (a searchable
+scrolling list with per-row actions, [HISTORY.md](HISTORY.md#the-panel)), and the right-click
+menu stays a menu.
+
 ## Settings
 
 Specified in [SETTINGS.md](SETTINGS.md). Six panes: Dictation, Model, Text, Vocabulary, Privacy, Diagnostics.

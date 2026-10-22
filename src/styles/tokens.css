@@ -14,6 +14,12 @@
   --field:      #00000008;
   --signal:     #E0A106;
   --fail:       #C1382E;
+  /* Selection and keyboard focus take the accent colour the person chose in
+     System Settings, like every list on the Mac. Never amber: amber means
+     listening and nothing else. The hex is the fallback where the keyword is
+     unknown; WebKit and Chromium both resolve it to the live system accent.  */
+  --accent:      #007AFF;
+  --accent-text: #FFFFFF;
 
   /* Type --------------------------------------------------------------------
      Chrome uses the system face so Vox sits beside native windows without
@@ -34,7 +40,7 @@
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px;  --s-4: 16px;  --s-6: 24px;  --s-8: 32px;
 
   /* Shape — radius signals "separate surface", so rows get none.            */
-  --radius-panel: 6px;
+  --radius-panel: 12px;   /* a menu bar panel on macOS 26 is rounder than a card */
   --radius-input: 6px;
   --radius-row:   0;
 
@@ -43,6 +49,10 @@
 
   /* Motion — two moments only, both defined in UI-KIT.md.                   */
   --motion-panel: 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@supports (color: AccentColor) {
+  :root { --accent: AccentColor; --accent-text: AccentColorText; }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -96,6 +106,41 @@ body {
   box-shadow: 0 8px 32px #00000026;
 }
 
+/* The history panel is a real popover under the menu bar. In the app the
+   window carries NSVisualEffectView's popover material (src-tauri/src/panel.rs)
+   and its own system shadow, so the page paints no background of its own;
+   the material answers Reduce Transparency by itself. In the mock,
+   ?material=css approximates it the way the HIG's cross-platform guide
+   suggests, over a stand-in desktop, so the look can be reviewed in a browser. */
+html[data-material="native"] .panel { background: transparent; box-shadow: none; }
+html[data-material="css"] body {
+  min-height: 100vh;
+  background:
+    radial-gradient(60% 50% at 20% 30%, #7a9fd4 0%, transparent 70%),
+    radial-gradient(50% 60% at 80% 70%, #d49a7a 0%, transparent 70%),
+    linear-gradient(160deg, #3a4a63, #1d2433);
+}
+html[data-material="css"] .panel {
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 0 0 0.5px #0000003a, 0 12px 40px #0000004d;
+  margin: var(--s-6);
+}
+
+/* History rows are a source list, not a table: inset, rounded, no hairlines,
+   the selection in the system accent with its own text colour. Row actions
+   show on the selected row only (docs/HISTORY.md).                          */
+.hrow { margin: 0 var(--s-2); padding: var(--s-2); border-radius: var(--radius-input); }
+.hrow:first-of-type { margin-top: var(--s-1); }
+.hrow[aria-selected="true"] { background: var(--accent); color: var(--accent-text); }
+.hrow[aria-selected="true"] .meta,
+.hrow[aria-selected="true"] .fail { color: var(--accent-text); opacity: 0.85; }
+.hrow .actions { visibility: hidden; }
+.hrow[aria-selected="true"] .actions { visibility: visible; }
+.fail { color: var(--fail); }
+
 /* Keyboard focus is always visible. Non-negotiable — the history panel is
-   fully operable without a mouse, and that is a requirement, not polish.     */
-:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+   fully operable without a mouse, and that is a requirement, not polish.
+   The ring is the system accent, as it is in every Mac text field.          */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

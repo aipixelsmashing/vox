@@ -17,10 +17,12 @@ a desktop" and they cost legibility at the sizes we actually use.
 
 ## Colour
 
-Six values, plus one failure colour used nowhere else.
+Six values, one failure colour used nowhere else, and the person's own accent colour for
+selection and focus.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
+| `--accent` | `AccentColor` | `AccentColor` | **Selection and keyboard focus**, with `--accent-text` on top. The colour chosen in System Settings → Appearance, as in every list on the Mac; `#007AFF` where the keyword is unknown |
 | `--ink` | `#16171A` | `#E9E9EC` | Primary text |
 | `--ink-dim` | `#5C5F66` | `#9A9CA3` | Secondary text, provenance, timestamps |
 | `--panel` | `#FFFFFF` | `#1C1D20` | Panel and window backgrounds |
@@ -41,6 +43,13 @@ Adding a colour for "it worked" would mean drawing attention to the 99% case.
 
 State is never carried by colour alone — the tray icon silhouette differs per state, and every
 failed row carries words as well as a colour.
+
+**Selection is the system accent, never amber.** The focus ring used to be amber, which broke
+the first rule above: amber was then listening *and* focus. Focus rings and the selected row
+take `--accent`, the colour the person chose for exactly this purpose, and the selected row's
+text takes `--accent-text` (white on every accent except graphite). That is what
+[focus-and-selection.md](https://developer.apple.com/design/human-interface-guidelines/focus-and-selection)
+asks for: a highlight in a list, a ring in a text field, both in the app's accent.
 
 ## Typography
 
@@ -74,12 +83,16 @@ including buttons.
 
 - **4px base grid.** A tray utility is dense; an 8px grid wastes the panel's limited height.
 - **Panel width 380px.** Fits beside a tray icon on a laptop without covering the work behind it.
-- **Row height 56px** in the history panel: two lines of transcript plus metadata, and a
-  comfortable pointer target.
-- **Hairlines, not cards.** Rows are separated by 1px rules. Nothing floats, nothing has a
-  shadow except the panel itself, which has one because it is a real window over other windows.
-- **Radius 6px** on the panel and on inputs; **0** on rows. Radius signals "this is a separate
-  surface", so applying it to everything destroys the signal.
+- **History rows are a source list, not a table.** Inset 8px from the panel edge, 8px of
+  padding, no rules between them; the selected row is a rounded accent-coloured highlight, the
+  way Finder's sidebar and Spotlight's results select. Metadata, two lines of transcript, and
+  the row's actions only on the selected row, so the resting list is text and nothing else.
+- **Hairlines, not cards.** Where a rule is needed (the header, the footer) it is 1px. Nothing
+  floats, nothing has a shadow except the panel itself, which is a real window over other
+  windows and takes the system's own shadow and the popover material.
+- **Radius 12px** on the panel, as a menu bar panel on macOS 26; **6px** on inputs and on the
+  selected row; **0** on everything else. Radius signals "this is a separate surface", so
+  applying it to everything destroys the signal.
 - Left-aligned throughout. Numbers right-aligned in diagnostics tables.
 
 ## Motion

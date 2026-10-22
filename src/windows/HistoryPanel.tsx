@@ -231,6 +231,17 @@ export function HistoryPanel() {
           borderRadius: 'var(--radius-panel) var(--radius-panel) 0 0',
         }}
       >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          aria-hidden
+          style={{ marginLeft: 'var(--s-3)', color: 'var(--ink-dim)', flexShrink: 0 }}
+        >
+          <circle cx="7" cy="7" r="4.75" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
         <input
           ref={searchRef}
           type="search"
@@ -244,7 +255,7 @@ export function HistoryPanel() {
             minWidth: 0,
             border: 'none',
             background: 'transparent',
-            padding: 'var(--s-3)',
+            padding: 'var(--s-3) var(--s-2)',
             font: 'inherit',
             color: 'inherit',
           }}
@@ -255,15 +266,32 @@ export function HistoryPanel() {
             className="meta"
             style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-2)', whiteSpace: 'nowrap' }}
           >
-            <span
+            {/* mic / mic.fill at SF regular weight: filled and amber only while listening */}
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
               aria-hidden
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                background: live.state === 'recording' ? 'var(--signal)' : 'var(--ink-dim)',
-              }}
-            />
+              style={{ color: live.state === 'recording' ? 'var(--signal)' : 'var(--ink-dim)' }}
+            >
+              <rect
+                x="6"
+                y="1.5"
+                width="4"
+                height="8"
+                rx="2"
+                fill={live.state === 'recording' ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="1.4"
+              />
+              <path
+                d="M3.75 7.25v.5a4.25 4.25 0 0 0 8.5 0v-.5M8 12v2.25M5.5 14.25h5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </svg>
             {liveLabel}
             {live.state === 'recording' && (
               <span className="numeric">{Math.round(live.elapsedMs / 1000)} s</span>
@@ -271,24 +299,25 @@ export function HistoryPanel() {
           </span>
         )}
         <button
-          style={{ ...buttonStyle, display: 'flex', padding: 'var(--s-1)', color: 'var(--ink-dim)' }}
+          style={{ ...buttonStyle, display: 'flex', padding: 6, color: 'var(--ink-dim)' }}
           aria-label={copy.history.settings}
           title={copy.history.settings}
           onClick={() => void commands.settings_open()}
         >
+          {/* gearshape at SF regular weight, not a sun: the same glyph Settings uses everywhere */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <circle cx="8" cy="8" r="2.25" stroke="currentColor" strokeWidth="1.5" />
-            <path
-              d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
+            <path d="M13.54 7.21 L15.08 7.44 L15.08 8.56 L13.54 8.79 L12.48 11.36 L13.40 12.61 L12.61 13.40 L11.36 12.48 L8.79 13.54 L8.56 15.08 L7.44 15.08 L7.21 13.54 L4.64 12.48 L3.39 13.40 L2.60 12.61 L3.52 11.36 L2.46 8.79 L0.92 8.56 L0.92 7.44 L2.46 7.21 L3.52 4.64 L2.60 3.39 L3.39 2.60 L4.64 3.52 L7.21 2.46 L7.44 0.92 L8.56 0.92 L8.79 2.46 L11.36 3.52 L12.61 2.60 L13.40 3.39 L12.48 4.64 Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.4" />
           </svg>
         </button>
       </div>
 
-      <div ref={listRef} role="listbox" aria-label="Transcripts" style={{ overflowY: 'auto', flex: 1 }}>
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-label="Transcripts"
+        style={{ overflowY: 'auto', flex: 1, paddingBottom: 'var(--s-1)' }}
+      >
         {enabled === false && (
           <p className="meta" style={{ padding: 'var(--s-4)' }}>
             {copy.history.disabled}
@@ -332,25 +361,17 @@ export function HistoryPanel() {
                 data-index={i}
                 role="option"
                 aria-selected={isSelected}
-                className="row"
+                className="hrow"
                 onMouseEnter={() => setSelected(i)}
                 onClick={() => void copyRow(e, true)}
-                style={{
-                  padding: 'var(--s-3)',
-                  cursor: 'pointer',
-                  background: isSelected ? 'var(--field)' : 'transparent',
-                }}
+                style={{ cursor: 'pointer' }}
               >
                 <div className="meta" style={{ display: 'flex', gap: 'var(--s-1)', flexWrap: 'wrap' }}>
                   <span>{relative(e.createdAt)}</span>
                   {e.targetApp && <span>· {e.targetApp}</span>}
                   <span>· {copy.history.words(e.wordCount)}</span>
                   {e.contextTerms > 0 && <span>· {copy.history.hints(e.contextTerms)}</span>}
-                  {failed && (
-                    <span style={{ color: 'var(--fail)' }}>
-                      · {copy.history.notInserted(e.outcomeNote ?? '')}
-                    </span>
-                  )}
+                  {failed && <span className="fail">· {copy.history.notInserted(e.outcomeNote ?? '')}</span>}
                 </div>
                 <div
                   className="transcript"
@@ -369,7 +390,7 @@ export function HistoryPanel() {
                   {e.text}
                 </div>
                 <div
-                  className="meta"
+                  className="meta actions"
                   style={{
                     display: 'flex',
                     justifyContent: 'flex-end',
@@ -380,10 +401,7 @@ export function HistoryPanel() {
                   onClick={(ev) => ev.stopPropagation()}
                 >
                   {note?.id === e.id && (
-                    <span
-                      role="status"
-                      style={{ marginRight: 'auto', color: note.failed ? 'var(--fail)' : 'var(--ink-dim)' }}
-                    >
+                    <span role="status" className={note.failed ? 'fail' : undefined} style={{ marginRight: 'auto' }}>
                       {note.text}
                     </span>
                   )}

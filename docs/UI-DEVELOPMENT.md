@@ -85,6 +85,14 @@ most likely to be under-designed because it is hard to trigger by hand.
   code than the thing they build, and every dependency is one more thing shipped to a webview
   in a privacy tool.
 
+## The panel's material
+
+In the app the history window sits on the native popover material and paints no background.
+A browser has no such material, so the mock shows the panel opaque by default; add
+`&material=css` to the URL for a CSS approximation (backdrop blur over a stand-in desktop),
+which is close enough to review spacing, selection and type against the real thing. Chromium
+shows the Georgia fallback for transcripts; Safari shows New York, as the app does.
+
 ## Screenshot review
 
 `pnpm ui:shots` renders every window × scenario to `.ui-shots/` at both themes and both

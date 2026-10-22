@@ -70,6 +70,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   shows a short menu with Pause dictation, Check for updates and Quit. Settings moved to a
   cog in the panel's header, which also shows "Listening…" and the elapsed seconds while
   you dictate, instead of a row at the top of the list.
+- The history panel looks like a Mac panel: the desktop shows through it, blurred, as in
+  Control Center; the selected transcript and the search field's focus ring take the accent
+  colour you chose in System Settings instead of amber; rows are inset and rounded with no
+  lines between them; Copy, Insert and × appear on the row you are on rather than on every
+  row; the icons match the weight of the system's own.
 - Transcripts are set in the system serif, New York on a Mac, at a slightly smaller size.
   It is the face Apple designed to sit beside the interface font, it ships with the OS, and
   Vox no longer bundles a typeface of its own.
