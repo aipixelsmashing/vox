@@ -37,30 +37,31 @@ state in place of Idle: after every dictation and on unpause.
 All five are monochrome template images, drawn by macOS in the menu bar's own colour; the
 live, amber level ring is the overlay's ([UI-KIT.md](UI-KIT.md#icon-states) says why).
 
-**Any click on the icon opens the history panel**, left or right; there is no native menu.
-The panel is what the icon is for, and the cog in its header is the menu:
+**Any click on the icon opens the history panel**, left or right; the icon has no menu of
+its own. The panel's header carries two controls at its trailing end:
+
+- **A pause toggle**, a mic that becomes `mic.slash` with "Paused" beside it while the hotkey
+  is ignored. One click and unmistakable — for meetings, screen shares, and the moment you
+  realise you don't want a key you're about to press to start recording. Runtime state, not a
+  setting; a relaunch resumes. The tray badges while paused.
+- **The cog**, which pops a real native menu (an `NSMenu` through Tauri's menu API, so it has
+  the system's own metrics, highlight and keyboard handling):
 
 ```
-Settings…
-✓ Pause dictation
-─────────────────────────
+Settings…                ⌘,
 Check for updates…
 ─────────────────────────
-Quit Vox
+Quit Vox                 ⌘Q
 ```
 
-`Pause dictation` is one click and unmistakable — for meetings, screen shares, and the moment
-you realise you don't want a key you're about to press to start recording; it is runtime
-state, not a setting, and a relaunch resumes. `Check for updates…` is disabled until the
-updater is configured (M5); it never silently does nothing. The menu is drawn in the page
-(a tray icon without a menu has none to lend), with the accent highlight, arrow keys, Enter
-and Escape of a Mac menu.
+`Check for updates…` is disabled until the updater is configured (M5); it never silently does
+nothing.
 
 ## History panel
 
 Specified in [HISTORY.md](HISTORY.md). Its header carries the search field, the live state of
 a dictation in progress ("Listening…" with the elapsed seconds, then "Transcribing…" and
-"Placing the text…"), and the cog that holds the menu above.
+"Placing the text…"), the pause toggle and the cog described above.
 
 It is a popover in the macOS sense: a transparent window under the menu bar icon, carrying
 `NSVisualEffectView`'s popover material (through Tauri's window effects) and the system's own

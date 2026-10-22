@@ -72,9 +72,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - The app declares macOS 26 as its minimum, so on an older Mac the system says so when you
   open it, instead of Vox installing and then reporting that transcription is unavailable.
 - The menu bar icon opens the history panel on any click; it no longer has a menu of its
-  own. The cog in the panel's header is the menu: Settings…, Pause dictation, Check for
-  updates and Quit Vox. The header also shows "Listening…" and the elapsed seconds while you
-  dictate, instead of a row at the top of the list.
+  own. The panel's header has a pause button (a mic that gains a slash while paused) and a
+  cog that opens the app's menu: Settings…, Check for updates and Quit Vox. The header also
+  shows "Listening…" and the elapsed seconds while you dictate, instead of a row at the top
+  of the list.
 - The history panel looks like a Mac panel: the desktop shows through it, blurred, as in
   Control Center; the selected transcript and the search field's focus ring take the accent
   colour you chose in System Settings instead of amber; rows are inset and rounded with no
@@ -101,6 +102,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   counts.
 
 ### Fixed
+- The selected transcript in the history panel is white on the accent colour in light mode
+  too, with its metadata slightly dimmed; it was the ordinary text colour on blue.
 - Clicking the menu bar icon reliably opens the panel. (The panel's show, hide and
   focus-loss are now recorded in the log so a click that goes nowhere can be told from one
   that opened and immediately closed.)

@@ -68,13 +68,13 @@ panel the one menu bar panel on the Mac set in a serif.
 | --- | --- | --- |
 | `--t-transcript` | 13 / 1.45, `--ink` | Transcript text in the panel and long-form. Scales with `--text-scale` (below) |
 | `--t-body` | 13 / 1.45, system-ui | Labels, settings, buttons |
-| `--t-meta` | 11 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance |
+| `--t-meta` | 12 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance. Scales with `--text-scale` |
 | `--t-title` | 15 / 1.3, system-ui, 600 | Window and pane titles |
 | `--t-numeric` | 12 / 1.3, `tabular-nums` | Timers, byte counts, diagnostics |
 
 **Text size is the person's.** `ui.textSize` (Settings → Dictation → History panel, or ⌘+ and
 ⌘− while the panel is open) steps transcripts and metadata together through `--text-scale`:
-small 12/10, medium 13/11, large 15/12.5. The Mac's own Larger Text setting (Accessibility →
+small 12/11, medium 13/12, large 15/14. The Mac's own Larger Text setting (Accessibility →
 Display) multiplies on top, read from the preferred body font at open; chrome stays at 13 so
 the panel's controls keep their native size. macOS has no Dynamic Type, so this is the
 nearest honest equivalent.
@@ -86,10 +86,12 @@ including buttons.
 
 - **4px base grid.** A tray utility is dense; an 8px grid wastes the panel's limited height.
 - **Panel width 380px.** Fits beside a tray icon on a laptop without covering the work behind it.
-- **History rows are a source list, not a table.** Inset 8px from the panel edge, 8px of
-  padding, no rules between them; the selected row is a rounded accent-coloured highlight, the
-  way Finder's sidebar and Spotlight's results select. Metadata, two lines of transcript, and
-  the row's actions only on the selected row, so the resting list is text and nothing else.
+- **History rows take a menu item's metrics.** Text 14px from the panel edge, the highlight
+  inset 5px with a 4px radius, 3px above and below the text, no rules between rows: the
+  numbers of an `NSMenu` item, which is the Mac's reference for a list you pick from. The
+  selected row is the accent with the system's selected-text colour on it (`--accent-text`,
+  never `--ink`), metadata at 80% opacity on top. Metadata, two lines of transcript, and the
+  row's actions only on the selected row, so the resting list is text and nothing else.
 - **Hairlines, not cards.** Where a rule is needed (the header, the footer) it is 1px. Nothing
   floats, nothing has a shadow except the panel itself, which is a real window over other
   windows and takes the system's own shadow and the popover material.

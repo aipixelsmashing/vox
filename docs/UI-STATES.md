@@ -10,7 +10,7 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 
 | Screen | Window | Reached by |
 | --- | --- | --- |
-| Panel menu | The cog in the history panel's header, drawn in the page | The cog, or ⌘, for Settings |
+| Panel menu | Native, popped from the cog in the history panel's header | The cog, or ⌘, for Settings |
 | History panel | Frameless, always-on-top, 380px | Tray, or `Cmd/Ctrl+Shift+Space` |
 | Long-form panel | Frameless, resizable | Locking the hotkey |
 | Recording overlay | Click-through, near the caret | Automatic while recording |

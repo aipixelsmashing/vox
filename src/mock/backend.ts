@@ -256,6 +256,7 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   async pause_get() { return { paused: mockPaused } },
   async pause_set({ paused }: { paused: boolean }) { mockPaused = paused; return { paused } },
   async app_quit() { /* a browser tab has nothing to quit */ },
+  async panel_menu() { console.info('[mock] native menu: Settings… · Check for updates… · Quit Vox') },
   /** ?textScale=1.3 stands in for the Mac's Larger Text setting. */
   async ui_text_scale() {
     const v = Number(new URLSearchParams(location.search).get('textScale') ?? '1')

@@ -41,16 +41,18 @@ Behaviour:
 
 - **The header** holds the search field, the state of a dictation in progress while there is
   one (an amber dot and "Listening…" with the elapsed seconds, then "Transcribing…", then
-  "Placing the text…", in the deck's words), and the cog, which is the app's menu:
-  Settings…, Pause dictation, Check for updates…, Quit Vox ([UI-SPEC.md](UI-SPEC.md#tray-icon)).
-  The tray icon has no menu of its own. The live state sits in the header rather than as a
-  row so the list never shifts under the pointer when a dictation starts.
+  "Placing the text…", in the deck's words), the pause toggle (a mic, slashed while paused),
+  and the cog, which pops the app's native menu: Settings…, Check for updates…, Quit Vox
+  ([UI-SPEC.md](UI-SPEC.md#tray-icon)). The tray icon has no menu of its own. The live state
+  sits in the header rather than as a row so the list never shifts under the pointer when a
+  dictation starts.
 - **Click a row** — copies to the clipboard and closes the panel. This is the primary action
   and needs no button; the buttons exist for discoverability.
 - **The selected row** is the one under the pointer or the arrow keys, drawn in the system
-  accent colour as in any Mac list. Copy, Insert and × appear on the selected row only, so the
-  resting list is metadata and transcript and nothing else; the keyboard reaches all three
-  without them (Enter, ⌘Enter, Delete).
+  accent colour with the system's selected-text colour on it, as in any Mac list; rows take
+  a menu item's metrics (text 14px from the edge, highlight inset 5px). Copy, Insert and ×
+  appear on the selected row only, so the resting list is metadata and transcript and nothing
+  else; the keyboard reaches all three without them (Enter, ⌘Enter, Delete).
 - **Closing** — however the panel closes, focus goes back to the app it was opened over.
   Vox does not stay frontmost, so none of its other windows comes forward in its place.
 - **Copy** — clipboard, marked private so it stays out of clipboard history and cloud sync.

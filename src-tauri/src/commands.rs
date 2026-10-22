@@ -873,6 +873,27 @@ pub fn app_quit(app: AppHandle) {
     app.exit(0);
 }
 
+/// The panel's cog: a real NSMenu popped under the button, at a point relative to the panel
+/// window's top-left in logical pixels. Settings… · Check for updates… (disabled until the
+/// updater is configured, M5) · Quit Vox. The items' events land in `lib.rs`'s menu handler.
+#[tauri::command]
+pub fn panel_menu(app: AppHandle, window: WebviewWindow, x: f64, y: f64) -> CmdResult<()> {
+    use tauri::menu::{ContextMenu, Menu, MenuItem, PredefinedMenuItem};
+    let settings = MenuItem::with_id(&app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))
+        .map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    let updates = MenuItem::with_id(&app, "updates", "Check for updates…", false, None::<&str>)
+        .map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    let quit = MenuItem::with_id(&app, "quit", "Quit Vox", true, Some("CmdOrCtrl+Q"))
+        .map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    let sep =
+        PredefinedMenuItem::separator(&app).map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    let menu = Menu::with_items(&app, &[&settings, &updates, &sep, &quit])
+        .map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    menu.popup_at(window.as_ref().window(), tauri::LogicalPosition::new(x, y))
+        .map_err(|e| VoxError::unsupported(&e.to_string()))?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextScaleDto {
