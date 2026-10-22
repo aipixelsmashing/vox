@@ -58,11 +58,33 @@ thread wake. Steady-state events sat between 0.6 and 5 ms.
 - The grant attaches to the responsible process. For a binary launched from a terminal that
   is the terminal app, which is why a `cargo run` build works once Terminal is granted.
 
+## Fn, run 2026-10-21
+
+Same machine and keyboard, `keytap` 0.4.0, with the harness extended to print at exit the
+raw events its reference tap saw that `keytap` never reported. Holding Fn:
+
+| Check | Result |
+| --- | --- |
+| OS delivery | `FlagsChanged`, keycode 63, flag `0x00800000` (`kCGEventFlagMaskSecondaryFn`) |
+| `keytap` event | None. The reference tap saw the key; `keytap` emitted nothing |
+
+Cause: `keytap`'s macOS `FlagsChanged` branch maps the key to its flag bit
+(`flag_bit_for_key` in `src/platform/macos/tap.rs`) to tell a press from a release, and the
+map has no arm for `Key::Function`. It returns 0, which the branch treats as an unknown
+modifier and drops. The keycode table does know 63 as `Function`, which is why the binding
+could be captured and saved while never firing.
+
+Fixed by one arm, `Key::Function => 0x0080_0000`, carried on a fork of `keytap` until upstream
+merges it (`[patch.crates-io]` in `src-tauri/Cargo.toml` and in this spike's manifest;
+[HOTKEYS.md](../HOTKEYS.md), "Fn as the key"). The harness has not yet been run against the
+patched crate; when it is, the table above should gain `Function` down / up counts and
+latencies.
+
 ## Open items
 
-- Fn (`Key::Function`, keycode 63) was not pressed in this run. Since 2026-09-29 it is a
-  binding option; the first hold of it on this machine should show as a dictation in the
-  log, and the harness table should list `Function` if it is run again.
+- Fn: seen 2026-10-21 (above), dropped by `keytap` 0.4.0, patched. Still owed: a harness run
+  against the patched crate with `Function` in the table, and a dictation in the log from a
+  held Fn.
 
 - Confirm which application was focused during the run and that the typed letters arrived
   there (i.e. the listen-only tap did not consume them). Expected yes; not yet stated.

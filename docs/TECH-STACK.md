@@ -52,6 +52,10 @@ key-down *and* key-up events, left/right modifier distinction, and modifier-only
   clean shutdown on drop, and a typed error when the OS denies permission rather than silently
   producing no events. Backends: CGEventTap (macOS), `WH_KEYBOARD_LL` (Windows), evdev (Linux,
   works under Wayland).
+- 0.4.0 drops Fn on macOS: it has no modifier bit for `Key::Function`, so the key's flag
+  changes are never reported. Vox builds against a patched fork through `[patch.crates-io]`
+  in `src-tauri/Cargo.toml` until upstream ships the fix ([HOTKEYS.md](HOTKEYS.md), "Fn as
+  the key").
 
 Note its deliberate limitation: it observes, it does not *consume*. Consequences are discussed
 in [HOTKEYS.md](HOTKEYS.md). Its Linux and Windows backends are less battle-tested than its

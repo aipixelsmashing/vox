@@ -126,3 +126,11 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# keytap 0.4.0 drops the Fn key: its macOS FlagsChanged branch has no modifier bit for
+# `Key::Function`, so holding Fn emits nothing and `"keys": ["Function"]` is silently dead
+# (docs/HOTKEYS.md "Fn as the key"; docs/spikes/s1-hotkey.md, 2026-10-21). The fork carries
+# the one-line fix plus tests, the same change as upstream jamiepine/keytap#3. Remove this
+# once a keytap release includes it. deny.toml allows this one git source.
+[patch.crates-io]
+keytap = { git = "https://github.com/aipixelsmashing/keytap", rev = "0bae304ab4854cd7e5922743cecf57992fbd9c0d" }

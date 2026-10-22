@@ -143,10 +143,16 @@ with an explanation rather than a silent refusal.
 
 ### Fn as the key
 
-Fn (the Globe key on Apple keyboards) is a first-class choice, not the default. `keytap` names
-it `Function` (keycode 63, a flag change like the other modifiers), so `"keys": ["Function"]`
-matches like any modifier. Two things are true of it that are not true of right Option, and
-the pane says both when Fn is chosen:
+Fn (the Globe key on Apple keyboards) is a first-class choice, not the default. macOS delivers
+it to the tap as a flag change like the other modifiers (keycode 63, flag bit `0x00800000`,
+`kCGEventFlagMaskSecondaryFn`), `keytap` names it `Function`, and `"keys": ["Function"]`
+matches like any modifier. `keytap` 0.4.0 dropped that flag change: its macOS FlagsChanged
+branch had no modifier bit for `Function`, so it emitted nothing and the binding was silently
+dead ([S1](spikes/s1-hotkey.md), 2026-10-21). Vox builds against a patched `keytap`
+(`[patch.crates-io]` in `src-tauri/Cargo.toml`: a one-line fix on a fork, the same change as
+[jamiepine/keytap#3](https://github.com/jamiepine/keytap/pull/3)) until upstream ships it.
+Two things are true of Fn that are not true of right Option, and the pane says both when Fn
+is chosen:
 
 - **macOS uses the key itself.** System Settings → Keyboard, "Press 🌐 key to", fires on a
   bare press: Change Input Source, Show Emoji & Symbols, or Start Dictation. Vox reads
@@ -157,8 +163,9 @@ the pane says both when Fn is chosen:
   keyboard's own firmware and the Mac never sees a key. The pane says so; if holding it does
   nothing, choose another key.
 
-[S1](spikes/s1-hotkey.md) measured right Option only; Fn on the built-in keyboard is an open
-item there until it has been seen in the log.
+[S1](spikes/s1-hotkey.md) measured right Option on 2026-09-15 and Fn on 2026-10-21. The OS
+delivers Fn from the built-in keyboard; a dictation completing with the patched build
+([TESTING.md](TESTING.md), hotkey gate item 10) is still owed.
 
 ## Recording feedback
 

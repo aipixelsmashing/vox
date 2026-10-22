@@ -144,8 +144,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 [[package]]
 name = "keytap"
 version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e84f1ed19a610883f09c7dfd6d70962f26812b09f801648e34bb1a4111d26ab6"
+source = "git+https://github.com/aipixelsmashing/keytap?rev=0bae304ab4854cd7e5922743cecf57992fbd9c0d#0bae304ab4854cd7e5922743cecf57992fbd9c0d"
 dependencies = [
  "crossbeam-channel",
  "evdev",
