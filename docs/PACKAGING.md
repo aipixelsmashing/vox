@@ -21,7 +21,10 @@ Not the Mac App Store — sandboxing is incompatible with system-wide accessibil
 Tauri handles signing and submission when the environment provides `APPLE_SIGNING_IDENTITY`,
 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, and either `APPLE_ID` +
 `APPLE_PASSWORD` + `APPLE_TEAM_ID` or the App Store Connect API key trio
-(`APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH`). A free Apple Developer account
+(`APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH`). `release.yml` uses the API key:
+the `.p8` contents live in the `APPLE_API_KEY_P8` secret, and a step on the macOS runner
+writes them to a file and sets `APPLE_API_KEY_PATH` to it, because notarytool reads the key
+from disk and a secret cannot be a path. A free Apple Developer account
 cannot notarise; users of an un-notarised build hit the "damaged app" dialog, so this is a
 launch blocker, not a nice-to-have. Entitlements are listed in
 [PERMISSIONS.md](PERMISSIONS.md); note that the accessibility grant is tied to the signature,

@@ -38,7 +38,7 @@
     "copyright": "Copyright 2026 The Vox Contributors",
     "licenseFile": "../LICENSE",
     "macOS": {
-      "minimumSystemVersion": "15.0",
+      "minimumSystemVersion": "26.0",
       "entitlements": "Entitlements.plist",
       "hardenedRuntime": true,
       "dmg": {

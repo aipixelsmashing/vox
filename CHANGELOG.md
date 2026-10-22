@@ -66,6 +66,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
   focused; × deletes it; Delete all… wipes the database. Fully keyboard-operable.
 
 ### Changed
+- The app declares macOS 26 as its minimum, so on an older Mac the system says so when you
+  open it, instead of Vox installing and then reporting that transcription is unavailable.
 - Settings → Vocabulary shows one row per learned word, with every way it was misheard
   listed beneath it, and the delete button removes the word with all of them. The count and
   the export sit in the header above the list, with a filter field once there are more than

@@ -38,6 +38,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # notarytool wants the App Store Connect key as a file. The secret holds the .p8
+      # contents; this writes it where the build step can read it and never echoes it.
+      - name: Write the App Store Connect API key
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          printf '%s' "$APPLE_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           # Updater manifest signing
@@ -49,7 +60,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ${{ secrets.APPLE_API_KEY_PATH }}
+          # APPLE_API_KEY_PATH comes from the step above (the .p8 written to the runner)
           CI: true
         with:
           tagName: ${{ github.ref_name }}
