@@ -66,6 +66,7 @@ Behaviour:
 - **Empty state**: "Nothing dictated yet. Hold right Option and speak."
 
 Keyboard: arrow keys move, Enter copies, Cmd/Ctrl+Enter inserts, Delete removes, Escape closes,
+⌘+ and ⌘− step the text size (persisted, `ui.textSize`), ⌘, opens Settings,
 typing filters. The panel is fully operable without a mouse.
 
 ## Storage

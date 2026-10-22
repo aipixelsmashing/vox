@@ -12,13 +12,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { commands, toDisplayError } from '../lib/commands'
-import type { HistoryEntry, InjectionOutcome, PipelineState, VoxError } from '../lib/contract'
+import type { HistoryEntry, InjectionOutcome, PipelineState, Settings, TextSize, VoxError } from '../lib/contract'
 import { copy } from '../lib/copy'
 import { useVoxEvent } from '../lib/events'
 
 const PAGE = 50
 /** Transcripts longer than this get a More/Less control; shorter ones fit in two lines. */
 const LONG_TEXT = 160
+/** The three text sizes as factors of the 13px medium: 12, 13 and 15 px (docs/UI-KIT.md). */
+const TEXT_STEPS: readonly TextSize[] = ['small', 'medium', 'large']
+const TEXT_FACTOR: Record<TextSize, number> = { small: 12 / 13, medium: 1, large: 15 / 13 }
 
 function relative(ts: number): string {
   const m = Math.round((Date.now() - ts) / 60_000)
@@ -49,6 +52,9 @@ export function HistoryPanel() {
   const [expanded, setExpanded] = useState<number | null>(null)
   const [confirmingWipe, setConfirmingWipe] = useState(false)
   const [live, setLive] = useState<PipelineState>({ state: 'idle' })
+  const [textSize, setTextSize] = useState<TextSize>('medium')
+  /** The Mac's Larger Text factor, applied on top of the person's choice in Vox. */
+  const [systemScale, setSystemScale] = useState(1)
   /** Per-row transient feedback: a copy confirmation or a failed re-insert's message. */
   const [note, setNote] = useState<{ id: number; text: string; failed: boolean } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -67,14 +73,49 @@ export function HistoryPanel() {
 
   useEffect(() => {
     let cancelled = false
+    const read = () =>
+      commands
+        .settings_get()
+        .then((s) => {
+          if (cancelled) return
+          setEnabled(s.history.enabled)
+          setTextSize(s.ui.textSize ?? 'medium')
+        })
+        .catch(() => !cancelled && setEnabled(true))
+    void read()
     commands
-      .settings_get()
-      .then((s) => !cancelled && setEnabled(s.history.enabled))
-      .catch(() => !cancelled && setEnabled(true))
+      .ui_text_scale()
+      .then((r) => !cancelled && setSystemScale(r.scale))
+      .catch(() => {})
+    // The window is hidden, not closed, between uses: re-read on each return so a change
+    // made in Settings (or in System Settings) shows up without a relaunch.
+    const onFocus = () => {
+      void read()
+      commands.ui_text_scale().then((r) => !cancelled && setSystemScale(r.scale)).catch(() => {})
+    }
+    window.addEventListener('focus', onFocus)
     return () => {
       cancelled = true
+      window.removeEventListener('focus', onFocus)
     }
   }, [])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--text-scale', String(TEXT_FACTOR[textSize] * systemScale))
+  }, [textSize, systemScale])
+
+  /** ⌘+ / ⌘−: one step, persisted; the core's merged answer is the truth. */
+  const stepTextSize = async (delta: 1 | -1) => {
+    const next = TEXT_STEPS[Math.min(TEXT_STEPS.length - 1, Math.max(0, TEXT_STEPS.indexOf(textSize) + delta))] ?? textSize
+    if (next === textSize) return
+    setTextSize(next)
+    try {
+      const merged = await commands.settings_set({ ui: { textSize: next } } as unknown as Partial<Settings>)
+      setTextSize(merged.ui.textSize ?? next)
+    } catch {
+      /* the size still changed for this session; the toast layer is not the panel's */
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -160,6 +201,24 @@ export function HistoryPanel() {
   const onKeyDown = (ev: KeyboardEvent) => {
     const n = entries?.length ?? 0
     const inSearch = document.activeElement === searchRef.current
+    if (ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+      // The Mac's own chords: ⌘, for Settings, ⌘+ / ⌘− for text size, as in every app.
+      if (ev.key === ',') {
+        ev.preventDefault()
+        void commands.settings_open()
+        return
+      }
+      if (ev.key === '=' || ev.key === '+') {
+        ev.preventDefault()
+        void stepTextSize(1)
+        return
+      }
+      if (ev.key === '-' || ev.key === '_') {
+        ev.preventDefault()
+        void stepTextSize(-1)
+        return
+      }
+    }
     if (!inSearch && ev.key.length === 1 && !ev.metaKey && !ev.ctrlKey && !ev.altKey && ev.key !== ' ') {
       searchRef.current?.focus()
       return

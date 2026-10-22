@@ -186,7 +186,7 @@ export const settings: Settings = {
   privacy: { readFocusedField: false },
   history: { enabled: true, maxItems: 200, maxDays: 30 },
   network: { updateCheck: 'startup', offlineLock: false },
-  ui: { theme: 'system', soundCues: true, levelOverlay: true },
+  ui: { theme: 'system', soundCues: true, levelOverlay: true, textSize: 'medium' },
   onboarding: { completedStep: 6, done: true },
 }
 

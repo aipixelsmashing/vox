@@ -194,6 +194,7 @@ pub fn run() {
             commands::mic_test_stop,
             commands::onboarding_open,
             commands::settings_open,
+            commands::ui_text_scale,
             commands::toast_current,
             commands::toast_fit,
         ])

@@ -86,7 +86,8 @@ drives migrations; each migration is a pure function with a test.
     "soundCues": true,
     "levelOverlay": true,
     "launchAtLogin": true,
-    "language": "system"
+    "language": "system",
+    "textSize": "medium"           // small | medium | large: 12, 13, 15 px in the history panel
   },
 
   "advanced": {

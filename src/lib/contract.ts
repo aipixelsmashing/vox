@@ -12,6 +12,9 @@ export const CONTRACT_VERSION = 1
 
 // ─── Core types ──────────────────────────────────────────────────────────────
 
+/** History panel text: 12, 13 or 15 px before the system's Larger Text factor. */
+export type TextSize = 'small' | 'medium' | 'large'
+
 export type PipelineState =
   | { state: 'idle' }
   | { state: 'arming' }
@@ -155,7 +158,7 @@ export interface Settings {
   privacy: { readFocusedField: boolean }
   history: { enabled: boolean; maxItems: number; maxDays: number }
   network: { updateCheck: 'startup' | 'manual' | 'off'; offlineLock: boolean }
-  ui: { theme: 'system' | 'light' | 'dark'; soundCues: boolean; levelOverlay: boolean }
+  ui: { theme: 'system' | 'light' | 'dark'; soundCues: boolean; levelOverlay: boolean; textSize: TextSize }
   /** Where onboarding got to, so quitting at step three does not start over. */
   onboarding: { completedStep: number; done: boolean }
 }
@@ -228,6 +231,8 @@ export interface Commands {
   onboarding_open(): Promise<void>
   /** Shows the Settings window; the history panel's cog. The tray menu no longer lists it. */
   settings_open(): Promise<void>
+  /** The system's Larger Text factor (1 when untouched); the panel scales its text by it. */
+  ui_text_scale(): Promise<{ scale: number }>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
   /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
@@ -272,6 +277,7 @@ export const COMMAND_NAMES = [
   'mic_test_stop',
   'onboarding_open',
   'settings_open',
+  'ui_text_scale',
   'toast_current',
   'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]

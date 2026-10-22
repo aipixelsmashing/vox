@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
+  ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
+  ⌘, opens Settings from the panel.
 - Tap the dictation key twice to keep listening hands-free; tap once to stop. Escape still
   cancels. This replaces the earlier design of pressing L while holding the key.
 - The start tone plays once a press has lasted the minimum hold, so a brush of the key, or

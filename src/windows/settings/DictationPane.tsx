@@ -192,6 +192,16 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
           <Toggle label={copy.settings.dictation.overlay} checked={settings.ui.levelOverlay} onChange={(levelOverlay) => void patch({ ui: { levelOverlay } })} />
         </Row>
       </Section>
+      <Section title={copy.settings.dictation.panelTitle}>
+        <Row label={copy.settings.dictation.textSize} hint={copy.settings.dictation.textSizeHint}>
+          <Select
+            label={copy.settings.dictation.textSize}
+            value={settings.ui.textSize}
+            onChange={(textSize) => void patch({ ui: { textSize } })}
+            options={(['small', 'medium', 'large'] as const).map((v) => ({ value: v, label: copy.settings.dictation.textSizes[v] }))}
+          />
+        </Row>
+      </Section>
       <Section title={copy.settings.dictation.setupTitle}>
         <Row label={copy.settings.dictation.runAgain} hint={copy.settings.dictation.runAgainHint}>
           <Button onClick={() => void commands.onboarding_open()}>{copy.onboarding.runAgain}</Button>

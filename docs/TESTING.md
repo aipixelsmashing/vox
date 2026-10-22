@@ -136,6 +136,12 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
 3. Arrow keys move the selection, Enter copies and closes, ⌘Enter inserts, Delete removes,
    Space expands a long row, Escape closes, typing filters — all without the mouse, and all
    after having clicked a button first (WebKit leaves focus on the body after a click).
+3b. ⌘+ twice and ⌘− twice while the panel is open: transcripts and metadata step 13 → 15
+   → 15 → 13 → 12 px, the panel's buttons and footer do not change, and Settings →
+   Dictation → History panel shows the same choice after each step. Change it there: the
+   panel follows the next time it opens. Turn up Text size in System Settings →
+   Accessibility → Display: the panel's text grows on its next open, on top of the step.
+   Relaunch: the choice is kept.
 3a. The panel shows the desktop through it, blurred, and the selected row and the search
    field's focus ring take the accent colour from System Settings → Appearance (change it:
    the panel follows). Turn on Reduce Transparency in System Settings → Accessibility →

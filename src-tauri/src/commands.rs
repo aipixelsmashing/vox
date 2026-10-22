@@ -845,6 +845,38 @@ pub fn settings_open(app: AppHandle) -> CmdResult<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextScaleDto {
+    pub scale: f64,
+}
+
+#[cfg(target_os = "macos")]
+mod text_scale_ffi {
+    extern "C" {
+        pub fn vox_text_scale() -> f64;
+    }
+}
+
+/// The system's Larger Text factor (System Settings → Accessibility → Display), read from
+/// the preferred body font. The panel multiplies its own text-size step by it, so the
+/// accessibility setting is respected on top of the person's choice in Vox. 1.0 elsewhere.
+#[tauri::command]
+pub fn ui_text_scale() -> CmdResult<TextScaleDto> {
+    #[cfg(target_os = "macos")]
+    // SAFETY: a pure query on the main-thread-safe NSFont class; no arguments, no state.
+    let scale = unsafe { text_scale_ffi::vox_text_scale() };
+    #[cfg(not(target_os = "macos"))]
+    let scale = 1.0;
+    Ok(TextScaleDto {
+        scale: if scale.is_finite() && scale > 0.0 {
+            scale
+        } else {
+            1.0
+        },
+    })
+}
+
 #[tauri::command]
 pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
     Ok(panel::toast_current().map(|message| ToastMessage { message }))

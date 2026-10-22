@@ -66,11 +66,18 @@ panel the one menu bar panel on the Mac set in a serif.
 
 | Token | Size / line-height | Use |
 | --- | --- | --- |
-| `--t-transcript` | 13 / 1.45, `--ink` | Transcript text in the panel and long-form |
+| `--t-transcript` | 13 / 1.45, `--ink` | Transcript text in the panel and long-form. Scales with `--text-scale` (below) |
 | `--t-body` | 13 / 1.45, system-ui | Labels, settings, buttons |
 | `--t-meta` | 11 / 1.3, system-ui, `--ink-dim` | Timestamps, app names, provenance |
 | `--t-title` | 15 / 1.3, system-ui, 600 | Window and pane titles |
 | `--t-numeric` | 12 / 1.3, `tabular-nums` | Timers, byte counts, diagnostics |
+
+**Text size is the person's.** `ui.textSize` (Settings → Dictation → History panel, or ⌘+ and
+⌘− while the panel is open) steps transcripts and metadata together through `--text-scale`:
+small 12/10, medium 13/11, large 15/12.5. The Mac's own Larger Text setting (Accessibility →
+Display) multiplies on top, read from the preferred body font at open; chrome stays at 13 so
+the panel's controls keep their native size. macOS has no Dynamic Type, so this is the
+nearest honest equivalent.
 
 No all-caps labels. No letter-spacing on anything under 20px. Sentence case everywhere,
 including buttons.
