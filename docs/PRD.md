@@ -76,7 +76,9 @@ impairments — a toggle mode is a requirement, not a nice-to-have (see [UI-SPEC
   budget, doubles model download size, and introduces a failure mode where the app silently
   changes what you said. v1.2 at the earliest, off by default, local models only.
 - Meeting or system-audio transcription. Different product, different threat model.
-- Mobile, browser extension, voice commands, dictation macros.
+- Mobile, browser extension, voice commands, dictation macros. The spoken "new line" and
+  "new paragraph" ([HOTKEYS.md](HOTKEYS.md#spoken-commands-two-and-the-list-is-closed)) are
+  the one exception, and the list is closed.
 - **Folders, tags, or any filing system for transcripts.** Filing is work the user does for the
   system's benefit, and nobody will do it. Recency, context ranking and search cover the real
   need; long-form output is routed to a destination instead of accumulating here. See
