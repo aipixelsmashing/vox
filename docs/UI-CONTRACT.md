@@ -30,6 +30,7 @@ Grouped by pane. Full signatures in `contract.ts`.
 | `history_delete_all` | — | `{ deleted: number }` |
 | `history_copy` | `{ id }` | `void` |
 | `history_reinsert` | `{ id }` | `InjectionOutcome` |
+| `history_edit` | `{ id, text }` | `HistoryEntry` — the row with its new text; the core decides whether the edit was a correction ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)). Empty or unchanged text returns the row untouched |
 | `history_export` | `{ format: 'md' \| 'json' }` | `{ path }` |
 
 ### Vocabulary

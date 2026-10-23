@@ -29,6 +29,7 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | Contains failures | Failed rows float, marked with the reason inline | `history-with-failures` |
 | Long transcript | Two lines, then fade. Full text on expand | `history-long` |
 | Loading | Rows render progressively; no skeleton shimmer | `history-slow` |
+| Editing a transcript | The row's transcript is a text box with Save and Cancel; Enter saves, Escape discards; the selection stays on the row. Reached by Edit on the selected row or ⌘E | — |
 
 ## Recording overlay
 
@@ -125,8 +126,8 @@ Empty states are invitations, not apologies:
 ### Labels
 
 Buttons and short controls, sentence case, no full stops. Row actions in the history panel:
-"Copy", "Insert", "Delete" (rendered as ×, labelled for screen readers), "More" / "Less" on a
-long transcript. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
+"Copy", "Insert", "Edit", "Delete" (rendered as ×, labelled for screen readers), "More" /
+"Less" on a long transcript; while editing, "Save" and "Cancel" in their place. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
 with "Delete" and "Cancel". After Copy without closing: "Copied". Counts: "47 items",
 "34 words", singular "1 item", "1 word".
 

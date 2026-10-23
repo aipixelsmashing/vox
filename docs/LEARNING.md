@@ -120,6 +120,37 @@ Rules that keep this honest:
   word looks unusual and the guard could not do its job. [TESTING.md](TESTING.md) lists
   the homophone pairs that must produce no candidate.
 
+## The second source: an edit in the history panel
+
+A row's transcript in the history panel is editable in place ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)).
+Saving the edit replaces the row's text, and the edit is a correction under exactly the
+rules above: the saved text is diffed against the row as it stood with the same
+alignment (at most three tokens replaced by at most three, the rest intact), the same
+homophone guard, the same word-list requirement, the same thresholds and the same
+session clock. A rewrite, a deletion or an added word saves the text and teaches
+nothing.
+
+The settle rule exists so that a word is never recorded mid-typing. In the panel the
+commit is the settling event: Enter or Save records, Escape or hiding the panel
+discards, and nothing is read while the user types. There is no confirming read because
+there is nothing to confirm.
+
+What it adds: a correction path for a dictation that ended on the clipboard and was
+never in a field, for a fix made after the window or after focus left the app, and for
+an app whose field cannot be read back. Provenance names the app the dictation went
+into, or Vox when it went nowhere. A second edit to the same row aligns against the
+first, as the watch rebases its baseline.
+
+One fix counts once: saving an edit ends the field watch still running on that
+dictation. The reverse is an accepted limit: a fix made in the field leaves the row
+showing what was inserted, and making the same fix again in the panel counts it a second
+time, in the same session, so it cannot promote anything by itself. The row does not
+follow the field, because history is a record of what Vox said, not a copy of the
+user's document.
+
+The log line is `edit: candidate recorded (…)` in the same counts-only form as the
+watch's, or `edit: saved, not a correction`, or `edit: guarded, both forms ordinary`.
+
 ## How terms are applied
 
 **Hinted terms** are passed to the recogniser as `AnalysisContext.contextualStrings` on

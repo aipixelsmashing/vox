@@ -590,19 +590,13 @@ fn finish(
         }
     };
 
-    // A verified insertion gets a correction watch (docs/LEARNING.md). Off the critical
-    // path; a refused or unverified insertion never reaches this arm.
-    if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
-        crate::learning::watch_after_insertion(deps, t, &text);
-    }
-
     let mut entry_id = 0;
     if history_cfg.enabled {
         let entry = history::Entry {
             id: 0,
             created_at: history::now_millis(),
             word_count: history::word_count(&text),
-            text,
+            text: text.clone(),
             duration_ms,
             latency_ms,
             engine_id: "speechanalyzer".into(),
@@ -620,6 +614,13 @@ fn finish(
         let _ = deps
             .history
             .prune(history_cfg.max_items, history_cfg.max_days);
+    }
+
+    // A verified insertion gets a correction watch (docs/LEARNING.md), tied to its history
+    // row so an edit to that row in the panel ends it (adr/0018). Off the critical path; a
+    // refused or unverified insertion never reaches this arm.
+    if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
+        crate::learning::watch_after_insertion(deps, t, &text, (entry_id > 0).then_some(entry_id));
     }
     let _ = deps.app.emit(
         "vox://insertion-result",

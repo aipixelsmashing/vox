@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Edit a transcript in the history panel: Edit on the row, or ⌘E, turns it into a text
+  box; Enter saves, Escape discards, and Copy and Insert then use the corrected text. A
+  fix made this way counts as a correction under the same rules as a fix made in the
+  field, so a dictation that ended on the clipboard can now teach Vox a word too.
 - Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
   ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
   ⌘, opens Settings from the panel.

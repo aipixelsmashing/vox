@@ -187,6 +187,12 @@ export interface Commands {
   history_delete_all(): Promise<{ deleted: number }>
   history_copy(a: { id: number }): Promise<void>
   history_reinsert(a: { id: number }): Promise<InjectionOutcome>
+  /**
+   * Replaces a row's transcript with what the user typed in the panel and returns the row.
+   * An aligned local edit is a vocabulary correction, under the field watch's rules
+   * (docs/adr/0018); the row is updated either way. Learning stays in the core.
+   */
+  history_edit(a: { id: number; text: string }): Promise<HistoryEntry>
   history_export(a: { format: 'md' | 'json' }): Promise<{ path: string }>
 
   vocab_list(a: { state?: VocabState }): Promise<VocabTerm[]>
@@ -257,6 +263,7 @@ export const COMMAND_NAMES = [
   'history_delete_all',
   'history_copy',
   'history_reinsert',
+  'history_edit',
   'history_export',
   'vocab_list',
   'vocab_forget',

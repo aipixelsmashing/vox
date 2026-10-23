@@ -7,7 +7,12 @@
  * without a mouse — that is a requirement, not polish (docs/UI-KIT.md).
  *
  * Keys: arrows move · Enter copies and closes · Cmd/Ctrl+Enter inserts · Delete removes ·
- * Space expands · Escape closes · typing filters.
+ * Space expands · ⌘E edits · Escape closes · typing filters.
+ *
+ * Editing a row (docs/adr/0018): the transcript becomes a text box. Enter or Save commits
+ * the text to the core, which decides whether the edit was a vocabulary correction; Escape,
+ * Cancel or the panel hiding discards it. While a row is being edited the selection stays
+ * on it and the other keys are the text box's.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -30,6 +35,12 @@ function relative(ts: number): string {
   const h = Math.round(m / 60)
   if (h < 24) return copy.time.hours(h)
   return copy.time.days(Math.round(h / 24))
+}
+
+/** The text box grows with its text, never scrolls inside the row. */
+function fitEditor(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
 }
 
 const buttonStyle: React.CSSProperties = {
@@ -59,8 +70,11 @@ export function HistoryPanel() {
   const [systemScale, setSystemScale] = useState(1)
   /** Per-row transient feedback: a copy confirmation or a failed re-insert's message. */
   const [note, setNote] = useState<{ id: number; text: string; failed: boolean } | null>(null)
+  /** The row whose transcript is a text box right now, and what it holds. */
+  const [editing, setEditing] = useState<{ id: number; draft: string } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const editorRef = useRef<HTMLTextAreaElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -174,6 +188,23 @@ export function HistoryPanel() {
     el?.scrollIntoView({ block: 'nearest' })
   }, [selected])
 
+  // The text box takes focus with the caret at the end, sized to its text, when editing
+  // starts. Hiding the panel discards the draft: a correction is something the user
+  // commits, never something inferred from where focus went.
+  const editingId = editing?.id ?? null
+  useEffect(() => {
+    if (editingId === null) return
+    const el = editorRef.current
+    if (el) {
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+      fitEditor(el)
+    }
+    const onBlur = () => setEditing(null)
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [editingId])
+
   const current = entries?.[selected]
 
   const close = () => void commands.panel_hide()
@@ -207,6 +238,31 @@ export function HistoryPanel() {
     }
   }
 
+  const startEdit = (e: HistoryEntry) => {
+    setExpanded(null)
+    setSelected(entries?.findIndex((x) => x.id === e.id) ?? 0)
+    setEditing({ id: e.id, draft: e.text })
+  }
+
+  /** The commit. The core keeps the text and, if the edit was a correction, learns it. */
+  const saveEdit = async () => {
+    if (!editing) return
+    const row = entries?.find((x) => x.id === editing.id)
+    const text = editing.draft
+    if (!row || !text.trim()) return
+    if (text === row.text) {
+      setEditing(null)
+      return
+    }
+    try {
+      const updated = await commands.history_edit({ id: row.id, text })
+      setEntries((list) => list?.map((x) => (x.id === updated.id ? updated : x)) ?? null)
+      setEditing(null)
+    } catch (err) {
+      setNote({ id: row.id, text: toDisplayError(err).userMessage, failed: true })
+    }
+  }
+
   const wipe = async () => {
     try {
       await commands.history_delete_all()
@@ -223,7 +279,20 @@ export function HistoryPanel() {
   const onKeyDown = (ev: KeyboardEvent) => {
     const n = entries?.length ?? 0
     const inSearch = document.activeElement === searchRef.current
+    if (editing) {
+      // The text box owns the keyboard. Escape discards; Enter is handled on the box itself.
+      if (ev.key === 'Escape') {
+        ev.preventDefault()
+        setEditing(null)
+      }
+      return
+    }
     if (ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+      if (ev.key === 'e' && current) {
+        ev.preventDefault()
+        startEdit(current)
+        return
+      }
       // The Mac's own chords: ⌘, for Settings, ⌘+ / ⌘− for text size, as in every app.
       if (ev.key === ',') {
         ev.preventDefault()
@@ -457,6 +526,7 @@ export function HistoryPanel() {
           entries?.map((e, i) => {
             const isSelected = i === selected
             const isExpanded = expanded === e.id
+            const isEditing = editing?.id === e.id
             const failed = e.outcome === 'clipboardOnly'
             return (
               <div
@@ -465,7 +535,7 @@ export function HistoryPanel() {
                 role="option"
                 aria-selected={isSelected}
                 className="hrow"
-                onMouseEnter={() => setSelected(i)}
+                onMouseEnter={() => !editing && setSelected(i)}
                 onClick={() => void copyRow(e, true)}
                 style={{ cursor: 'pointer' }}
               >
@@ -476,22 +546,44 @@ export function HistoryPanel() {
                   {e.contextTerms > 0 && <span>· {copy.history.hints(e.contextTerms)}</span>}
                   {failed && <span className="fail">· {copy.history.notInserted(e.outcomeNote ?? '')}</span>}
                 </div>
-                <div
-                  className="transcript"
-                  style={
-                    isExpanded
-                      ? { marginTop: 'var(--s-1)', whiteSpace: 'pre-wrap' }
-                      : {
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          marginTop: 'var(--s-1)',
-                        }
-                  }
-                >
-                  {e.text}
-                </div>
+                {isEditing ? (
+                  <textarea
+                    ref={editorRef}
+                    className="transcript editor"
+                    aria-label={copy.history.edit}
+                    value={editing.draft}
+                    rows={1}
+                    onChange={(ev) => {
+                      setEditing({ id: e.id, draft: ev.target.value })
+                      fitEditor(ev.target)
+                    }}
+                    onClick={(ev) => ev.stopPropagation()}
+                    onKeyDown={(ev) => {
+                      // Enter commits; Shift+Enter is a line break, as in any chat box.
+                      if (ev.key === 'Enter' && !ev.shiftKey) {
+                        ev.preventDefault()
+                        void saveEdit()
+                      }
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="transcript"
+                    style={
+                      isExpanded
+                        ? { marginTop: 'var(--s-1)', whiteSpace: 'pre-wrap' }
+                        : {
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            marginTop: 'var(--s-1)',
+                          }
+                    }
+                  >
+                    {e.text}
+                  </div>
+                )}
                 <div
                   className="meta actions"
                   style={{
@@ -508,25 +600,41 @@ export function HistoryPanel() {
                       {note.text}
                     </span>
                   )}
-                  {e.text.length > LONG_TEXT && (
-                    <button style={buttonStyle} onClick={() => setExpanded(isExpanded ? null : e.id)}>
-                      {isExpanded ? copy.history.less : copy.history.more}
-                    </button>
+                  {isEditing ? (
+                    <>
+                      <button style={buttonStyle} disabled={!editing.draft.trim()} onClick={() => void saveEdit()}>
+                        {copy.history.save}
+                      </button>
+                      <button style={buttonStyle} onClick={() => setEditing(null)}>
+                        {copy.history.cancel}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {e.text.length > LONG_TEXT && (
+                        <button style={buttonStyle} onClick={() => setExpanded(isExpanded ? null : e.id)}>
+                          {isExpanded ? copy.history.less : copy.history.more}
+                        </button>
+                      )}
+                      <button style={buttonStyle} onClick={() => void copyRow(e, false)}>
+                        {copy.history.copy}
+                      </button>
+                      <button style={buttonStyle} onClick={() => void insertRow(e)}>
+                        {copy.history.insert}
+                      </button>
+                      <button style={buttonStyle} onClick={() => startEdit(e)}>
+                        {copy.history.edit}
+                      </button>
+                      <button
+                        style={buttonStyle}
+                        aria-label={copy.history.delete}
+                        title={copy.history.delete}
+                        onClick={() => void deleteRow(e)}
+                      >
+                        ×
+                      </button>
+                    </>
                   )}
-                  <button style={buttonStyle} onClick={() => void copyRow(e, false)}>
-                    {copy.history.copy}
-                  </button>
-                  <button style={buttonStyle} onClick={() => void insertRow(e)}>
-                    {copy.history.insert}
-                  </button>
-                  <button
-                    style={buttonStyle}
-                    aria-label={copy.history.delete}
-                    title={copy.history.delete}
-                    onClick={() => void deleteRow(e)}
-                  >
-                    ×
-                  </button>
                 </div>
               </div>
             )

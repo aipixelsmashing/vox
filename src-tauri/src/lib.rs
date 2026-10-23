@@ -175,6 +175,7 @@ pub fn run() {
             commands::history_delete_all,
             commands::history_copy,
             commands::history_reinsert,
+            commands::history_edit,
             commands::history_export,
             commands::settings_get,
             commands::settings_set,
