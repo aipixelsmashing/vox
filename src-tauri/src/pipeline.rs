@@ -138,10 +138,11 @@ pub fn spawn(deps: Deps) -> anyhow::Result<Arc<Handle>> {
     Ok(Arc::new(Handle { tx }))
 }
 
-/// Post-processing applied before injection: dictionary replacements, optional leading
-/// capital, newline collapsing for terminals, optional trailing space. Never any rewriting.
+/// Post-processing applied before injection: the two spoken line breaks, dictionary
+/// replacements, optional leading capital, newline collapsing for terminals, optional
+/// trailing space. Never any rewriting.
 pub fn postprocess(text: &str, out: &settings::Output, is_terminal: bool) -> String {
-    let mut s = text.trim().to_string();
+    let mut s = spoken_line_breaks(text.trim());
     for r in &out.dictionary {
         s = replace_word_ci(&s, &r.from, &r.to);
     }
@@ -152,12 +153,52 @@ pub fn postprocess(text: &str, out: &settings::Output, is_terminal: bool) -> Str
         }
     }
     if is_terminal && out.collapse_newlines_in_terminals {
-        s = s.split('\n').map(str::trim).collect::<Vec<_>>().join(" ");
+        s = s
+            .split('\n')
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
     }
-    if out.trailing_space && !s.is_empty() {
+    if out.trailing_space && !s.is_empty() && !s.ends_with('\n') {
         s.push(' ');
     }
     s
+}
+
+/// The two spoken commands, and the only two (docs/HOTKEYS.md, "Spoken commands"): "new
+/// line" (or "newline") becomes a line break, "new paragraph" an empty line. Whole words,
+/// any case; the space on either side goes with them, and so does a single punctuation
+/// mark the recogniser hung on the command ("new line." is still a line break). The words
+/// are always the command: to write them, type them.
+pub fn spoken_line_breaks(text: &str) -> String {
+    const BREAK: &str = "\u{1}";
+    let mut s = replace_word_ci(text, "new paragraph", &BREAK.repeat(2));
+    s = replace_word_ci(&s, "new line", BREAK);
+    s = replace_word_ci(&s, "newline", BREAK);
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\u{1}' {
+            out.push(c);
+            continue;
+        }
+        while out.ends_with(' ') || out.ends_with('\t') {
+            out.pop();
+        }
+        out.push('\n');
+        // A second break follows directly (a paragraph): take it as is.
+        if chars.peek() == Some(&'\u{1}') {
+            continue;
+        }
+        if chars.peek().is_some_and(|p| ".,;:!?".contains(*p)) {
+            chars.next();
+        }
+        while chars.peek().is_some_and(|p| *p == ' ' || *p == '\t') {
+            chars.next();
+        }
+    }
+    out
 }
 
 /// Whole-word, case-insensitive replacement. `from` may contain spaces.
@@ -838,6 +879,77 @@ mod tests {
             postprocess("ls -la\ncd foo", &out(), false),
             "ls -la\ncd foo "
         );
+        // A spoken paragraph in a terminal is one space, not two.
+        assert_eq!(postprocess("ls new paragraph pwd", &out(), true), "ls pwd ");
+    }
+
+    /// docs/HOTKEYS.md, "Spoken commands": two phrases, whole words, any case, with the
+    /// recogniser's punctuation around them tolerated. Nothing else is a command.
+    #[test]
+    fn spoken_new_line_and_new_paragraph_are_the_only_commands() {
+        assert_eq!(
+            spoken_line_breaks("send it now new line thanks"),
+            "send it now\nthanks"
+        );
+        assert_eq!(
+            spoken_line_breaks("Hi Priya. New line. Can you look at this? New paragraph. Thanks"),
+            "Hi Priya.\nCan you look at this?\n\nThanks"
+        );
+        assert_eq!(spoken_line_breaks("one newline two"), "one\ntwo");
+        assert_eq!(spoken_line_breaks("new line"), "\n");
+        assert_eq!(spoken_line_breaks("new line new line x"), "\n\nx");
+        assert_eq!(
+            spoken_line_breaks("a NEW PARAGRAPH b"),
+            "a\n\nb",
+            "any case"
+        );
+        // Whole words only, and the words are always the command.
+        assert_eq!(spoken_line_breaks("the newlines file"), "the newlines file");
+        assert_eq!(spoken_line_breaks("renewline"), "renewline");
+        assert_eq!(
+            spoken_line_breaks("we added a new line to the budget"),
+            "we added a\nto the budget"
+        );
+        // Not commands: nothing else is.
+        for phrase in [
+            "period",
+            "comma",
+            "delete that",
+            "select all",
+            "undo that",
+            "caps on",
+            "new tab",
+            "next line",
+            "line break",
+            "enter",
+        ] {
+            let text = format!("alpha {phrase} beta");
+            assert_eq!(
+                spoken_line_breaks(&text),
+                text,
+                "{phrase} must not be a command"
+            );
+        }
+    }
+
+    #[test]
+    fn spoken_line_breaks_run_before_the_rest_of_post_processing() {
+        let mut o = out();
+        o.capitalize_first = true;
+        o.dictionary = vec![settings::Replacement {
+            from: "prea".into(),
+            to: "Priya".into(),
+        }];
+        assert_eq!(
+            postprocess("hi prea new paragraph thanks", &o, false),
+            "Hi Priya\n\nthanks "
+        );
+        assert_eq!(
+            postprocess("thanks new line", &o, false),
+            "Thanks\n",
+            "no trailing space after a break"
+        );
+        assert_eq!(postprocess("new line", &out(), false), "\n");
     }
 
     #[test]

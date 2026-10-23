@@ -117,6 +117,39 @@ keytap's tap and the app sees the chord; the log says so.
 Windows will need the same via the `WH_KEYBOARD_LL` hook; Linux cannot swallow without root
 and will need a cancel key that is harmless in combination with the modifier.
 
+## Spoken commands: two, and the list is closed
+
+Two phrases are commands. Said anywhere in a dictation, whole words, in any case:
+
+| You say | Vox writes |
+| --- | --- |
+| "new line", or "newline" | a line break |
+| "new paragraph" | an empty line |
+
+The space on either side goes with the command, and so does a single punctuation mark the
+recogniser hangs on it: "Hi Priya. New line. Can you look at this?" becomes `Hi Priya.` ⏎
+`Can you look at this?`. A break at the end of a dictation gets no trailing space. In a
+terminal, `output.collapseNewlinesInTerminals` turns both into one space, as it does every
+line break, because a pasted line break can run a command ([TEXT-INJECTION.md](TEXT-INJECTION.md)).
+The two phrases are replaced before the custom dictionary and before the leading capital,
+so a dictionary word on either side of a break is still replaced and a dictation that opens
+with "new line" is a line break followed by text.
+
+**The words are always the command.** "We added a new line to the budget" gets a line
+break in the middle. There is no escape phrase, no setting and no heuristic, because any of
+those is a third rule to remember and get wrong; to write the words, type them.
+
+**The list is closed.** There is no "period", "comma", "delete that", "select all", "caps
+on", "undo that" or anything else, and none will be added. Every spoken command is a phrase
+you can no longer dictate, and a set of them is a second product: macOS's own dictation has
+one, with its own rules, and it is a fine place for someone who wants it. Vox takes what you
+said and puts it where you were typing. The one thing speech cannot otherwise express, which
+key to press between two sentences, gets these two phrases; the rest of punctuation the
+recogniser already supplies from how you speak. "Voice commands" stay off the roadmap
+([ROADMAP.md](../ROADMAP.md#explicitly-not-on-the-roadmap)), and these two are the named
+exception, not the first of a list. Undoing a dictation is a key, not a phrase
+(`hotkey.undo`), for the same reason.
+
 ## Binding configuration
 
 Stored as a small structured value, not a string, so serialisation is unambiguous:

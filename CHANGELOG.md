@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Say "new line" for a line break and "new paragraph" for an empty line, anywhere in a
+  dictation. These are the only two spoken commands, and the list is closed: HOTKEYS.md
+  says why.
 - Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
   ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
   ⌘, opens Settings from the panel.

@@ -130,8 +130,10 @@ Not commitments. Each needs a case made against [docs/VALUES.md](docs/VALUES.md)
 
 ## Explicitly not on the roadmap
 
-Cloud models, accounts, telemetry, meeting transcription, mobile apps, voice commands,
-**folders or tags**, **engagement mechanics**, and **a residency setting**. Each is either a
+Cloud models, accounts, telemetry, meeting transcription, mobile apps, voice commands
+(the two spoken line breaks in [docs/HOTKEYS.md](docs/HOTKEYS.md#spoken-commands-two-and-the-list-is-closed)
+are the named exception, and the list is closed), **folders or tags**, **engagement
+mechanics**, and **a residency setting**. Each is either a
 different product, work pushed onto the user, or a violation of the core promise. See
 [docs/PRD.md](docs/PRD.md#v10--explicitly-not-doing), [docs/VALUES.md](docs/VALUES.md), and
 ADRs [0010](docs/adr/0010-adaptive-residency.md) and [0012](docs/adr/0012-no-folders.md).

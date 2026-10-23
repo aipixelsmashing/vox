@@ -261,6 +261,20 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
 **Passed 2026-10-21** by the maintainer in Notes, build a5f619e on macOS 27.0: items 1, 9
 and 10, with Fn as the binding (the hold, the double-tap lock, and the Fn pane notes).
 
+### Spoken line breaks
+
+The replacement itself is unit-tested (`pipeline::tests`); what the recogniser makes of the
+phrases is not.
+
+1. In Notes, say "first line new line second line new paragraph third": three lines, the
+   third after an empty one, no space at the start of a line, and a trailing space after
+   "third" only. Say it with a pause after each phrase, so the recogniser punctuates them:
+   the same result.
+2. Say "newline" as one word: a line break. Say "next line", "line break", "period",
+   "delete that": the words, as said.
+3. In Terminal, say "ls new line pwd": one line, one space between them, nothing executed.
+4. Say "new line" alone: the caret moves to the next line and nothing else is written.
+
 ### Injection compatibility matrix
 
 The application list in [TEXT-INJECTION.md](TEXT-INJECTION.md), per platform, recording for
