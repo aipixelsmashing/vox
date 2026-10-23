@@ -556,7 +556,7 @@ struct WatchContext {
 }
 
 #[cfg(target_os = "macos")]
-mod live {
+pub(crate) mod live {
     use super::*;
     use axuielement::ax_attribute::{
         AX_NUMBER_OF_CHARACTERS_ATTRIBUTE, AX_SECURE_TEXT_FIELD_SUBROLE,
@@ -615,7 +615,7 @@ mod live {
         }
     }
 
-    pub fn run(el: ElementRef, ctx: WatchContext) {
+    pub(super) fn run(el: ElementRef, ctx: WatchContext) {
         let _over = Over(ctx.cancel.clone());
         let t0 = Instant::now();
         // The insertion as the field held it, rebased after each recorded correction so a

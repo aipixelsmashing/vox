@@ -29,6 +29,7 @@ pub mod pipeline;
 pub mod settings;
 pub mod telemetry;
 pub mod tray;
+pub mod undo;
 pub mod updater;
 
 use std::sync::atomic::AtomicBool;
@@ -145,9 +146,18 @@ pub fn run() {
                 let handle = app.handle().clone();
                 move || panel::toggle_history(&handle)
             });
-            if let Err(e) =
-                hotkey::spawn(settings.clone(), pipeline.clone(), paused.clone(), on_panel)
-            {
+            let on_undo: Arc<dyn Fn() + Send + Sync> = Arc::new({
+                let handle = app.handle().clone();
+                let injector = injector.clone();
+                move || undo::run(handle.clone(), injector.clone())
+            });
+            if let Err(e) = hotkey::spawn(
+                settings.clone(),
+                pipeline.clone(),
+                paused.clone(),
+                on_panel,
+                on_undo,
+            ) {
                 // keytap fails fast when Input Monitoring is missing: badge, never a dead key.
                 tracing::warn!("hotkey unavailable: {e}");
                 tray::set_state(app.handle(), tray::IconState::Attention);

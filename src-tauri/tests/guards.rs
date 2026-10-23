@@ -194,10 +194,19 @@ fn read_focused_field_is_off_by_default_and_in_the_file() {
 // ─── Correction capture (docs/LEARNING.md, docs/TESTING.md "Learning tests") ─────────
 
 /// The learning module never logs the text it reads or the forms it stores; the log gets
-/// counts. Every log line is checked for the variables that would hold them.
+/// counts. Every log line is checked for the variables that would hold them. The undo
+/// module reads the same fields and lives by the same rule.
 #[test]
 fn learning_logs_no_field_text_or_forms() {
-    let src = include_str!("../src/learning.rs");
+    for src in [
+        include_str!("../src/learning.rs"),
+        include_str!("../src/undo.rs"),
+    ] {
+        logs_no_text(src);
+    }
+}
+
+fn logs_no_text(src: &str) {
     let mut in_log = false;
     for line in src.lines() {
         if line.contains("tracing::") {
@@ -225,8 +234,11 @@ fn learning_logs_no_field_text_or_forms() {
                 "{r}",
                 "{w:?",
                 "{r:?",
+                "{plan",
+                "{expected",
+                "{rest",
             ] {
-                assert!(!line.contains(needle), "learning.rs logs text: {line}");
+                assert!(!line.contains(needle), "a log line carries text: {line}");
             }
             if line.trim_end().ends_with(';') {
                 in_log = false;

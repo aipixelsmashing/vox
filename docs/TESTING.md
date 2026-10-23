@@ -261,6 +261,29 @@ Cannot be automated: placement relative to a real caret, and a real full-screen 
 **Passed 2026-10-21** by the maintainer in Notes, build a5f619e on macOS 27.0: items 1, 9
 and 10, with Fn as the binding (the hold, the double-tap lock, and the Fn pane notes).
 
+### Undo the last dictation
+
+Cannot be automated: a real field, a real chord, a real app in front. The planning (which
+span, what the field should hold after) and the refusals are unit-tested in `undo.rs`.
+
+1. Dictate into Notes, press ⌃⌘Z: the text goes, the caret sits where it was before the
+   dictation, Notes' own ⌘Z still has whatever it had, and the log shows `undo: last
+   dictation noted, insertion located` then `undo: removed N characters`. The transcript
+   is still in the history panel; Insert puts it back.
+2. Press ⌃⌘Z again: "Nothing to undo." Dictate, type a few words after the text, press
+   the chord: the dictation goes and the typed words stay. Dictate, change a word inside
+   the dictation, press the chord: "Couldn't undo — the text has changed since it was
+   placed." and nothing changes.
+3. Dictate into Notes, click into Safari, press the chord: "Couldn't undo — Notes isn't
+   in front." Click back into Notes, press it: the text goes.
+4. Dictate with Finder in front (clipboard only), press the chord: "Nothing to undo — the
+   last dictation was copied, not placed in a field."
+5. Dictate into Terminal (paste), press the chord: either the text goes, or "Couldn't undo
+   — Terminal didn't accept the change." and the line is untouched. Never half of it.
+6. Settings → Dictation → Undo the last dictation → Change…, press ⇧⌘U: the row shows
+   ⇧⌘U and the new chord works at once; press a lone key: "Use one or more modifier keys
+   with another key." and the old chord stays. Turn off: the chord does nothing.
+
 ### Injection compatibility matrix
 
 The application list in [TEXT-INJECTION.md](TEXT-INJECTION.md), per platform, recording for

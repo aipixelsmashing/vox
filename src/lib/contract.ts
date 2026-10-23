@@ -132,6 +132,13 @@ export interface HotkeyBinding {
   altGr?: boolean
   /** Present when the binding includes Fn: what macOS itself does with that key. */
   globe?: GlobeSetting
+  /**
+   * On a capture: the keys as a chord spec such as `Control+Cmd+Z` (one or more modifiers
+   * and one other key), for the undo shortcut; absent when the keys do not make one.
+   */
+  chord?: string
+  /** In the settings file: the undo-the-last-dictation chord, null when off (docs/HOTKEYS.md). */
+  undo?: string | null
 }
 
 /** System Settings → Keyboard, "Press 🌐 key to". `unknown`: not set, so macOS's default. */

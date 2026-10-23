@@ -57,7 +57,9 @@ Behaviour:
   Vox does not stay frontmost, so none of its other windows comes forward in its place.
 - **Copy** — clipboard, marked private so it stays out of clipboard history and cloud sync.
 - **Insert** — re-runs the injection pipeline against whatever is focused now. Useful after a
-  failed insertion, which is why failed rows are marked.
+  failed insertion, which is why failed rows are marked. An undone dictation
+  ([HOTKEYS.md](HOTKEYS.md#undo-the-last-dictation)) keeps its row, so this is also how
+  it comes back.
 - **Rows are watched after insertion** for a bounded window, so that corrections the user makes
   in the target app become vocabulary candidates ([LEARNING.md](LEARNING.md)). The history row
   stores only the transcript; correction candidates live in their own table and never keep

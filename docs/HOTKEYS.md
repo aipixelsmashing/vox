@@ -167,6 +167,42 @@ is chosen:
 delivers Fn from the built-in keyboard; a dictation completing with the patched build
 ([TESTING.md](TESTING.md), hotkey gate item 10) is still owed.
 
+## Undo the last dictation
+
+A chord, default **⌃⌘Z** (`hotkey.undo`, configurable in Settings → Dictation, null to turn
+it off), takes the text Vox just placed back out of the field it placed it in. It is not
+⌘Z: the app's own undo stack is untouched, so it cannot take something else with it, and
+it works in apps whose undo does not know about an accessibility insertion.
+
+It lives by the rule insertion lives by ([adr/0005](adr/0005-no-unverified-injection-success.md)):
+read the field, act only on what can be seen, verify. After every verified insertion Vox
+reads the field once and notes the text before and after the insertion, as the correction
+watch does ([LEARNING.md](LEARNING.md#how-capture-works)). On the chord:
+
+1. The app the text went into must be frontmost. Otherwise: *Couldn't undo — Notes isn't
+   in front.*
+2. The field must read back, now and right after the insertion. Otherwise: *Couldn't undo
+   — the field can't be read.*
+3. The field must still start with the text that was before the insertion, followed by the
+   insertion itself. Text typed after it is fine; an edit before it or to it is not:
+   *Couldn't undo — the text has changed since it was placed.*
+4. The span is selected through `kAXSelectedTextRange` and replaced with nothing through
+   `kAXSelectedText`, the same two attributes insertion uses. A field that refuses the
+   write: *Couldn't undo — Terminal didn't accept the change.* A field that accepts it
+   but does not read back as expected within 300 ms: *Vox couldn't confirm the text was
+   removed.*
+
+There is one record, replaced by every dictation. A dictation that ended on the clipboard
+leaves a record that says so (*Nothing to undo — the last dictation was copied, not placed
+in a field.*) rather than letting the chord reach back to an older one. Once the field has
+been written to, successfully or not, the record is spent: a second press says *Nothing to
+undo.* The transcript stays in history, so an undo you did not mean is one Insert away.
+
+Like the panel chord, the undo chord is observed, not swallowed, so the app in front sees
+it too; the default is one no text app binds. Settings captures it the way it captures the
+hold key, by pressing it, and keeps it only if the keys make a chord: one or more modifiers
+and one other key.
+
 ## Recording feedback
 
 The user must never be uncertain whether Vox is listening.

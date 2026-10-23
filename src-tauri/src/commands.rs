@@ -272,6 +272,12 @@ pub async fn history_reinsert(
                 reason: inject::FallbackReason::MethodFailed(inject::Method::Accessibility),
             }
         });
+        // A re-insert is the last dictation placed, as far as the undo shortcut is concerned.
+        if matches!(outcome, inject::InjectionOutcome::Inserted { .. }) {
+            crate::undo::remember_placed(&target, &text);
+        } else {
+            crate::undo::remember_not_placed();
+        }
         Ok::<_, VoxError>((outcome, t0.elapsed().as_millis() as u32, text))
     })
     .await
@@ -397,6 +403,9 @@ pub struct HotkeyBindingDto {
     /// Present when the binding includes Fn: what macOS itself does with that key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub globe: Option<hotkey::GlobeSetting>,
+    /// The keys as a chord spec for the undo shortcut; absent when they do not make one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chord: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -432,6 +441,7 @@ pub async fn hotkey_capture_start(state: State<'_, AppState>) -> CmdResult<Hotke
         .any(|k| k == hotkey::FN_KEY)
         .then(hotkey::globe_key_setting);
     Ok(HotkeyBindingDto {
+        chord: hotkey::chord_from_keys(&keys),
         keys,
         mode: h.mode,
         min_hold_ms: h.min_hold_ms,
