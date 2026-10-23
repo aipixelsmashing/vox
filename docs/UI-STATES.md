@@ -29,6 +29,8 @@ The mock backend ([UI-DEVELOPMENT.md](UI-DEVELOPMENT.md)) has a scenario for eac
 | Contains failures | Failed rows float, marked with the reason inline | `history-with-failures` |
 | Long transcript | Two lines, then fade. Full text on expand | `history-long` |
 | Loading | Rows render progressively; no skeleton shimmer | `history-slow` |
+| Scratchpad | Opened by a dictation with no text field focused: the new row, marked "not inserted — no text field was focused", is in the text box with Copy and Cancel; Enter copies and closes | `history-scratchpad` |
+| Editing a transcript | The row's transcript is a text box with Save and Cancel; Enter saves, Escape discards; the selection stays on the row. Reached by Edit on the selected row or ⌘E | — |
 
 ## Recording overlay
 
@@ -87,7 +89,8 @@ pane.
 
 | Situation | String |
 | --- | --- |
-| No editable field focused | "Copied. No text field was focused." |
+| No editable field focused, history on | No message: the history panel opens with the row ready to copy |
+| No editable field focused, history off | "Copied. No text field was focused." |
 | Focus changed mid-dictation | "Copied instead — you switched from Slack to Chrome while speaking." |
 | Elevated window (Windows) | "Copied instead — Terminal is running as administrator. Press Ctrl+Shift+V to paste." |
 | Secure input (macOS) | "Not inserted — a password field is active. Nothing was saved." |
@@ -125,8 +128,8 @@ Empty states are invitations, not apologies:
 ### Labels
 
 Buttons and short controls, sentence case, no full stops. Row actions in the history panel:
-"Copy", "Insert", "Delete" (rendered as ×, labelled for screen readers), "More" / "Less" on a
-long transcript. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
+"Copy", "Insert", "Edit", "Delete" (rendered as ×, labelled for screen readers), "More" /
+"Less" on a long transcript; while editing, "Save" and "Cancel" in their place. Footer: "Delete all…" → "Delete all 47 transcripts? This can't be undone."
 with "Delete" and "Cancel". After Copy without closing: "Copied". Counts: "47 items",
 "34 words", singular "1 item", "1 word".
 

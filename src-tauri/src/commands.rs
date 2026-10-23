@@ -293,6 +293,56 @@ pub async fn history_reinsert(
     Ok(outcome_dto(&outcome, elapsed_ms))
 }
 
+/// The user edited a row's transcript in the panel (adr/0018). The row keeps the new text;
+/// if the edit was an aligned local fix it is a vocabulary correction under the field
+/// watch's rules, and the watch still running on that dictation, if any, ends: one fix,
+/// counted once. Empty text and unchanged text leave the row as it is.
+#[tauri::command]
+pub fn history_edit(
+    state: State<'_, AppState>,
+    id: i64,
+    text: String,
+) -> CmdResult<HistoryEntryDto> {
+    let before = state
+        .history
+        .get(id)
+        .map_err(VoxError::io)?
+        .ok_or_else(|| VoxError::io(format!("no history row {id}")))?;
+    if text.trim().is_empty() || text == before.text {
+        return Ok(before.into());
+    }
+    let updated = state
+        .history
+        .update_text(id, &text)
+        .map_err(VoxError::io)?
+        .ok_or_else(|| VoxError::io(format!("no history row {id}")))?;
+    let (capture, min_occurrences) = {
+        let s = state.settings.read();
+        (s.learning.capture_corrections, s.learning.min_occurrences)
+    };
+    if crate::learning::end_watch_for(id) {
+        tracing::info!("edit: watch on the edited dictation ended");
+    }
+    if capture {
+        let app = before
+            .target_app
+            .as_deref()
+            .map(display_app_name)
+            .unwrap_or_else(|| "Vox".to_string());
+        if let Err(e) = crate::learning::observe_edit(
+            &state.history,
+            &before.text,
+            &text,
+            &app,
+            crate::learning::session_id(),
+            min_occurrences,
+        ) {
+            tracing::warn!("edit: store failed: {e}");
+        }
+    }
+    Ok(updated.into())
+}
+
 #[derive(Debug, Serialize)]
 pub struct ExportedTo {
     pub path: String,
@@ -929,6 +979,12 @@ pub fn ui_text_scale() -> CmdResult<TextScaleDto> {
 #[tauri::command]
 pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
     Ok(panel::toast_current().map(|message| ToastMessage { message }))
+}
+
+/// Whether the panel was opened as a scratchpad, and for which row (docs/HISTORY.md).
+#[tauri::command]
+pub fn scratchpad_take() -> CmdResult<Option<panel::ScratchpadEvent>> {
+    Ok(panel::scratchpad_take().map(|entry_id| panel::ScratchpadEvent { entry_id }))
 }
 
 #[tauri::command]

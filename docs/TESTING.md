@@ -44,7 +44,10 @@ element" → "AXUIElement" must (`tests/guards.rs`, against the real system word
 the three-occurrence, two-session threshold, the session clock, the auto-suspend rule (with
 M7, when terms are applied), and the guarantee that deleting a term also deletes its
 evidence. The focus-left and refused-field cases are structural: the watch is registered
-under the `Inserted` arm only, and ends itself when the frontmost app changes.
+under the `Inserted` arm only, and ends itself when the frontmost app changes. The panel's
+edit path ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)) is tested against the
+same fixtures: an aligned fix records at once, a rewrite or deletion records nothing, the
+guard holds, and an edit ends the field watch on that row and no other.
 
 **UI contract coverage** — every command in `src/lib/contract.ts` has a mock implementation,
 and every state documented in [UI-STATES.md](UI-STATES.md) has a scenario in
@@ -169,6 +172,16 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
    behind. The same with Enter, Escape, the chord and the tray icon. Which process gets
    focus is unit-tested (`panel::tests`); that macOS gives it is a real focus change and
    is checked here.
+9. The scratchpad. Dictate with Finder in front: no toast, nothing on the clipboard, and
+   the panel opens with the new row in its text box, caret at the end, "not inserted — no
+   text field was focused" above it and Copy / Cancel beside it; the log shows
+   `dictation: no text field focused; the panel opens as a scratchpad`. Press Enter: the
+   text is on the clipboard and the panel is gone. Again, but change a word first, then
+   Enter: the changed text is on the clipboard and in the row. Again, press Escape: the
+   panel stays with the row as it was. Dictate with Finder in front while the panel is
+   already open: the new row goes into the text box. Turn history off in Privacy and
+   dictate with Finder in front: the toast "Copied. No text field was focused." and the
+   text on the clipboard, as before.
 
 ### Settings window (M3)
 
@@ -203,9 +216,11 @@ Cannot be automated: real prompts, a real microphone, a real key.
 
 Cannot be automated: the assertion is about focus and placement on a real screen.
 
-1. Dictate with no text field focused (Finder in front): a toast appears at the bottom
-   centre reading "Copied. No text field was focused.", sized to its text, and the caret in
-   whatever you were in is untouched — the toast never takes focus.
+1. Dictate into a window that refuses the text (Terminal with `output.method` set to
+   `accessibility`), or with history off and Finder in front: a toast appears at the
+   bottom centre with the deck's reason, sized to its text, and the caret in whatever you
+   were in is untouched — the toast never takes focus. (With history on, a dictation with
+   nothing focused opens the panel instead: history panel gate 9.)
 2. It goes away by itself after about four seconds; a click dismisses it sooner.
 3. Two failures in a row: the second message replaces the first and the timer restarts.
 4. Dictate successfully: no toast. Success is the text appearing.
@@ -310,6 +325,18 @@ has the `sqlite3` query).
    `watch: cancelled`, for the oldest.
 11. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
+12. Edit in the panel ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)). Dictate
+   a sentence with a mangled name into Notes, open the panel, press ⌘E (or Edit on the
+   row), fix the name, press Enter: the row shows the new text and word count, the log
+   shows `edit: watch on the edited dictation ended` then `edit: candidate recorded`, and
+   the table has the row with `source_apps Notes`. Click the row: the corrected text is on
+   the clipboard. Dictate with Finder in front (clipboard only), fix the name in the
+   panel: `edit: candidate recorded` with no `watch:` line before it — the row that was
+   never in a field now has a correction path. Rewrite a row's sentence: `edit: saved,
+   not a correction` and no new table row. Fix "their" → "there": `edit: guarded`. Press
+   Escape mid-edit, and click elsewhere so the panel hides mid-edit: the row is unchanged
+   and nothing is logged. With "Watch my corrections" off: the row still saves, and the
+   log has no `edit:` learning line.
 
 **Passed 2026-10-21** by the maintainer in Notes, build a5f619e: gates 3 and 4 (a term
 hinted from three manglings over two sittings, shown as one row in Vocabulary, and a

@@ -113,6 +113,7 @@ if (typeof window !== 'undefined') {
 
 let micTest = false
 let lastToast: string | null = null
+let scratchpadTaken = false
 
 let mockPaused = false
 /** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
@@ -153,6 +154,11 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
       list = list.map((e) =>
         e.id === 2 ? { ...e, outcome: 'clipboardOnly', outcomeNote: 'No text field was focused', method: null } : e)
     }
+    if (s === 'history-scratchpad') {
+      // The dictation that just ended with nothing focused: stored, placed nowhere.
+      list = list.map((e) =>
+        e.id === history[0]?.id ? { ...e, createdAt: Date.now(), outcome: 'clipboardOnly', outcomeNote: 'No text field was focused', method: null } : e)
+    }
     return rank(list).slice(0, limit)
   },
 
@@ -177,6 +183,15 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
       }
     }
     return { outcome: 'inserted', method: 'paste', elapsedMs: 41 }
+  },
+  /** The core decides whether the edit was a correction; the mock only keeps the text. */
+  async history_edit({ id, text }: { id: number; text: string }) {
+    await wait()
+    const e = history.find((x) => x.id === id)
+    if (!e) fail({ kind: 'io', detail: `no history row ${id}`, userMessage: "Couldn't read Vox's data. Try again.", action: 'retry', actionLabel: 'Try again' })
+    const updated: HistoryEntry = { ...e, text, wordCount: text.split(/\s+/).filter(Boolean).length }
+    history = history.map((x) => (x.id === id ? updated : x))
+    return updated
   },
   async panel_hide() { /* nothing to hide in a browser tab */ },
   async history_export() { await wait(600); return { path: '~/Documents/vox-export' } },
@@ -269,6 +284,12 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     location.search = q.toString()
   },
   async toast_current() { return lastToast ? { message: lastToast } : null },
+  /** In the scratchpad scenario the newest row is the one nothing was focused for, once. */
+  async scratchpad_take() {
+    if (scenario() !== 'history-scratchpad' || scratchpadTaken) return null
+    scratchpadTaken = true
+    return { entryId: history[0]?.id ?? 0 }
+  },
   async toast_fit() { /* a browser tab sizes itself */ },
 
   async models_list() {

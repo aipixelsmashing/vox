@@ -57,6 +57,10 @@ END;
 CREATE TRIGGER IF NOT EXISTS transcripts_ad AFTER DELETE ON transcripts BEGIN
   INSERT INTO transcripts_fts(transcripts_fts, rowid, text) VALUES ('delete', old.id, old.text);
 END;
+CREATE TRIGGER IF NOT EXISTS transcripts_au AFTER UPDATE OF text ON transcripts BEGIN
+  INSERT INTO transcripts_fts(transcripts_fts, rowid, text) VALUES ('delete', old.id, old.text);
+  INSERT INTO transcripts_fts(rowid, text) VALUES (new.id, new.text);
+END;
 CREATE TABLE IF NOT EXISTS vocab_candidates (
   id          INTEGER PRIMARY KEY,
   wrong_form  TEXT NOT NULL,
@@ -181,6 +185,27 @@ impl Store {
     }
 
     /// One row, no confirmation: it is one row and it is the user's data.
+    /// Replaces a row's transcript with what the user typed in the panel (adr/0018). The
+    /// word count follows; the search index follows by trigger. None when there is no
+    /// such row.
+    pub fn update_text(&self, id: i64, text: &str) -> anyhow::Result<Option<Entry>> {
+        let conn = self.conn.lock();
+        let changed = conn.execute(
+            "UPDATE transcripts SET text = ?2, word_count = ?3 WHERE id = ?1",
+            params![id, text, word_count(text)],
+        )?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        Ok(conn
+            .query_row(
+                &format!("SELECT {COLUMNS} FROM transcripts WHERE id = ?1"),
+                params![id],
+                row_to_entry,
+            )
+            .optional()?)
+    }
+
     pub fn delete(&self, id: i64) -> anyhow::Result<bool> {
         let conn = self.conn.lock();
         Ok(conn.execute("DELETE FROM transcripts WHERE id = ?1", params![id])? > 0)
@@ -815,6 +840,32 @@ mod tests {
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].text, "t0");
         assert!(rows.iter().all(|r| r.text != "ancient"));
+    }
+
+    #[test]
+    fn an_edit_replaces_the_text_and_the_search_index_follows() {
+        let store = Store::open_in_memory().unwrap();
+        let now = now_millis();
+        let id = store
+            .insert(&entry("remind me to send prea the notes", now))
+            .unwrap();
+        let updated = store
+            .update_text(id, "remind me to send Priya the notes")
+            .unwrap()
+            .expect("the row exists");
+        assert_eq!(updated.text, "remind me to send Priya the notes");
+        assert_eq!(updated.word_count, 7);
+        assert_eq!(store.get(id).unwrap().unwrap().text, updated.text);
+        assert_eq!(
+            store.search("priya", 10).unwrap().len(),
+            1,
+            "new text found"
+        );
+        assert!(
+            store.search("prea", 10).unwrap().is_empty(),
+            "old text gone"
+        );
+        assert!(store.update_text(id + 1, "x").unwrap().is_none());
     }
 
     #[test]

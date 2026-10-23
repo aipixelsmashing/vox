@@ -175,6 +175,7 @@ pub fn run() {
             commands::history_delete_all,
             commands::history_copy,
             commands::history_reinsert,
+            commands::history_edit,
             commands::history_export,
             commands::settings_get,
             commands::settings_set,
@@ -206,6 +207,7 @@ pub fn run() {
             commands::app_quit,
             commands::panel_menu,
             commands::toast_current,
+            commands::scratchpad_take,
             commands::toast_fit,
         ])
         .build(tauri::generate_context!())

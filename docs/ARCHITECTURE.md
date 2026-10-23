@@ -181,6 +181,7 @@ Every failure has a defined user-visible result. No silent drops.
 | Accessibility / input-monitoring permission missing | Hotkey doesn't fire; tray icon shows a warning badge with a direct link to the OS settings pane |
 | Model missing or corrupt | v1: Apple's locale assets not yet installed — tray offers the one-time install. M8: dictation disabled, tray offers re-download; hash mismatch is reported as a hash mismatch, not "download failed" |
 | No speech detected | Silent no-op, no history entry |
+| No text field focused | The history panel opens as a scratchpad with the row in its text box, Copy as the primary action ([HISTORY.md](HISTORY.md#the-panel)); with history off, clipboard fallback + "Copied. No text field was focused." |
 | Focus changed during recording | Clipboard fallback + one-line notice naming both apps |
 | Target refuses insertion (elevated window, secure input, password field) | Clipboard fallback + reason |
 | Inference error / panic in engine thread | Engine thread restarts, transcript lost, error surfaced once (not per-attempt) |

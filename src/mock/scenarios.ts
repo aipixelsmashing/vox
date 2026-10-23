@@ -14,6 +14,7 @@ export const scenarios = {
   'history-with-failures': { label: 'History — failed insertions floated' },
   'history-long':          { label: 'History — very long transcript' },
   'history-slow':          { label: 'History — slow load (2s)' },
+  'history-scratchpad':    { label: 'History — opened as a scratchpad, nothing was focused' },
 
   // Dictation lifecycle
   'recording':             { label: 'Live dictation — succeeds' },

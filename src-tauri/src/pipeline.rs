@@ -582,19 +582,18 @@ fn finish(
                 notify(&deps.app, &reason.user_message());
                 return false;
             }
-            if let Err(e) = clipboard::set_private(&text) {
-                tracing::warn!("clipboard fallback failed: {e}");
+            // Nothing focused: the panel opens as a scratchpad with the stored row instead
+            // of the clipboard and a toast (docs/HISTORY.md). Only when there will be a
+            // row; with history off the clipboard is the only place the text can go.
+            if !scratchpad_for(reason, history_cfg.enabled) {
+                if let Err(e) = clipboard::set_private(&text) {
+                    tracing::warn!("clipboard fallback failed: {e}");
+                }
+                notify(&deps.app, &reason.user_message());
             }
-            notify(&deps.app, &reason.user_message());
             ("clipboard_only".to_string(), Some(reason.code()), None)
         }
     };
-
-    // A verified insertion gets a correction watch (docs/LEARNING.md). Off the critical
-    // path; a refused or unverified insertion never reaches this arm.
-    if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
-        crate::learning::watch_after_insertion(deps, t, &text);
-    }
 
     let mut entry_id = 0;
     if history_cfg.enabled {
@@ -602,7 +601,7 @@ fn finish(
             id: 0,
             created_at: history::now_millis(),
             word_count: history::word_count(&text),
-            text,
+            text: text.clone(),
             duration_ms,
             latency_ms,
             engine_id: "speechanalyzer".into(),
@@ -620,6 +619,27 @@ fn finish(
         let _ = deps
             .history
             .prune(history_cfg.max_items, history_cfg.max_days);
+    }
+    if let inject::InjectionOutcome::ClipboardOnly { reason } = &outcome {
+        if scratchpad_for(reason, history_cfg.enabled) {
+            if entry_id > 0 {
+                tracing::info!("dictation: no text field focused; the panel opens as a scratchpad");
+                panel::open_scratchpad(&deps.app, entry_id);
+            } else {
+                // The row could not be stored after all: the clipboard it is.
+                if let Err(e) = clipboard::set_private(&text) {
+                    tracing::warn!("clipboard fallback failed: {e}");
+                }
+                notify(&deps.app, &reason.user_message());
+            }
+        }
+    }
+
+    // A verified insertion gets a correction watch (docs/LEARNING.md), tied to its history
+    // row so an edit to that row in the panel ends it (adr/0018). Off the critical path; a
+    // refused or unverified insertion never reaches this arm.
+    if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
+        crate::learning::watch_after_insertion(deps, t, &text, (entry_id > 0).then_some(entry_id));
     }
     let _ = deps.app.emit(
         "vox://insertion-result",
@@ -643,6 +663,13 @@ fn finish(
 
 pub fn notify(app: &tauri::AppHandle, body: &str) {
     crate::notify(app, body);
+}
+
+/// Whether a dictation that was not placed opens the panel as a scratchpad rather than
+/// going to the clipboard: only when nothing was focused, and only when history will hold
+/// the row for the panel to show.
+pub fn scratchpad_for(reason: &inject::FallbackReason, history_enabled: bool) -> bool {
+    matches!(reason, inject::FallbackReason::NoTextTarget) && history_enabled
 }
 
 /// `vox://state`, for the history panel's live row. Cheap and fire-and-forget; the UI is
@@ -748,6 +775,31 @@ impl LevelMeter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Only a dictation with nothing focused opens the scratchpad, and only when history
+    /// will hold the row; every other fallback stays clipboard-plus-toast.
+    #[test]
+    fn the_scratchpad_is_for_no_focus_with_history_on() {
+        use inject::{FallbackReason as R, Method};
+        assert!(scratchpad_for(&R::NoTextTarget, true));
+        assert!(
+            !scratchpad_for(&R::NoTextTarget, false),
+            "history off: clipboard"
+        );
+        for r in [
+            R::FocusChanged {
+                from: "Slack".into(),
+                to: "Chrome".into(),
+            },
+            R::SecureInput,
+            R::PasswordField,
+            R::ElevatedTarget,
+            R::WaylandUnverifiable,
+            R::MethodFailed(Method::Paste),
+        ] {
+            assert!(!scratchpad_for(&r, true), "{r:?} is not a scratchpad case");
+        }
+    }
     use Action::*;
     use Event::*;
     use State::*;
