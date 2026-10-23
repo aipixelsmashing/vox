@@ -981,6 +981,12 @@ pub fn toast_current() -> CmdResult<Option<ToastMessage>> {
     Ok(panel::toast_current().map(|message| ToastMessage { message }))
 }
 
+/// Whether the panel was opened as a scratchpad, and for which row (docs/HISTORY.md).
+#[tauri::command]
+pub fn scratchpad_take() -> CmdResult<Option<panel::ScratchpadEvent>> {
+    Ok(panel::scratchpad_take().map(|entry_id| panel::ScratchpadEvent { entry_id }))
+}
+
 #[tauri::command]
 pub fn toast_fit(app: AppHandle, height: f64) -> CmdResult<()> {
     panel::fit_toast(&app, height);

@@ -262,6 +262,31 @@ pub fn toast_current() -> Option<String> {
     TOAST_MESSAGE.lock().clone()
 }
 
+/// The row the panel was last opened as a scratchpad for, until the panel takes it.
+static SCRATCHPAD: Mutex<Option<i64>> = Mutex::new(None);
+
+/// A dictation ended with no text field focused (docs/HISTORY.md, "The scratchpad"): the
+/// panel opens with that row in its text box, Copy as the primary action. The row id is
+/// left for the page to take, because the window may be created, shown or already open
+/// when this happens and an event alone could arrive before anyone listens.
+pub fn open_scratchpad(app: &AppHandle, entry_id: i64) {
+    use tauri::Emitter;
+    *SCRATCHPAD.lock() = Some(entry_id);
+    show_history(app);
+    let _ = app.emit("vox://scratchpad", ScratchpadEvent { entry_id });
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScratchpadEvent {
+    pub entry_id: i64,
+}
+
+/// The page asking: answers once per opening.
+pub fn scratchpad_take() -> Option<i64> {
+    SCRATCHPAD.lock().take()
+}
+
 /// Shows `message` in Vox's own toast at the bottom of the screen for a few seconds. Never
 /// takes focus, never steals the caret from the field the user is in. Every build has this;
 /// Notification Center is the second channel on signed builds (docs/PERMISSIONS.md).

@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- A scratchpad when nothing is focused: dictate with Finder in front, or with no text field
+  under the cursor, and the history panel opens with the words in an editable row, ready to
+  copy. Enter copies and closes; fix a word first and the fix counts like any other. The
+  clipboard-and-toast behaviour remains for every other failure, and when history is off.
 - Edit a transcript in the history panel: Edit on the row, or ⌘E, turns it into a text
   box; Enter saves, Escape discards, and Copy and Insert then use the corrected text. A
   fix made this way counts as a correction under the same rules as a fix made in the

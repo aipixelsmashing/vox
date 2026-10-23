@@ -13,6 +13,10 @@
  * the text to the core, which decides whether the edit was a vocabulary correction; Escape,
  * Cancel or the panel hiding discards it. While a row is being edited the selection stays
  * on it and the other keys are the text box's.
+ *
+ * The scratchpad (docs/HISTORY.md): a dictation with no text field focused opens the panel
+ * with that row in the text box and Copy as its primary action. Enter saves any change
+ * (through the same command, so a fix there is a correction too), copies and closes.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -70,8 +74,11 @@ export function HistoryPanel() {
   const [systemScale, setSystemScale] = useState(1)
   /** Per-row transient feedback: a copy confirmation or a failed re-insert's message. */
   const [note, setNote] = useState<{ id: number; text: string; failed: boolean } | null>(null)
-  /** The row whose transcript is a text box right now, and what it holds. */
-  const [editing, setEditing] = useState<{ id: number; draft: string } | null>(null)
+  /**
+   * The row whose transcript is a text box right now, and what it holds. `scratchpad`: the
+   * panel opened for this row because nothing was focused, so Enter copies and closes.
+   */
+  const [editing, setEditing] = useState<{ id: number; draft: string; scratchpad?: boolean } | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<HTMLTextAreaElement>(null)
@@ -173,6 +180,35 @@ export function HistoryPanel() {
   useVoxEvent('vox://state', (s) => setLive(s), [])
   useVoxEvent('vox://insertion-result', () => void load(), [load])
 
+  /**
+   * Opened as a scratchpad? The core answers once; asked on the event, on focus and on
+   * mount, because the window may be created, shown or already open when it happens.
+   */
+  const takeScratchpad = useCallback(async () => {
+    try {
+      const got = await commands.scratchpad_take()
+      if (!got) return
+      const list = await commands.history_list({ limit: PAGE })
+      setQuery('')
+      setEntries(list)
+      setError(null)
+      const row = list.find((e) => e.id === got.entryId)
+      if (!row) return
+      setExpanded(null)
+      setSelected(Math.max(0, list.findIndex((e) => e.id === row.id)))
+      setEditing({ id: row.id, draft: row.text, scratchpad: true })
+    } catch {
+      /* the row is still in the list; nothing is lost */
+    }
+  }, [])
+  useVoxEvent('vox://scratchpad', () => void takeScratchpad(), [takeScratchpad])
+  useEffect(() => {
+    void takeScratchpad()
+    const onFocus = () => void takeScratchpad()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [takeScratchpad])
+
   useEffect(() => {
     searchRef.current?.focus()
   }, [])
@@ -244,23 +280,27 @@ export function HistoryPanel() {
     setEditing({ id: e.id, draft: e.text })
   }
 
-  /** The commit. The core keeps the text and, if the edit was a correction, learns it. */
+  /**
+   * The commit. The core keeps the text and, if the edit was a correction, learns it. For a
+   * scratchpad row the commit goes on to copy and close: that is what the panel opened for.
+   */
   const saveEdit = async () => {
     if (!editing) return
     const row = entries?.find((x) => x.id === editing.id)
     const text = editing.draft
     if (!row || !text.trim()) return
-    if (text === row.text) {
-      setEditing(null)
-      return
-    }
+    let saved = row
     try {
-      const updated = await commands.history_edit({ id: row.id, text })
-      setEntries((list) => list?.map((x) => (x.id === updated.id ? updated : x)) ?? null)
+      if (text !== row.text) {
+        saved = await commands.history_edit({ id: row.id, text })
+        setEntries((list) => list?.map((x) => (x.id === saved.id ? saved : x)) ?? null)
+      }
       setEditing(null)
     } catch (err) {
       setNote({ id: row.id, text: toDisplayError(err).userMessage, failed: true })
+      return
     }
+    if (editing.scratchpad) void copyRow(saved, true)
   }
 
   const wipe = async () => {
@@ -603,7 +643,7 @@ export function HistoryPanel() {
                   {isEditing ? (
                     <>
                       <button style={buttonStyle} disabled={!editing.draft.trim()} onClick={() => void saveEdit()}>
-                        {copy.history.save}
+                        {editing.scratchpad ? copy.history.copy : copy.history.save}
                       </button>
                       <button style={buttonStyle} onClick={() => setEditing(null)}>
                         {copy.history.cancel}

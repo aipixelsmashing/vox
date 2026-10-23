@@ -248,6 +248,12 @@ export interface Commands {
   panel_menu(a: { x: number; y: number }): Promise<void>
   /** The toast window asks for the message it was opened with, since the event may precede it. */
   toast_current(): Promise<{ message: string } | null>
+  /**
+   * The panel asks whether it was opened as a scratchpad: a dictation with no text field
+   * focused, stored but placed nowhere (docs/HISTORY.md). Answers once per opening, so the
+   * panel asks on the event and on focus and acts on whichever gets it.
+   */
+  scratchpad_take(): Promise<{ entryId: number } | null>
   /** The toast page reports its rendered height; the core sizes the window to it and shows it. */
   toast_fit(a: { height: number }): Promise<void>
 }
@@ -297,6 +303,7 @@ export const COMMAND_NAMES = [
   'app_quit',
   'panel_menu',
   'toast_current',
+  'scratchpad_take',
   'toast_fit',
 ] as const satisfies readonly (keyof Commands)[]
 
@@ -317,4 +324,6 @@ export interface Events {
   'vox://insertion-result': InjectionOutcome & { entryId: number }
   /** Every failure the user must know about, in the deck's words; the toast window shows it. */
   'vox://toast': { message: string }
+  /** The panel was opened as a scratchpad for this row; it then calls `scratchpad_take`. */
+  'vox://scratchpad': { entryId: number }
 }

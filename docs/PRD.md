@@ -34,7 +34,8 @@ impairments — a toggle mode is a requirement, not a nice-to-have (see [UI-SPEC
 2. **Quiet by default.** Tray icon, no dock icon, no window unless asked, no notifications
    except when something failed.
 3. **Never silently lose a transcript.** If insertion fails for any reason, the text is on
-   the clipboard and the user is told, in one line, what to do next.
+   the clipboard and the user is told, in one line, what to do next — or, when nothing was
+   focused, it is in the history panel in front of them, ready to copy.
 4. **No network is the default state.** After setup, an offline lock can be engaged and the
    app will never open a socket again.
 5. **No accounts, no telemetry, no analytics, ever.** Not "opt-in analytics". None.
@@ -55,7 +56,7 @@ impairments — a toggle mode is a requirement, not a nice-to-have (see [UI-SPEC
 | R3 | Recording starts on key-down, stops on key-up, with a visible and optionally audible state change |
 | R4 | Fully local speech recognition via Apple SpeechAnalyzer — no model download, no network at any point |
 | R5 | Transcript inserted into the focused editable field of the previously focused app |
-| R6 | If insertion is impossible, transcript goes to the clipboard and the user is told why |
+| R6 | If insertion is impossible, transcript goes to the clipboard and the user is told why; with nothing focused, the history panel opens with it ready to copy |
 | R7 | History of transcripts in the tray: click to copy, delete one, delete all |
 | R8 | Settings window: hotkey, mode, input device, model, insertion method, history retention, launch at login |
 | R9 | Manual "Check for updates" plus a signed auto-update path |
@@ -112,7 +113,8 @@ impairments — a toggle mode is a requirement, not a nice-to-have (see [UI-SPEC
 ### Insertion
 
 Detailed in [TEXT-INJECTION.md](TEXT-INJECTION.md). The requirement in one line: **either the
-text arrives in the field, or the user finds out immediately and the text is on the clipboard.**
+text arrives in the field, or the user finds out immediately and the text is on the clipboard**
+— or in the panel in front of them, when there was no field at all ([HISTORY.md](HISTORY.md#the-panel)).
 
 ### History
 

@@ -73,6 +73,7 @@ Grouped by pane. Full signatures in `contract.ts`.
 | `panel_menu` | `{ x, y }` | `void` — pops the native app menu (Settings…, Check for updates…, Quit Vox) at a point relative to the panel window; its items act in the core |
 | `ui_text_scale` | — | `{ scale }` — the Mac's Larger Text factor from the preferred body font, 1 when untouched. The panel multiplies `ui.textSize` by it |
 | `panel_hide` | — | `void` — hides the panel window the call came from. Escape, clicking a row (copy and close) and a successful re-insert all end here; the UI never touches the window API directly |
+| `scratchpad_take` | — | `{ entryId } \| null` — whether the panel was opened as a scratchpad and for which row; answers once per opening, so the panel asks on `vox://scratchpad`, on focus and on mount and acts on whichever gets it |
 
 ## Events
 
@@ -85,6 +86,7 @@ Grouped by pane. Full signatures in `contract.ts`.
 | `vox://permissions-changed` | `PermissionReport` | On change and on wake |
 | `vox://vocab-updated` | `{ added, suspended }` | When a term crosses a threshold |
 | `vox://insertion-result` | `InjectionOutcome & { entryId }` | After each dictation |
+| `vox://scratchpad` | `{ entryId }` | When a dictation with nothing focused opens the panel; a nudge to call `scratchpad_take` |
 
 `vox://level` is the only high-frequency event and it exists because the level meter answers
 "is it hearing me?" — the question people have at that moment. It stops the instant recording

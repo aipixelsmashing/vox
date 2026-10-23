@@ -72,6 +72,16 @@ Behaviour:
 - **Delete all** — confirms once, then wipes the table and vacuums the database file so the
   text is not recoverable from free pages.
 - **Failed rows** carry the reason inline: "not inserted — window was elevated".
+- **The scratchpad.** A dictation with no text field focused (Finder in front, the desktop,
+  a window with nothing editable) does not go to the clipboard with a toast: the panel
+  opens by itself with that row in its text box, the caret at the end and **Copy** as the
+  primary action. Enter or Copy saves any change (through `history_edit`, so a fix made
+  there is a correction under [adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)),
+  copies the text and closes the panel; Escape or Cancel leaves the row as it is. The row
+  is marked "not inserted — no text field was focused", which is also why the panel opened.
+  Only when history is on: with history off there is no row to show, and the text goes to
+  the clipboard with the toast as before. Every other failure (focus changed, a field that
+  refused the text, a password field) keeps its clipboard-and-toast behaviour.
 - **Empty state**: "Nothing dictated yet. Hold right Option and speak."
 
 Keyboard: arrow keys move, Enter copies, Cmd/Ctrl+Enter inserts, Delete removes, ⌘E edits,

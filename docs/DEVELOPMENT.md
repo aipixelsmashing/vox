@@ -58,8 +58,9 @@ add the new bundle with `+`; toggling the old row off and on is not enough.
 
 The system-wide accessibility element does not work on macOS 26.5 even when trusted; the
 injector goes through the frontmost application's element instead
-([TEXT-INJECTION.md](TEXT-INJECTION.md#macos)). If insertion reports "no text field was
-focused" everywhere, check that the app you are dictating into is actually frontmost.
+([TEXT-INJECTION.md](TEXT-INJECTION.md#macos)). If every dictation opens the panel as a
+scratchpad ("no text field was focused"), check that the app you are dictating into is
+actually frontmost.
 
 **Windows.** Debuggers and the low-level keyboard hook interact badly: if the hook callback is
 paused at a breakpoint, Windows silently unhooks it after the timeout and your hotkey stops

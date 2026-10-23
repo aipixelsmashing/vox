@@ -172,6 +172,16 @@ Cannot be automated: a real tray, a real focus change, a real clipboard.
    behind. The same with Enter, Escape, the chord and the tray icon. Which process gets
    focus is unit-tested (`panel::tests`); that macOS gives it is a real focus change and
    is checked here.
+9. The scratchpad. Dictate with Finder in front: no toast, nothing on the clipboard, and
+   the panel opens with the new row in its text box, caret at the end, "not inserted — no
+   text field was focused" above it and Copy / Cancel beside it; the log shows
+   `dictation: no text field focused; the panel opens as a scratchpad`. Press Enter: the
+   text is on the clipboard and the panel is gone. Again, but change a word first, then
+   Enter: the changed text is on the clipboard and in the row. Again, press Escape: the
+   panel stays with the row as it was. Dictate with Finder in front while the panel is
+   already open: the new row goes into the text box. Turn history off in Privacy and
+   dictate with Finder in front: the toast "Copied. No text field was focused." and the
+   text on the clipboard, as before.
 
 ### Settings window (M3)
 
@@ -206,9 +216,11 @@ Cannot be automated: real prompts, a real microphone, a real key.
 
 Cannot be automated: the assertion is about focus and placement on a real screen.
 
-1. Dictate with no text field focused (Finder in front): a toast appears at the bottom
-   centre reading "Copied. No text field was focused.", sized to its text, and the caret in
-   whatever you were in is untouched — the toast never takes focus.
+1. Dictate into a window that refuses the text (Terminal with `output.method` set to
+   `accessibility`), or with history off and Finder in front: a toast appears at the
+   bottom centre with the deck's reason, sized to its text, and the caret in whatever you
+   were in is untouched — the toast never takes focus. (With history on, a dictation with
+   nothing focused opens the panel instead: history panel gate 9.)
 2. It goes away by itself after about four seconds; a click dismisses it sooner.
 3. Two failures in a row: the second message replaces the first and the timer restarts.
 4. Dictate successfully: no toast. Success is the text appearing.

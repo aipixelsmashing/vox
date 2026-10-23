@@ -207,6 +207,7 @@ pub fn run() {
             commands::app_quit,
             commands::panel_menu,
             commands::toast_current,
+            commands::scratchpad_take,
             commands::toast_fit,
         ])
         .build(tauri::generate_context!())

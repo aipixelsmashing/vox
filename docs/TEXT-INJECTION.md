@@ -242,7 +242,7 @@ safely on the clipboard.
 | Code editors | Auto-indent and autocomplete mangle synthesised typing; prefer clipboard paste over unicode events here |
 | Browsers / Electron | AX insertion frequently unavailable; the verification step catches it and falls through to paste |
 | Remote desktop / VM windows | Nothing works reliably; detect known window classes and go straight to clipboard-only with a clear message |
-| No editable field focused | `ClipboardOnly { NoTextTarget }` — "Copied. No text field was focused." |
+| No editable field focused | `ClipboardOnly { NoTextTarget }` — the history panel opens as a scratchpad with the row ready to copy ([HISTORY.md](HISTORY.md#the-panel)); with history off, the clipboard and "Copied. No text field was focused." |
 
 ## Compatibility matrix
 
