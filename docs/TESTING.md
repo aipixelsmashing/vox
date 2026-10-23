@@ -44,7 +44,10 @@ element" → "AXUIElement" must (`tests/guards.rs`, against the real system word
 the three-occurrence, two-session threshold, the session clock, the auto-suspend rule (with
 M7, when terms are applied), and the guarantee that deleting a term also deletes its
 evidence. The focus-left and refused-field cases are structural: the watch is registered
-under the `Inserted` arm only, and ends itself when the frontmost app changes.
+under the `Inserted` arm only, and ends itself when the frontmost app changes. The panel's
+edit path ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)) is tested against the
+same fixtures: an aligned fix records at once, a rewrite or deletion records nothing, the
+guard holds, and an edit ends the field watch on that row and no other.
 
 **UI contract coverage** — every command in `src/lib/contract.ts` has a mock implementation,
 and every state documented in [UI-STATES.md](UI-STATES.md) has a scenario in
@@ -310,6 +313,18 @@ has the `sqlite3` query).
    `watch: cancelled`, for the oldest.
 11. Settings → Privacy → Corrections → Delete all…: the table is empty and the note says
    how many went. Turn "Watch my corrections" off in Vocabulary: no `watch:` lines.
+12. Edit in the panel ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)). Dictate
+   a sentence with a mangled name into Notes, open the panel, press ⌘E (or Edit on the
+   row), fix the name, press Enter: the row shows the new text and word count, the log
+   shows `edit: watch on the edited dictation ended` then `edit: candidate recorded`, and
+   the table has the row with `source_apps Notes`. Click the row: the corrected text is on
+   the clipboard. Dictate with Finder in front (clipboard only), fix the name in the
+   panel: `edit: candidate recorded` with no `watch:` line before it — the row that was
+   never in a field now has a correction path. Rewrite a row's sentence: `edit: saved,
+   not a correction` and no new table row. Fix "their" → "there": `edit: guarded`. Press
+   Escape mid-edit, and click elsewhere so the panel hides mid-edit: the row is unchanged
+   and nothing is logged. With "Watch my corrections" off: the row still saves, and the
+   log has no `edit:` learning line.
 
 **Passed 2026-10-21** by the maintainer in Notes, build a5f619e: gates 3 and 4 (a term
 hinted from three manglings over two sittings, shown as one row in Vocabulary, and a

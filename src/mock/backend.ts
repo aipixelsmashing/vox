@@ -178,6 +178,15 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     }
     return { outcome: 'inserted', method: 'paste', elapsedMs: 41 }
   },
+  /** The core decides whether the edit was a correction; the mock only keeps the text. */
+  async history_edit({ id, text }: { id: number; text: string }) {
+    await wait()
+    const e = history.find((x) => x.id === id)
+    if (!e) fail({ kind: 'io', detail: `no history row ${id}`, userMessage: "Couldn't read Vox's data. Try again.", action: 'retry', actionLabel: 'Try again' })
+    const updated: HistoryEntry = { ...e, text, wordCount: text.split(/\s+/).filter(Boolean).length }
+    history = history.map((x) => (x.id === id ? updated : x))
+    return updated
+  },
   async panel_hide() { /* nothing to hide in a browser tab */ },
   async history_export() { await wait(600); return { path: '~/Documents/vox-export' } },
 

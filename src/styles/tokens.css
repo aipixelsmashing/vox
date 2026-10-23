@@ -146,6 +146,17 @@ html[data-material="css"] .panel {
 .hrow[aria-selected="true"] .transcript { color: var(--accent-text); }
 .hrow[aria-selected="true"] .meta,
 .hrow[aria-selected="true"] .fail { color: var(--accent-text); opacity: 0.8; }
+/* The transcript being edited: a text field on the row, in the panel's own colours
+   whatever the row's selection state, as Finder's rename field sits on a selected
+   item. It takes the row's width and grows with its text (HistoryPanel.tsx).       */
+.hrow .editor {
+  display: block; width: 100%; box-sizing: border-box; margin-top: var(--s-1);
+  padding: var(--s-1) var(--s-2); resize: none; overflow: hidden;
+  font: inherit; font-size: var(--t-transcript-size); line-height: var(--t-transcript-lh);
+  color: var(--ink); background: var(--panel);
+  border: 1px solid var(--rule); border-radius: var(--radius-input);
+}
+.hrow[aria-selected="true"] .editor { color: var(--ink); }
 .hrow .actions { visibility: hidden; }
 .hrow[aria-selected="true"] .actions { visibility: visible; }
 .fail { color: var(--fail); }

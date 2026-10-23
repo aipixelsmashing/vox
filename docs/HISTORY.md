@@ -62,15 +62,22 @@ Behaviour:
   in the target app become vocabulary candidates ([LEARNING.md](LEARNING.md)). The history row
   stores only the transcript; correction candidates live in their own table and never keep
   surrounding text.
+- **Edit** — the transcript becomes a text box on the row, with Save and Cancel in place of
+  the other actions; ⌘E does the same for the selected row. Enter or Save keeps the new
+  text (Copy and Insert then use it); Escape, Cancel or the panel hiding discards it. An
+  aligned local fix saved here is a vocabulary correction under the field watch's rules
+  ([adr/0018](adr/0018-edit-in-the-panel-is-a-correction.md)); any other edit is just an
+  edit. While a row is being edited the selection stays on it.
 - **×** — deletes that row immediately, no confirmation. It's one row and it's the user's data.
 - **Delete all** — confirms once, then wipes the table and vacuums the database file so the
   text is not recoverable from free pages.
 - **Failed rows** carry the reason inline: "not inserted — window was elevated".
 - **Empty state**: "Nothing dictated yet. Hold right Option and speak."
 
-Keyboard: arrow keys move, Enter copies, Cmd/Ctrl+Enter inserts, Delete removes, Escape closes,
-⌘+ and ⌘− step the text size (persisted, `ui.textSize`), ⌘, opens Settings,
-typing filters. The panel is fully operable without a mouse.
+Keyboard: arrow keys move, Enter copies, Cmd/Ctrl+Enter inserts, Delete removes, ⌘E edits,
+Escape closes, ⌘+ and ⌘− step the text size (persisted, `ui.textSize`), ⌘, opens Settings,
+typing filters. While editing: Enter saves, Shift+Enter is a line break, Escape discards.
+The panel is fully operable without a mouse.
 
 ## Storage
 
@@ -94,6 +101,7 @@ CREATE TABLE transcripts (
 );
 CREATE INDEX idx_created ON transcripts(created_at DESC);
 CREATE VIRTUAL TABLE transcripts_fts USING fts5(text, content='transcripts', content_rowid='id');
+-- text and word_count change when a row is edited in the panel; triggers keep the index in step.
 
 -- Vocabulary learned from corrections (docs/LEARNING.md). Kilobytes, not megabytes.
 -- Note what is absent: no surrounding text, ever.

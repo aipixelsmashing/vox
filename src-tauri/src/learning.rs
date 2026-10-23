@@ -360,6 +360,79 @@ pub fn observe(
     )
 }
 
+/// An edit the user saved in the history panel (adr/0018): the second source of
+/// corrections. The saved text is diffed against the row as it stood with the same
+/// alignment rules as a field read, then guarded and recorded through [`observe_with`].
+/// The commit is the settling event, so there is no confirming read. None when the edit
+/// was not a correction: a rewrite, a deletion, an added word.
+pub fn observe_edit_with(
+    store: &history::Store,
+    before: &str,
+    after: &str,
+    app: &str,
+    session: i64,
+    min_occurrences: u32,
+    is_common: Option<&dyn Fn(&str) -> bool>,
+) -> anyhow::Result<Option<Observed>> {
+    let Some((wrong, right)) = extract_correction(before, after) else {
+        tracing::info!("edit: saved, not a correction");
+        return Ok(None);
+    };
+    let observed = observe_with(
+        store,
+        &wrong,
+        &right,
+        app,
+        session,
+        min_occurrences,
+        is_common,
+    )?;
+    match observed {
+        Observed::Guarded => tracing::info!("edit: guarded, both forms ordinary"),
+        Observed::Recorded {
+            count,
+            sessions,
+            promoted,
+            term_count,
+            term_sessions,
+            hinted,
+        } => tracing::info!(
+            "edit: candidate recorded ({} → {} tokens), seen {} times in {} sessions{}; its right form {} times in {} sessions{}",
+            tokens(&wrong).len(),
+            tokens(&right).len(),
+            count,
+            sessions,
+            if promoted { ", promoted" } else { "" },
+            term_count,
+            term_sessions,
+            if hinted { ", now hinted" } else { "" }
+        ),
+    }
+    Ok(Some(observed))
+}
+
+/// [`observe_edit_with`] against the system word list.
+pub fn observe_edit(
+    store: &history::Store,
+    before: &str,
+    after: &str,
+    app: &str,
+    session: i64,
+    min_occurrences: u32,
+) -> anyhow::Result<Option<Observed>> {
+    let words = crate::context::system_words();
+    let is_common = words.map(|w| move |t: &str| w.contains(t));
+    observe_edit_with(
+        store,
+        before,
+        after,
+        app,
+        session,
+        min_occurrences,
+        is_common.as_ref().map(|f| f as &dyn Fn(&str) -> bool),
+    )
+}
+
 /// Applied terms are passed to the engine as a recognition hint where supported (fixing the
 /// error) and applied as whole-token replacement otherwise (patching it). Case-insensitive
 /// match, sentence-initial capitalisation preserved. M7.
@@ -418,11 +491,18 @@ pub fn next_read(
 pub struct Watch {
     /// Set by dropping the watch, and by the thread itself when it ends for any reason.
     cancel: Arc<AtomicBool>,
+    /// The history row of the dictation being watched, when history kept one. An edit to
+    /// that row in the panel ends the watch (adr/0018), so one fix is counted once.
+    entry: Option<i64>,
 }
 
 impl Watch {
     fn is_over(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
+    }
+
+    fn end(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
     }
 }
 
@@ -448,13 +528,32 @@ fn keep(watches: &mut VecDeque<Watch>, new: Watch, limit: usize) {
     }
 }
 
+/// The user saved an edit to this dictation in the panel: the fix was made there, so the
+/// watch on the field, if one is still running, has nothing left to see that should count.
+pub fn end_watch_for(entry_id: i64) -> bool {
+    end_for(&CURRENT.lock(), entry_id)
+}
+
+fn end_for(watches: &VecDeque<Watch>, entry_id: i64) -> bool {
+    let mut ended = false;
+    for w in watches.iter().filter(|w| w.entry == Some(entry_id)) {
+        if !w.is_over() {
+            w.end();
+            ended = true;
+        }
+    }
+    ended
+}
+
 /// The pipeline's one call, after an insertion that verified. Never reached for a refused
 /// or unverified insertion: password fields and secure input are excluded before this is
-/// called, not filtered afterwards (tests/guards.rs checks the call site).
+/// called, not filtered afterwards (tests/guards.rs checks the call site). `entry` is the
+/// history row the dictation was stored as, when history is on.
 pub fn watch_after_insertion(
     deps: &crate::pipeline::Deps,
     target: &InjectionTarget,
     inserted: &str,
+    entry: Option<i64>,
 ) {
     let (on, min_occurrences) = {
         let s = deps.settings.read();
@@ -472,7 +571,8 @@ pub fn watch_after_insertion(
         session,
         min_occurrences,
     );
-    if let Some(watch) = watch {
+    if let Some(mut watch) = watch {
+        watch.entry = entry;
         keep(&mut CURRENT.lock(), watch, MAX_WATCHES);
     }
 }
@@ -520,7 +620,10 @@ impl Watch {
         match spawned {
             Ok(_) => {
                 tracing::info!("watch: registered for {} s", WATCH_WINDOW.as_secs());
-                Some(Self { cancel })
+                Some(Self {
+                    cancel,
+                    entry: None,
+                })
             }
             Err(e) => {
                 tracing::warn!("watch: thread failed to start: {e}");
@@ -871,9 +974,100 @@ mod tests {
         (
             Watch {
                 cancel: cancel.clone(),
+                entry: None,
             },
             cancel,
         )
+    }
+
+    /// Fix the name in the panel while the field watch on that dictation still runs: the
+    /// watch ends, and only that one, so the fix is not counted twice (adr/0018).
+    #[test]
+    fn an_edit_in_the_panel_ends_the_watch_on_that_dictation_only() {
+        let mut watches = VecDeque::new();
+        let (mut a, a_flag) = watch();
+        let (mut b, b_flag) = watch();
+        let (c, c_flag) = watch();
+        a.entry = Some(7);
+        b.entry = Some(8);
+        keep(&mut watches, a, 3);
+        keep(&mut watches, b, 3);
+        keep(&mut watches, c, 3);
+        assert!(end_for(&watches, 8));
+        assert!(!a_flag.load(Ordering::Relaxed));
+        assert!(b_flag.load(Ordering::Relaxed));
+        assert!(
+            !c_flag.load(Ordering::Relaxed),
+            "a watch with no row is never the one"
+        );
+        assert!(!end_for(&watches, 8), "already over");
+        assert!(!end_for(&watches, 9), "no such watch");
+        assert!(!end_watch_for(i64::MAX));
+    }
+
+    /// The panel's edit goes through the same alignment and guard as a field read, and the
+    /// commit stands in for the confirming read (adr/0018).
+    #[test]
+    fn a_saved_edit_is_a_correction_under_the_field_watch_rules() {
+        let store = history::Store::open_in_memory().unwrap();
+        let common = &fixture_common as &dyn Fn(&str) -> bool;
+        let edit = |before: &str, after: &str, session: i64| {
+            observe_edit_with(&store, before, after, "Notes", session, 3, Some(common)).unwrap()
+        };
+        // An aligned one-token fix, recorded at once: no second read.
+        assert!(matches!(
+            edit("call prea now ", "call Priya now ", 1),
+            Some(Observed::Recorded { count: 1, .. })
+        ));
+        // A second edit to the same row aligns against the first.
+        assert!(matches!(
+            edit("call Priya now ", "call Priya later ", 1),
+            Some(Observed::Guarded)
+        ));
+        // A rewrite, a deletion and an added word save the text and teach nothing.
+        assert_eq!(edit("call prea now ", "ping her tomorrow", 1), None);
+        assert_eq!(edit("call prea now ", "call now ", 1), None);
+        assert_eq!(edit("call prea now ", "call prea right now ", 1), None);
+        // Unchanged text is not a correction either.
+        assert_eq!(edit("call prea now ", "call prea now ", 1), None);
+        // The homophone guard holds.
+        assert_eq!(
+            edit("send it to their desk", "send it to there desk", 1),
+            Some(Observed::Guarded)
+        );
+        // Without a word list nothing is recorded.
+        assert_eq!(
+            observe_edit_with(
+                &store,
+                "call prea now",
+                "call Priya now",
+                "Notes",
+                2,
+                3,
+                None
+            )
+            .unwrap(),
+            Some(Observed::Guarded)
+        );
+        let terms = store.vocab_list().unwrap();
+        assert_eq!(terms.len(), 1);
+        assert_eq!(
+            (terms[0].wrong_form.as_str(), terms[0].right_form.as_str()),
+            ("prea", "Priya")
+        );
+        assert_eq!(terms[0].count, 1);
+        assert_eq!(terms[0].source_apps, vec!["Notes"]);
+        // The same thresholds: the second session's fix, in the panel, promotes it.
+        edit("call prea now ", "call Priya now ", 1);
+        assert!(matches!(
+            edit("tell prea thanks", "tell Priya thanks", 2),
+            Some(Observed::Recorded {
+                count: 3,
+                sessions: 2,
+                promoted: true,
+                ..
+            })
+        ));
     }
 
     #[test]
