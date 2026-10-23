@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Undo the last dictation: ⌃⌘Z (Settings → Dictation to change or turn off) takes the
+  text Vox just placed back out of the field, through the accessibility API rather than
+  the app's own undo. It acts only when the app is in front and the text is still there
+  unchanged, and says why otherwise. The transcript stays in History.
 - Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
   ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
   ⌘, opens Settings from the panel.

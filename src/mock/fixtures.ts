@@ -173,7 +173,7 @@ export const diagnosticsThin: Diagnostics = {
 
 export const settings: Settings = {
   version: 1,
-  hotkey: { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false },
+  hotkey: { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false, undo: 'Control+Cmd+Z' },
   audio: { inputDevice: 'default', preroll: 'off', maxRecordingSec: 120 },
   engine: { modelId: 'auto', device: 'auto', language: 'auto' },
   learning: { captureCorrections: true, applyLearnedTerms: false, minOccurrences: 3 },

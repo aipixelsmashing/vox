@@ -590,10 +590,14 @@ fn finish(
         }
     };
 
-    // A verified insertion gets a correction watch (docs/LEARNING.md). Off the critical
-    // path; a refused or unverified insertion never reaches this arm.
+    // A verified insertion gets a correction watch (docs/LEARNING.md) and is what the undo
+    // shortcut takes back (undo.rs). Off the critical path; a refused or unverified
+    // insertion never reaches this arm, and leaves undo with nothing in a field to remove.
     if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
         crate::learning::watch_after_insertion(deps, t, &text);
+        crate::undo::remember_placed(t, &text);
+    } else {
+        crate::undo::remember_not_placed();
     }
 
     let mut entry_id = 0;

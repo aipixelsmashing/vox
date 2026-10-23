@@ -45,7 +45,7 @@ Grouped by pane. Full signatures in `contract.ts`.
 | --- | --- | --- |
 | `settings_get` | — | `Settings` |
 | `settings_set` | `Partial<Settings>` | `Settings` — returns the merged result, so the UI never guesses |
-| `hotkey_capture_start` | — | `HotkeyBinding` — resolves on the next key-down |
+| `hotkey_capture_start` | — | `HotkeyBinding` — resolves on the next key-down; carries `chord` when the keys make one (modifiers plus one key), which is what the undo shortcut row saves as `hotkey.undo` |
 | `models_list` | — | `ModelInfo[]` |
 | `models_download` | `{ id }` | `void` — progress arrives on `vox://model-progress` |
 | `models_import` | `{ path }` | `ModelInfo` |

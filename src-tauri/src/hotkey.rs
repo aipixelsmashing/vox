@@ -287,6 +287,37 @@ pub fn parse_chord(spec: &str) -> Option<Vec<Vec<String>>> {
     (groups.len() >= 2).then_some(groups)
 }
 
+/// Captured keys as a chord spec for [`parse_chord`]: the modifiers in the Mac's order,
+/// left and right folded together, then the one key that fires it. None when there is no
+/// modifier or not exactly one other key: a lone letter would fire on every word typed.
+pub fn chord_from_keys(keys: &[String]) -> Option<String> {
+    const ORDER: [&str; 5] = ["Control", "Alt", "Shift", "Cmd", "Function"];
+    let mut mods: Vec<&str> = Vec::new();
+    let mut others: Vec<&str> = Vec::new();
+    for k in keys {
+        let m = match k.as_str() {
+            "ControlLeft" | "ControlRight" => "Control",
+            "AltLeft" | "AltRight" => "Alt",
+            "ShiftLeft" | "ShiftRight" => "Shift",
+            "MetaLeft" | "MetaRight" => "Cmd",
+            FN_KEY => "Function",
+            other => {
+                others.push(other);
+                continue;
+            }
+        };
+        if !mods.contains(&m) {
+            mods.push(m);
+        }
+    }
+    if mods.is_empty() || others.len() != 1 {
+        return None;
+    }
+    let mut spec: Vec<&str> = ORDER.iter().copied().filter(|m| mods.contains(m)).collect();
+    spec.push(others[0]);
+    Some(spec.join("+"))
+}
+
 /// Fires once per press of the chord's final key while every other group is held.
 pub struct ChordWatch {
     groups: Vec<Vec<String>>,
@@ -326,17 +357,17 @@ pub fn spawn(
     pipeline: Arc<pipeline::Handle>,
     paused: Arc<AtomicBool>,
     on_panel: Arc<dyn Fn() + Send + Sync>,
+    on_undo: Arc<dyn Fn() + Send + Sync>,
 ) -> anyhow::Result<()> {
     let tap = Tap::new().map_err(|e| anyhow::anyhow!("keytap: {e}"))?;
     let hotkey = settings.read().hotkey.clone();
-    let chord_for = |s: &settings::Settings| {
-        s.history
-            .panel_hotkey
-            .as_deref()
-            .and_then(parse_chord)
-            .map(ChordWatch::new)
-    };
+    fn watch(spec: Option<&str>) -> Option<ChordWatch> {
+        spec.and_then(parse_chord).map(ChordWatch::new)
+    }
+    let chord_for = |s: &settings::Settings| watch(s.history.panel_hotkey.as_deref());
+    let undo_for = |s: &settings::Settings| watch(s.hotkey.undo.as_deref());
     let mut panel_chord = chord_for(&settings.read());
+    let mut undo_chord = undo_for(&settings.read());
     let mut seen_gen = settings::SETTINGS_GEN.load(Ordering::Acquire);
     // True from Start to End. The cancel tap reads it to decide whether the cancel key belongs
     // to us (swallow it, send Cancel) or to the foreground app (let it through).
@@ -377,6 +408,7 @@ pub fn spawn(
                     let s = settings.read();
                     matcher = Matcher::new(&s.hotkey);
                     panel_chord = chord_for(&s);
+                    undo_chord = undo_for(&s);
                     dictating.store(false, Ordering::Release);
                 }
 
@@ -397,9 +429,16 @@ pub fn spawn(
                     }
                     continue;
                 }
-                if let Some(chord) = panel_chord.as_mut() {
-                    if chord.feed(&name, down) && !matcher.is_active() {
+                // Both chords see every key, so neither misses a modifier the other used.
+                let panel_hit = panel_chord.as_mut().is_some_and(|c| c.feed(&name, down));
+                let undo_hit = undo_chord.as_mut().is_some_and(|c| c.feed(&name, down));
+                if !matcher.is_active() {
+                    if panel_hit {
                         on_panel();
+                        continue;
+                    }
+                    if undo_hit {
+                        on_undo();
                         continue;
                     }
                 }
@@ -830,6 +869,41 @@ mod tests {
         w.feed("ShiftLeft", false);
         assert!(!w.feed("V", true), "shift released");
         assert!(parse_chord("V").is_none(), "a lone key is not a chord");
+    }
+
+    #[test]
+    fn captured_keys_become_a_chord_only_with_a_modifier_and_one_key() {
+        let keys = |v: &[&str]| v.iter().map(|k| k.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            chord_from_keys(&keys(&["MetaLeft", "ControlLeft", "Z"])),
+            Some("Control+Cmd+Z".into()),
+            "modifiers in the Mac's order, whatever order they went down"
+        );
+        assert_eq!(
+            chord_from_keys(&keys(&["ShiftRight", "MetaRight", "U"])),
+            Some("Shift+Cmd+U".into())
+        );
+        assert_eq!(
+            chord_from_keys(&keys(&["ControlRight"])),
+            None,
+            "a hold key"
+        );
+        assert_eq!(chord_from_keys(&keys(&["Z"])), None, "a lone letter");
+        assert_eq!(
+            chord_from_keys(&keys(&["MetaLeft", "Z", "X"])),
+            None,
+            "two keys"
+        );
+        assert_eq!(chord_from_keys(&[]), None);
+        // What it produces, the watcher accepts, and the shipped default parses.
+        let groups =
+            parse_chord(&chord_from_keys(&keys(&["MetaLeft", "ControlLeft", "Z"])).unwrap())
+                .unwrap();
+        let mut w = ChordWatch::new(groups);
+        assert!(!w.feed("ControlLeft", true));
+        assert!(!w.feed("MetaRight", true));
+        assert!(w.feed("Z", true));
+        assert!(parse_chord(settings::Hotkey::default().undo.as_deref().unwrap()).is_some());
     }
 
     #[test]

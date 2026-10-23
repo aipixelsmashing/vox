@@ -17,7 +17,8 @@ drives migrations; each migration is a pure function with a test.
     "mode": "hold",                // hold | toggle | double-tap-hold
     "minHoldMs": 120,              // shorter presses are ignored
     "consume": false,              // swallow the key system-wide (macOS/Windows only)
-    "cancelKey": "Escape"
+    "cancelKey": "Escape",
+    "undo": "Control+Cmd+Z"        // takes the last dictation back out of its field; null = off (HOTKEYS.md)
   },
 
   "audio": {

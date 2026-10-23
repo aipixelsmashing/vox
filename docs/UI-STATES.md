@@ -47,7 +47,7 @@ be located. Click-through, never focused, gone the moment the text is placed.
 
 | Pane | Key states | **[S]** |
 | --- | --- | --- |
-| Dictation | Capturing a binding; AltGr layout warning; Fn chosen while macOS still assigns the Globe key; device list empty | `hotkey-capturing`, `hotkey-altgr`, `hotkey-fn` |
+| Dictation | Capturing a binding; AltGr layout warning; Fn chosen while macOS still assigns the Globe key; device list empty; the undo chord shown as ⌃⌘Z or "Off", capturing one, and a capture that is not a chord | `hotkey-capturing`, `hotkey-altgr`, `hotkey-fn`, `hotkey-undo` |
 | Model | Not downloaded; downloading with progress; verification failed; import; engine in use | `model-none`, `model-downloading`, `model-hash-fail` |
 | Text | Manual dictionary empty vs populated | `dictionary-empty` |
 | Vocabulary | No words yet; words with provenance, one misheard two ways; a suspended word; learning off; more than twelve words, with the filter field and its no-match state | `vocab-empty`, `vocab-populated`, `vocab-suspended`, `vocab-off`, `vocab-many` |
@@ -102,6 +102,14 @@ pane.
 | Offline lock blocks an action | "Offline lock is on. Turn it off in Privacy to download." |
 | Engine failed | "Transcription failed. The last recording was lost." |
 | Term suspended | "You changed this back twice — Vox has stopped applying it." |
+| Undo, nothing recorded | "Nothing to undo." |
+| Undo, last dictation went to the clipboard | "Nothing to undo — the last dictation was copied, not placed in a field." |
+| Undo, the app is not frontmost | "Couldn't undo — Notes isn't in front." |
+| Undo, field unreadable | "Couldn't undo — the field can't be read." |
+| Undo, text edited since | "Couldn't undo — the text has changed since it was placed." |
+| Undo, field refused the write | "Couldn't undo — Terminal didn't accept the change." |
+| Undo, removal not confirmed | "Vox couldn't confirm the text was removed." |
+| Undo chord capture, keys do not make a chord | "Use one or more modifier keys with another key." |
 | Wipe confirmation | "Delete all 47 transcripts? This can't be undone." |
 | Export finished | "Exported 47 transcripts and 12 learned words to ~/Documents/vox-export." |
 | History database could not be read | "Couldn't read Vox's data. Try again." with the action "Try again" |

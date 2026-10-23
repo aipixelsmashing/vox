@@ -26,10 +26,32 @@ export function describeKeys(keys: string[]): string {
   return keys.map((k) => KEY_NAMES[k] ?? k).join(' + ')
 }
 
+const MODIFIER_GLYPHS: Record<string, string> = {
+  Control: '⌃', Ctrl: '⌃', Alt: '⌥', Option: '⌥', Shift: '⇧',
+  Cmd: '⌘', Command: '⌘', CmdOrCtrl: '⌘', CommandOrControl: '⌘', Meta: '⌘', Super: '⌘', Function: '🌐',
+}
+/** The order the Mac draws modifiers in. */
+const MODIFIER_ORDER = ['⌃', '⌥', '⇧', '⌘', '🌐']
+const CHORD_KEY_NAMES: Record<string, string> = {
+  Space: 'Space', Backspace: '⌫', Delete: '⌦', Enter: '↩', Return: '↩', Tab: '⇥', Escape: '⎋',
+  ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+}
+
+/** A chord spec such as `Control+Cmd+Z` the way a Mac menu shows it: ⌃⌘Z. */
+export function describeChord(spec: string): string {
+  const parts = spec.split('+').map((p) => p.trim()).filter(Boolean)
+  const mods = parts.filter((p) => p in MODIFIER_GLYPHS).map((p) => MODIFIER_GLYPHS[p]!)
+  mods.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b))
+  const keys = parts.filter((p) => !(p in MODIFIER_GLYPHS)).map((k) => CHORD_KEY_NAMES[k] ?? k.replace(/^Digit/, '').replace(/^Key/, ''))
+  return [...new Set(mods)].join('') + keys.join('')
+}
+
 export function DictationPane({ settings, patch }: { settings: Settings; patch: (p: DeepPartial<Settings>) => Promise<void> }) {
   const [capturing, setCapturing] = useState(false)
   const [captured, setCaptured] = useState<HotkeyBinding | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
+  const [capturingUndo, setCapturingUndo] = useState(false)
+  const [undoError, setUndoError] = useState<string | null>(null)
   const [devices, setDevices] = useState<AudioDevice[] | null>(null)
   const [level, setLevel] = useState(0)
   const [levelSeen, setLevelSeen] = useState(false)
@@ -77,6 +99,24 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
       setCaptureError(toDisplayError(e).userMessage)
     } finally {
       setCapturing(false)
+    }
+  }
+
+  /** The undo shortcut is a chord: the same capture, kept only if the keys make one. */
+  const captureUndo = async () => {
+    setCapturingUndo(true)
+    setUndoError(null)
+    try {
+      const b = await commands.hotkey_capture_start()
+      if (!b.chord) {
+        setUndoError(copy.settings.dictation.undoNeedsChord)
+        return
+      }
+      await patch({ hotkey: { undo: b.chord } })
+    } catch (e) {
+      setUndoError(toDisplayError(e).userMessage)
+    } finally {
+      setCapturingUndo(false)
     }
   }
 
@@ -130,6 +170,24 @@ export function DictationPane({ settings, patch }: { settings: Settings; patch: 
         </Row>
         <Row label={copy.settings.dictation.cancelKey} hint={copy.settings.dictation.cancelHint}>
           <span>Escape</span>
+        </Row>
+        <Row
+          label={c.undo}
+          hint={
+            capturingUndo ? c.pressKeys
+            : undoError ? <span style={{ color: 'var(--fail)' }}>{undoError}</span>
+            : c.undoHint
+          }
+        >
+          <span>{settings.hotkey.undo ? describeChord(settings.hotkey.undo) : c.undoOff}</span>
+          <Button onClick={() => void captureUndo()} disabled={capturingUndo}>
+            {c.change}
+          </Button>
+          {settings.hotkey.undo && (
+            <Button onClick={() => void patch({ hotkey: { undo: null } })} disabled={capturingUndo}>
+              {c.turnOff}
+            </Button>
+          )}
         </Row>
         <Row label={copy.settings.dictation.minHold}>
           <NumberField

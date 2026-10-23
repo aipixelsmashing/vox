@@ -234,6 +234,8 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
     const s = scenario()
     if (s === 'hotkey-altgr') return { keys: ['AltRight'], mode: 'hold', minHoldMs: 120, consume: false, altGr: true }
     if (s === 'hotkey-fn') return { keys: ['Function'], mode: 'hold', minHoldMs: 120, consume: false, globe: 'emoji' }
+    if (s === 'hotkey-undo') return { keys: ['MetaLeft', 'ShiftLeft', 'U'], mode: 'hold', minHoldMs: 120, consume: false, chord: 'Shift+Cmd+U' }
+    // A lone modifier is a hold key but not a chord: no `chord`, so an undo capture says so.
     return { keys: ['ControlRight'], mode: 'hold', minHoldMs: 120, consume: false }
   },
   async globe_key_setting() {

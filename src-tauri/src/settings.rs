@@ -60,6 +60,10 @@ pub struct Hotkey {
     /// silently eating a modifier is worse behaviour than the AltGr overlap.
     pub consume: bool,
     pub cancel_key: String,
+    /// The chord that takes the last dictation back out of its field (docs/HOTKEYS.md,
+    /// "Undo the last dictation"). None turns it off. Observed, not swallowed, like the
+    /// panel chord, so the default is one no text app binds.
+    pub undo: Option<String>,
 }
 
 impl Default for Hotkey {
@@ -70,6 +74,7 @@ impl Default for Hotkey {
             min_hold_ms: 120,
             consume: false,
             cancel_key: "Escape".into(),
+            undo: Some("Control+Cmd+Z".into()),
         }
     }
 }
