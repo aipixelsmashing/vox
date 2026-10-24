@@ -178,6 +178,39 @@ fn history_has_no_column_for_context_text() {
     );
 }
 
+/// Per-app defaults (adr/0019) hold a bundle id, an aspect, a value and counts. Every
+/// column is on this list; adding one is a deliberate change here and in docs/HISTORY.md.
+#[test]
+fn app_defaults_have_no_column_for_text() {
+    let src = include_str!("../src/history.rs");
+    let table = src
+        .split("CREATE TABLE IF NOT EXISTS app_defaults (")
+        .nth(1)
+        .and_then(|rest| rest.split(");").next())
+        .expect("app_defaults table in the schema");
+    const ALLOWED: &[&str] = &[
+        "id",
+        "bundle_id",
+        "aspect",
+        "value",
+        "count",
+        "sessions",
+        "session_ids",
+        "first_seen",
+        "last_seen",
+        "reversals",
+        "state",
+        "UNIQUE(bundle_id,",
+    ];
+    for line in table.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let column = line.split_whitespace().next().unwrap();
+        assert!(
+            ALLOWED.contains(&column),
+            "unexpected app_defaults column {column}"
+        );
+    }
+}
+
 /// Reading the user's document is opt-in (adr/0017): off by default, and the flag exists in
 /// the settings file so it can be inspected and diffed.
 #[test]

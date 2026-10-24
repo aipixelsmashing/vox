@@ -71,6 +71,20 @@ CREATE TABLE IF NOT EXISTS vocab_candidates (
   last_session INTEGER,
   session_ids TEXT
 );
+CREATE TABLE IF NOT EXISTS app_defaults (
+  id          INTEGER PRIMARY KEY,
+  bundle_id   TEXT NOT NULL,
+  aspect      TEXT NOT NULL,
+  value       TEXT NOT NULL,
+  count       INTEGER NOT NULL DEFAULT 1,
+  sessions    INTEGER NOT NULL DEFAULT 1,
+  session_ids TEXT,
+  first_seen  INTEGER NOT NULL,
+  last_seen   INTEGER NOT NULL,
+  reversals   INTEGER NOT NULL DEFAULT 0,
+  state       TEXT NOT NULL,
+  UNIQUE(bundle_id, aspect)
+);
 "#;
 
 impl Store {
@@ -556,6 +570,312 @@ fn observe_pair(
     }
 }
 
+// ─── Per-app defaults (docs/adr/0019) ────────────────────────────────────────
+
+/// What a per-app default is about. Spelled as the contract spells it over the boundary,
+/// and as the table stores it in `as_str`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AppAspect {
+    TrailingSpace,
+    CollapseNewlines,
+    Method,
+}
+
+impl AppAspect {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AppAspect::TrailingSpace => "trailing_space",
+            AppAspect::CollapseNewlines => "collapse_newlines",
+            AppAspect::Method => "method",
+        }
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "trailing_space" => Some(AppAspect::TrailingSpace),
+            "collapse_newlines" => Some(AppAspect::CollapseNewlines),
+            "method" => Some(AppAspect::Method),
+            _ => None,
+        }
+    }
+}
+
+/// One learned default: an app, an aspect, a value, and the evidence. Never any text.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDefault {
+    pub bundle_id: String,
+    /// The display name; filled in by the command layer, empty in the store.
+    pub app: String,
+    pub aspect: AppAspect,
+    pub value: String,
+    pub count: u32,
+    pub sessions: u32,
+    pub first_seen: i64,
+    pub last_seen: i64,
+    pub reversals: u32,
+    /// candidate | applied | suspended
+    pub state: String,
+    /// fixes | outcomes
+    pub source: &'static str,
+}
+
+/// What an observed shape fix did to the evidence, for the log (counts and words only).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppObserved {
+    pub count: u32,
+    pub sessions: u32,
+    pub state: String,
+    /// recorded | promoted | restarted | reversed | suspended | ignored
+    pub what: &'static str,
+}
+
+/// The applied per-app overrides for one app, each None where the global setting stands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AppShape {
+    pub trailing_space: Option<bool>,
+    pub collapse_newlines: Option<bool>,
+}
+
+impl Store {
+    /// A settled shape fix in `bundle_id` (docs/adr/0019). One row per app and aspect: the
+    /// same value counts up and is applied at `min_occurrences` over
+    /// [`crate::learning::MIN_SESSIONS`] sessions; the opposite value starts a candidate
+    /// over, counts a reversal against an applied default (two suspend it), and leaves a
+    /// suspended one alone.
+    pub fn app_default_observe(
+        &self,
+        bundle_id: &str,
+        aspect: AppAspect,
+        value: &str,
+        session: i64,
+        now: i64,
+        min_occurrences: u32,
+    ) -> anyhow::Result<AppObserved> {
+        let conn = self.conn.lock();
+        let existing = conn
+            .query_row(
+                "SELECT id, value, count, sessions, session_ids, reversals, state
+                 FROM app_defaults WHERE bundle_id = ?1 AND aspect = ?2",
+                params![bundle_id, aspect.as_str()],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, u32>(2)?,
+                        r.get::<_, u32>(3)?,
+                        r.get::<_, Option<String>>(4)?,
+                        r.get::<_, u32>(5)?,
+                        r.get::<_, String>(6)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((id, had, count, sessions, ids, reversals, state)) = existing else {
+            conn.execute(
+                "INSERT INTO app_defaults (bundle_id, aspect, value, count, sessions, session_ids, first_seen, last_seen, reversals, state)
+                 VALUES (?1, ?2, ?3, 1, 1, ?4, ?5, ?5, 0, 'candidate')",
+                params![bundle_id, aspect.as_str(), value, session.to_string(), now],
+            )?;
+            return Ok(AppObserved {
+                count: 1,
+                sessions: 1,
+                state: "candidate".into(),
+                what: "recorded",
+            });
+        };
+        if had == value {
+            if state == "suspended" {
+                return Ok(AppObserved {
+                    count,
+                    sessions,
+                    state,
+                    what: "ignored",
+                });
+            }
+            let mut ids = parse_session_ids(ids);
+            if !ids.contains(&session) {
+                ids.push(session);
+            }
+            let (count, sessions) = (count + 1, ids.len() as u32);
+            let promoted = state == "candidate"
+                && count >= min_occurrences
+                && sessions >= crate::learning::MIN_SESSIONS;
+            let state = if promoted {
+                "applied".to_string()
+            } else {
+                state
+            };
+            conn.execute(
+                "UPDATE app_defaults SET count = ?2, sessions = ?3, session_ids = ?4, last_seen = ?5, state = ?6 WHERE id = ?1",
+                params![
+                    id,
+                    count,
+                    sessions,
+                    ids.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
+                    now,
+                    state
+                ],
+            )?;
+            return Ok(AppObserved {
+                count,
+                sessions,
+                state,
+                what: if promoted { "promoted" } else { "recorded" },
+            });
+        }
+        match state.as_str() {
+            "candidate" => {
+                conn.execute(
+                    "UPDATE app_defaults SET value = ?2, count = 1, sessions = 1, session_ids = ?3, first_seen = ?4, last_seen = ?4 WHERE id = ?1",
+                    params![id, value, session.to_string(), now],
+                )?;
+                Ok(AppObserved {
+                    count: 1,
+                    sessions: 1,
+                    state,
+                    what: "restarted",
+                })
+            }
+            "applied" => {
+                let reversals = reversals + 1;
+                let suspended = reversals >= crate::learning::SUSPEND_AFTER_REVERSALS;
+                let state = if suspended { "suspended" } else { "applied" };
+                conn.execute(
+                    "UPDATE app_defaults SET reversals = ?2, state = ?3, last_seen = ?4 WHERE id = ?1",
+                    params![id, reversals, state, now],
+                )?;
+                Ok(AppObserved {
+                    count,
+                    sessions,
+                    state: state.into(),
+                    what: if suspended { "suspended" } else { "reversed" },
+                })
+            }
+            _ => Ok(AppObserved {
+                count,
+                sessions,
+                state,
+                what: "ignored",
+            }),
+        }
+    }
+
+    /// Every learned default, newest first. `app` is left empty here.
+    pub fn app_defaults_list(&self) -> anyhow::Result<Vec<AppDefault>> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT bundle_id, aspect, value, count, sessions, first_seen, last_seen, reversals, state
+             FROM app_defaults ORDER BY last_seen DESC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, u32>(3)?,
+                r.get::<_, u32>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, i64>(6)?,
+                r.get::<_, u32>(7)?,
+                r.get::<_, String>(8)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (
+                bundle_id,
+                aspect,
+                value,
+                count,
+                sessions,
+                first_seen,
+                last_seen,
+                reversals,
+                state,
+            ) = row?;
+            let Some(aspect) = AppAspect::parse(&aspect) else {
+                continue;
+            };
+            out.push(AppDefault {
+                bundle_id,
+                app: String::new(),
+                aspect,
+                value,
+                count,
+                sessions,
+                first_seen,
+                last_seen,
+                reversals,
+                state,
+                source: "fixes",
+            });
+        }
+        Ok(out)
+    }
+
+    /// The applied overrides for one app: what post-processing uses in place of the
+    /// global settings there.
+    pub fn app_shape(&self, bundle_id: &str) -> anyhow::Result<AppShape> {
+        let conn = self.conn.lock();
+        let mut stmt = conn.prepare(
+            "SELECT aspect, value FROM app_defaults WHERE bundle_id = ?1 AND state = 'applied'",
+        )?;
+        let rows = stmt.query_map(params![bundle_id], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        let mut shape = AppShape::default();
+        for row in rows {
+            let (aspect, value) = row?;
+            let on = value == "true";
+            match AppAspect::parse(&aspect) {
+                Some(AppAspect::TrailingSpace) => shape.trailing_space = Some(on),
+                Some(AppAspect::CollapseNewlines) => shape.collapse_newlines = Some(on),
+                _ => {}
+            }
+        }
+        Ok(shape)
+    }
+
+    /// Forgets one app's default for one aspect, evidence included.
+    pub fn app_defaults_reset(&self, bundle_id: &str, aspect: AppAspect) -> anyhow::Result<bool> {
+        let conn = self.conn.lock();
+        Ok(conn.execute(
+            "DELETE FROM app_defaults WHERE bundle_id = ?1 AND aspect = ?2",
+            params![bundle_id, aspect.as_str()],
+        )? > 0)
+    }
+
+    pub fn app_defaults_reset_all(&self) -> anyhow::Result<usize> {
+        let conn = self.conn.lock();
+        Ok(conn.execute("DELETE FROM app_defaults", [])?)
+    }
+
+    /// `app-defaults.txt`: one line per learned default, applied first (docs/adr/0015).
+    pub fn app_defaults_export_to(&self, dir: &Path) -> anyhow::Result<(PathBuf, usize)> {
+        let mut rows = self.app_defaults_list()?;
+        rows.sort_by_key(|d| (d.state != "applied", d.bundle_id.clone()));
+        let body: String = rows
+            .iter()
+            .map(|d| {
+                format!(
+                    "{}: {} = {} ({}, {} fixes over {} sessions)\n",
+                    d.bundle_id,
+                    d.aspect.as_str(),
+                    d.value,
+                    d.state,
+                    d.count,
+                    d.sessions
+                )
+            })
+            .collect();
+        let path = dir.join("app-defaults.txt");
+        std::fs::write(&path, body)?;
+        Ok((path, rows.len()))
+    }
+}
+
 impl Store {
     pub fn stats(&self) -> anyhow::Result<Stats> {
         let conn = self.conn.lock();
@@ -815,6 +1135,120 @@ mod tests {
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].text, "t0");
         assert!(rows.iter().all(|r| r.text != "ancient"));
+    }
+
+    /// docs/adr/0019: three of the same fix over two sessions apply a per-app default;
+    /// a contradicting fix starts a candidate over, and two reversals suspend an applied one.
+    #[test]
+    fn per_app_defaults_learn_under_the_vocabulary_thresholds() {
+        let store = Store::open_in_memory().unwrap();
+        let obs = |value: &str, session: i64| {
+            store
+                .app_default_observe(
+                    "com.apple.Safari",
+                    AppAspect::TrailingSpace,
+                    value,
+                    session,
+                    now_millis(),
+                    3,
+                )
+                .unwrap()
+        };
+        assert_eq!(obs("false", 1).what, "recorded");
+        assert_eq!(obs("false", 1).what, "recorded");
+        let third = obs("false", 1);
+        assert_eq!(
+            (third.count, third.sessions, third.what),
+            (3, 1, "recorded")
+        );
+        assert_eq!(
+            store.app_shape("com.apple.Safari").unwrap(),
+            AppShape::default()
+        );
+        let fourth = obs("false", 2);
+        assert_eq!(
+            (fourth.count, fourth.sessions, fourth.what),
+            (4, 2, "promoted")
+        );
+        assert_eq!(
+            store.app_shape("com.apple.Safari").unwrap(),
+            AppShape {
+                trailing_space: Some(false),
+                collapse_newlines: None
+            }
+        );
+        assert_eq!(
+            store.app_shape("com.apple.Notes").unwrap(),
+            AppShape::default(),
+            "another app is untouched"
+        );
+        // Reversals: the user puts the space back, twice.
+        assert_eq!(obs("true", 2).what, "reversed");
+        assert_eq!(
+            store.app_shape("com.apple.Safari").unwrap().trailing_space,
+            Some(false)
+        );
+        assert_eq!(obs("true", 3).what, "suspended");
+        assert_eq!(
+            store.app_shape("com.apple.Safari").unwrap(),
+            AppShape::default()
+        );
+        assert_eq!(obs("false", 3).what, "ignored", "suspended stays suspended");
+        let rows = store.app_defaults_list().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].state, "suspended");
+        assert_eq!(rows[0].reversals, 2);
+        assert_eq!(rows[0].source, "fixes");
+
+        // A candidate that is contradicted starts over.
+        let notes = |value: &str, session: i64| {
+            store
+                .app_default_observe(
+                    "com.apple.Notes",
+                    AppAspect::CollapseNewlines,
+                    value,
+                    session,
+                    now_millis(),
+                    3,
+                )
+                .unwrap()
+        };
+        notes("true", 1);
+        notes("true", 2);
+        let restarted = notes("false", 2);
+        assert_eq!((restarted.count, restarted.what), (1, "restarted"));
+        notes("false", 2);
+        let promoted = notes("false", 3);
+        assert_eq!(
+            promoted.what, "promoted",
+            "three the other way, over two sessions"
+        );
+        assert_eq!(
+            store
+                .app_shape("com.apple.Notes")
+                .unwrap()
+                .collapse_newlines,
+            Some(false)
+        );
+
+        // Reset takes the evidence with it; export lists what is left.
+        assert!(store
+            .app_defaults_reset("com.apple.Safari", AppAspect::TrailingSpace)
+            .unwrap());
+        assert!(!store
+            .app_defaults_reset("com.apple.Safari", AppAspect::TrailingSpace)
+            .unwrap());
+        let dir = std::env::temp_dir().join(format!("vox-app-defaults-{}", now_millis()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (path, n) = store.app_defaults_export_to(&dir).unwrap();
+        assert_eq!(n, 1);
+        let body = std::fs::read_to_string(path).unwrap();
+        assert!(body.contains(
+            "com.apple.Notes: collapse_newlines = false (applied, 3 fixes over 2 sessions)"
+        ));
+        assert_eq!(store.app_defaults_reset_all().unwrap(), 1);
+        assert!(store.app_defaults_list().unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

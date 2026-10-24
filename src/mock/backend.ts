@@ -118,6 +118,9 @@ let mockPaused = false
 /** Settings the mock hands back; settings_set merges into it so panes reflect what they did. */
 let mockSettings: Settings = structuredClone(fx.settings)
 
+/** The mock's own copy of the per-app defaults, so a reset shows up like a real one. */
+let appDefaults = fx.appDefaults.map((x) => ({ ...x }))
+
 /** The mock's own copy of the history, so deletes and new dictations show up like real ones. */
 let history: HistoryEntry[] = fx.historyEntries.map((e) => ({ ...e }))
 
@@ -196,6 +199,22 @@ const impl: Record<string, (args: any) => Promise<unknown>> = {
   },
   async vocab_forget_all() { await wait(); return { deleted: fx.vocabTerms.length } },
   async vocab_export() { await wait(300); return { path: '~/Documents/vox-vocabulary.txt' } },
+
+  async app_defaults_list() {
+    await wait()
+    if (scenario() === 'app-defaults-empty') return []
+    return appDefaults
+  },
+  async app_defaults_reset({ bundleId, aspect }: { bundleId: string; aspect: string }) {
+    await wait()
+    appDefaults = appDefaults.filter((x) => !(x.bundleId === bundleId && x.aspect === aspect))
+  },
+  async app_defaults_reset_all() {
+    await wait()
+    const deleted = appDefaults.length
+    appDefaults = []
+    return { deleted }
+  },
 
   async settings_get() {
     if (scenario() === 'history-disabled') {

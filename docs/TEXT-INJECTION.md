@@ -259,6 +259,10 @@ Safari/Edge, VS Code, JetBrains IDE, Slack, Discord, Terminal/Windows Terminal, 
 formula bar, Figma, Notion, Obsidian, system search (Spotlight / Start menu), and one
 elevated/admin window.
 
+Apps remembered as paste-only this way are listed in Settings → Text under "Learned for
+each app", with "Direct insertion never took here" as their provenance, and can be reset
+there so direct insertion is tried again ([adr/0019](adr/0019-per-app-defaults-that-learn.md)).
+
 ## Reading back what we wrote
 
 Two things depend on being able to re-read the target field after insertion: verification (did

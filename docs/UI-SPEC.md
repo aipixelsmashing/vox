@@ -129,6 +129,17 @@ themselves rather than silently stopping. The header row holds the count, the ex
 past twelve words, a filter field that matches the word or any of its wrong forms. Nothing
 actionable sits below the list; the list scrolls with the pane, with no inner scroll region.
 
+## Text pane: learned for each app
+
+Below the Shape settings, the defaults Vox learned for individual apps
+([adr/0019](adr/0019-per-app-defaults-that-learn.md)), one row each: the app and what the
+default does in plain words ("Safari — No space after a dictation"), with provenance
+beneath ("4 fixes · since 12 Oct", or "Direct insertion never took here" for the paste-only
+memo) and a reset on the row; "Reset all" in the header. A suspended default carries the
+same warning and sentence a suspended word does. Defaults still gathering evidence sit
+behind "Waiting: N seen once or twice", as the Vocabulary pane's do. The empty state says
+how one gets learned; with capture off it says learning is off.
+
 ## Long-form session panel
 
 Specified in [LONG-FORM.md](LONG-FORM.md). Unlike the recording overlay, this one is meant to

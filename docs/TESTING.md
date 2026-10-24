@@ -46,6 +46,11 @@ M7, when terms are applied), and the guarantee that deleting a term also deletes
 evidence. The focus-left and refused-field cases are structural: the watch is registered
 under the `Inserted` arm only, and ends itself when the frontmost app changes.
 
+**Per-app defaults** ([adr/0019](adr/0019-per-app-defaults-that-learn.md)) — the shape
+variants the watch compares against, exactly; the threshold, the restart on a contradicting
+fix, the reversal and suspension; the override in post-processing, for that app only; reset
+and export. The table's columns are guarded like the transcripts table.
+
 **UI contract coverage** — every command in `src/lib/contract.ts` has a mock implementation,
 and every state documented in [UI-STATES.md](UI-STATES.md) has a scenario in
 `src/mock/scenarios.ts`. Both fail the build when they drift, which is what stops error and
@@ -314,6 +319,30 @@ has the `sqlite3` query).
 **Passed 2026-10-21** by the maintainer in Notes, build a5f619e: gates 3 and 4 (a term
 hinted from three manglings over two sittings, shown as one row in Vocabulary, and a
 learned-term dictation coming out right with the field not read). Gate 1 passed 2026-09-29.
+
+### Per-app defaults (adr/0019)
+
+Cannot be automated: a real field, a real fix, a real app.
+
+1. Dictate into Safari's address bar three times over two sittings (a relaunch or four
+   hours apart) and each time delete the trailing space Vox added, within a minute, and
+   stay in Safari: the log shows `watch: read N: shape fix trailing_space off (recorded)`
+   twice and `(promoted)` the third time; Settings → Text lists "Safari — No space after a
+   dictation · 3 fixes · since …"; the next dictation into Safari has no trailing space,
+   and one into Notes still does.
+2. Put the space back after the next two Safari dictations: `(reversed)` then
+   `(suspended)`; the row gains ⚠ and the sentence; the space is back. × on the row: gone,
+   and a fresh fix starts from one.
+3. Fix it one way, then the other, then the first way: the row stays "Waiting" and the
+   count never reaches three.
+4. Dictate "ls new line pwd" into Terminal (collapsed to one line), then put the line
+   break back, three times over two sittings: "Terminal — Line breaks kept" and the next
+   dictation there keeps them. Reset all: the list is empty and Terminal collapses again.
+5. An app remembered as paste-only (a Chromium app after one verification failure) shows
+   as "Pasted, not inserted directly · Direct insertion never took here"; × on it, and the
+   next dictation there tries direct insertion again (`inject: accessibility …` in the
+   log). Privacy → Export everything: the folder has `app-defaults.txt` and the note
+   counts it.
 
 ### Long-form and learning
 

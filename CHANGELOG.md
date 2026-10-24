@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
+- Defaults that learn per app: delete the space Vox adds after a dictation in the same app
+  three times, over two sittings, and it stops adding one there; the same for line breaks
+  collapsed into spaces, or put back. Settings → Text lists each one with where it came
+  from, and a reset. The apps Vox already remembers as paste-only appear in the same list.
 - Text size for the history panel: Small, Medium or Large in Settings → Dictation, or ⌘+ and
   ⌘− while the panel is open. The Mac's own Larger Text accessibility setting applies on top.
   ⌘, opens Settings from the panel.

@@ -1,10 +1,32 @@
-/** Text: insertion method, clipboard restore, spacing and capitalisation, manual dictionary. */
+/**
+ * Text: insertion method, clipboard restore, spacing and capitalisation, the defaults Vox
+ * learned for each app (docs/adr/0019), manual dictionary.
+ */
 
-import { useState } from 'react'
-import type { Settings } from '../../lib/contract'
+import { useEffect, useState } from 'react'
+import { commands, toDisplayError } from '../../lib/commands'
+import type { AppDefault, Settings, VoxError } from '../../lib/contract'
 import { copy } from '../../lib/copy'
 import type { DeepPartial } from '../../lib/useSettings'
 import { Button, Row, Section, Select, TextInput, Toggle } from '../../ui/form'
+
+function since(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+
+/** What a default does, in the deck's words. Pure, so it can be tested without a DOM. */
+export function describeDefault(d: AppDefault): string {
+  const p = copy.settings.text.perApp
+  if (d.aspect === 'method') return p.paste
+  if (d.aspect === 'trailingSpace') return d.value === 'true' ? p.trailingSpaceOn : p.trailingSpaceOff
+  return d.value === 'true' ? p.collapseOn : p.collapseOff
+}
+
+export function describeProvenance(d: AppDefault): string {
+  if (d.state === 'suspended') return copy.settings.vocabulary.suspended
+  if (d.source === 'outcomes') return copy.settings.text.perAppOutcomes
+  return copy.settings.text.perAppFixes(d.count, since(d.firstSeen))
+}
 
 export function TextPane({ settings, patch }: { settings: Settings; patch: (p: DeepPartial<Settings>) => Promise<void> }) {
   const o = settings.output
@@ -12,6 +34,49 @@ export function TextPane({ settings, patch }: { settings: Settings; patch: (p: D
   const [to, setTo] = useState('')
 
   const setDictionary = (dictionary: Array<{ from: string; to: string }>) => void patch({ output: { dictionary } })
+
+  const [defaults, setDefaults] = useState<AppDefault[] | null>(null)
+  const [defaultsError, setDefaultsError] = useState<VoxError | null>(null)
+  const [showWaiting, setShowWaiting] = useState(false)
+  useEffect(() => {
+    commands
+      .app_defaults_list()
+      .then((d) => {
+        setDefaults(d)
+        setDefaultsError(null)
+      })
+      .catch((e) => setDefaultsError(toDisplayError(e)))
+  }, [])
+  const reset = async (d: AppDefault) => {
+    try {
+      await commands.app_defaults_reset({ bundleId: d.bundleId, aspect: d.aspect })
+      setDefaults((list) => list?.filter((x) => !(x.bundleId === d.bundleId && x.aspect === d.aspect)) ?? null)
+    } catch (e) {
+      setDefaultsError(toDisplayError(e))
+    }
+  }
+  const resetAll = async () => {
+    try {
+      await commands.app_defaults_reset_all()
+      setDefaults([])
+    } catch (e) {
+      setDefaultsError(toDisplayError(e))
+    }
+  }
+  const learned = defaults?.filter((d) => d.state !== 'candidate') ?? []
+  const waiting = defaults?.filter((d) => d.state === 'candidate') ?? []
+  const t = copy.settings.text
+  const defaultRow = (d: AppDefault) => (
+    <Row
+      key={`${d.bundleId}:${d.aspect}`}
+      label={`${d.state === 'suspended' ? '⚠ ' : ''}${d.app} — ${describeDefault(d)}`}
+      hint={describeProvenance(d)}
+    >
+      <Button danger label={`${t.reset} ${d.app}`} onClick={() => void reset(d)}>
+        ×
+      </Button>
+    </Row>
+  )
 
   const add = () => {
     if (!from.trim() || !to.trim()) return
@@ -62,6 +127,29 @@ export function TextPane({ settings, patch }: { settings: Settings; patch: (p: D
         <Row label={copy.settings.text.collapseNewlines} hint={copy.settings.text.collapseHint}>
           <Toggle label={copy.settings.text.collapseNewlines} checked={o.collapseNewlinesInTerminals} onChange={(collapseNewlinesInTerminals) => void patch({ output: { collapseNewlinesInTerminals } })} />
         </Row>
+      </Section>
+
+      <Section
+        title={t.perAppTitle}
+        note={t.perAppNote}
+        actions={
+          learned.length + waiting.length > 0 && (
+            <Button onClick={() => void resetAll()}>{t.resetAll}</Button>
+          )
+        }
+      >
+        {defaults === null && !defaultsError && <Row label={copy.history.loading} />}
+        {defaultsError && <Row label={defaultsError.userMessage} />}
+        {defaults && learned.length === 0 && (
+          <Row label={settings.learning.captureCorrections ? t.perAppEmpty : t.perAppOff} />
+        )}
+        {learned.map(defaultRow)}
+        {waiting.length > 0 && (
+          <Row label={t.perAppWaiting(waiting.length)}>
+            <Button onClick={() => setShowWaiting((s) => !s)}>{showWaiting ? copy.history.less : copy.settings.vocabulary.show}</Button>
+          </Row>
+        )}
+        {showWaiting && waiting.map(defaultRow)}
       </Section>
 
       <Section title={copy.settings.text.dictionaryTitle} note={copy.settings.text.dictionaryNote}>

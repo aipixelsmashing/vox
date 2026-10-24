@@ -167,6 +167,24 @@ pub trait TextInjector: Send + Sync {
 
     /// The frontmost application right now, for revalidation: (pid, display name).
     fn frontmost(&self) -> Option<(u32, String)>;
+
+    /// Bundle ids remembered as paste-only, because a direct write reported success there
+    /// and never took. Shown as per-app defaults (docs/adr/0019); empty where there is no
+    /// such memory.
+    fn paste_only_apps(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Forgets one remembered app, so direct insertion is tried there again. False when
+    /// it was not remembered.
+    fn forget_paste_only(&self, _bundle_id: &str) -> bool {
+        false
+    }
+
+    /// Forgets them all; returns how many went.
+    fn forget_all_paste_only(&self) -> usize {
+        0
+    }
 }
 
 pub fn platform_injector(

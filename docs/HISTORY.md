@@ -112,6 +112,25 @@ CREATE TABLE vocab_candidates (
 );
 ```
 
+```sql
+-- Per-app defaults learned from shape fixes (docs/adr/0019). A bundle id, an aspect, a
+-- value and counts; never any text.
+CREATE TABLE app_defaults (
+  id          INTEGER PRIMARY KEY,
+  bundle_id   TEXT NOT NULL,
+  aspect      TEXT NOT NULL,            -- trailing_space | collapse_newlines
+  value       TEXT NOT NULL,            -- true | false
+  count       INTEGER NOT NULL DEFAULT 1,
+  sessions    INTEGER NOT NULL DEFAULT 1,
+  session_ids TEXT,
+  first_seen  INTEGER NOT NULL,
+  last_seen   INTEGER NOT NULL,
+  reversals   INTEGER NOT NULL DEFAULT 0,
+  state       TEXT NOT NULL,            -- candidate | applied | suspended
+  UNIQUE(bundle_id, aspect)
+);
+```
+
 **Audio is never stored.** It exists in memory during the pipeline and is dropped. A debug
 setting can retain the last N recordings on disk for bug reports; it is off by default,
 shows a persistent tray warning while on, and offers a one-click purge.

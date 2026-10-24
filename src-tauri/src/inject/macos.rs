@@ -584,6 +584,29 @@ impl TextInjector for MacInjector {
     fn frontmost(&self) -> Option<(u32, String)> {
         frontmost_app().map(|(pid, name, _)| (pid, name))
     }
+
+    fn paste_only_apps(&self) -> Vec<String> {
+        let mut v: Vec<String> = self.ax_unusable.lock().iter().cloned().collect();
+        v.sort();
+        v
+    }
+
+    fn forget_paste_only(&self, bundle_id: &str) -> bool {
+        let mut set = self.ax_unusable.lock();
+        let went = set.remove(bundle_id);
+        if went {
+            save_memo(&set);
+        }
+        went
+    }
+
+    fn forget_all_paste_only(&self) -> usize {
+        let mut set = self.ax_unusable.lock();
+        let n = set.len();
+        set.clear();
+        save_memo(&set);
+        n
+    }
 }
 
 #[cfg(test)]

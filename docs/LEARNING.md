@@ -242,6 +242,44 @@ sqlite3 -header -column ~/Library/Application\ Support/com.pixelsmashing.dictati
    GROUP BY right_form ORDER BY corrections DESC"
 ```
 
+## Per-app defaults, from the same watch
+
+The three settings about the shape of a dictation — the trailing space, whether line
+breaks become spaces, and how the text is placed — are global, and the right answer is per
+app ([adr/0019](adr/0019-per-app-defaults-that-learn.md)). The watch that sees a
+vocabulary fix sees a **shape fix** too: a settled change that equals the insertion with
+its trailing space removed or added, or with its line breaks turned into spaces, or (when
+Vox collapsed them) with the original breaks restored. Those exact texts are computed when
+the watch is registered, kept in memory for the window, and compared before the vocabulary
+alignment runs; a change that is one of them is a shape fix and not a correction.
+
+The rules are the vocabulary rules. Three fixes of the same kind in the same app across two
+sessions apply a **per-app default**; `learning.minOccurrences` raises the three. A fix
+the other way while the evidence is still gathering starts it over: a user who alternates
+is not consistent. A fix the other way after a default is applied is a reversal, and two
+suspend it, as two corrected-backs suspend a term. An applied default replaces the global
+setting for that app in post-processing and nothing else. It is governed by the same
+switch, `learning.captureCorrections`, because it is the same watch.
+
+The insertion method is the exception: a fix for a wrong method is not something the watch
+can see, so that default comes from Vox's own evidence — the app remembered as paste-only
+when a direct write reported success and never took ([TEXT-INJECTION.md](TEXT-INJECTION.md#macos))
+— and the pane shows it with that provenance.
+
+Settings → Text lists every per-app default ("Safari — No space after a dictation · 4
+fixes · since 12 Oct", or "Direct insertion never took here"), with a reset on each row and
+a reset for all; a suspended one says so. Export writes `app-defaults.txt`. The table
+(`app_defaults` in `history.db`) holds a bundle id, an aspect, a value and the counts;
+never any text. The log says `watch: read N: shape fix trailing_space off (recorded), seen
+2 times in 1 sessions, candidate`.
+
+```bash
+sqlite3 -header -column ~/Library/Application\ Support/com.pixelsmashing.dictation/history.db \
+  "SELECT bundle_id, aspect, value, count, sessions, reversals, state,
+          datetime(last_seen/1000,'unixepoch','localtime') AS last_seen
+   FROM app_defaults ORDER BY last_seen DESC"
+```
+
 ## What this is not
 
 Not an LLM rewriting your sentences. Not tone adjustment, not summarisation, not "cleaning up"

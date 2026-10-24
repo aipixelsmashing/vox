@@ -281,6 +281,57 @@ pub fn passes_homophone_guard(wrong: &str, right: &str, is_common: &dyn Fn(&str)
     !(is_ordinary(wrong, is_common) && is_ordinary(right, is_common))
 }
 
+// ─── Shape fixes (docs/adr/0019) ─────────────────────────────────────────────
+
+/// The exact texts a settled change is compared with before vocabulary alignment: the
+/// insertion with its trailing space removed or added, with its line breaks turned into
+/// spaces, or (when Vox collapsed them) with the original breaks restored. Each names the
+/// aspect and the value the fix argues for. Held in memory for the watch, never stored.
+pub fn shape_variants(
+    baseline: &str,
+    uncollapsed: Option<&str>,
+) -> Vec<(history::AppAspect, bool, String)> {
+    use history::AppAspect::{CollapseNewlines, TrailingSpace};
+    let mut v = Vec::new();
+    if baseline.is_empty() {
+        return v;
+    }
+    if baseline.ends_with(' ') {
+        v.push((
+            TrailingSpace,
+            false,
+            baseline.trim_end_matches(' ').to_string(),
+        ));
+    } else {
+        v.push((TrailingSpace, true, format!("{baseline} ")));
+    }
+    if baseline.contains('\n') {
+        let collapsed = baseline
+            .split('\n')
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if collapsed != baseline {
+            v.push((CollapseNewlines, true, collapsed));
+        }
+    } else if let Some(u) = uncollapsed.filter(|u| *u != baseline && u.contains('\n')) {
+        v.push((CollapseNewlines, false, u.to_string()));
+    }
+    v
+}
+
+/// Which shape fix, if any, `observed` is: it must equal a variant exactly.
+pub fn shape_fix(
+    variants: &[(history::AppAspect, bool, String)],
+    observed: &str,
+) -> Option<(history::AppAspect, bool)> {
+    variants
+        .iter()
+        .find(|(_, _, text)| text == observed)
+        .map(|(a, v, _)| (*a, *v))
+}
+
 // ─── Observation ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -450,11 +501,14 @@ fn keep(watches: &mut VecDeque<Watch>, new: Watch, limit: usize) {
 
 /// The pipeline's one call, after an insertion that verified. Never reached for a refused
 /// or unverified insertion: password fields and secure input are excluded before this is
-/// called, not filtered afterwards (tests/guards.rs checks the call site).
+/// called, not filtered afterwards (tests/guards.rs checks the call site). `uncollapsed`
+/// is the text as it would have been had its line breaks been kept, when Vox collapsed
+/// them, so restoring them can be seen as a shape fix (docs/adr/0019).
 pub fn watch_after_insertion(
     deps: &crate::pipeline::Deps,
     target: &InjectionTarget,
     inserted: &str,
+    uncollapsed: Option<&str>,
 ) {
     let (on, min_occurrences) = {
         let s = deps.settings.read();
@@ -467,6 +521,7 @@ pub fn watch_after_insertion(
     let watch = Watch::register(
         target,
         inserted,
+        uncollapsed,
         deps.history.clone(),
         deps.injector.clone(),
         session,
@@ -485,6 +540,7 @@ impl Watch {
     pub fn register(
         target: &InjectionTarget,
         inserted: &str,
+        uncollapsed: Option<&str>,
         store: Arc<history::Store>,
         injector: Arc<dyn crate::inject::TextInjector>,
         session: i64,
@@ -504,10 +560,15 @@ impl Watch {
             return None;
         };
         let cancel = Arc::new(AtomicBool::new(false));
+        // The trailing-space variant must describe the insertion as the field holds it:
+        // an app that trimmed the space itself is not the user fixing anything.
+        let variants = shape_variants(&located.inserted, uncollapsed.map(str::trim_end));
         let ctx = WatchContext {
             pid: target.pid,
             app: target.app_name.clone(),
+            bundle_id: target.bundle_id.clone(),
             located,
+            variants,
             store,
             injector,
             session,
@@ -533,6 +594,7 @@ impl Watch {
     pub fn register(
         _target: &InjectionTarget,
         _inserted: &str,
+        _uncollapsed: Option<&str>,
         _store: Arc<history::Store>,
         _injector: Arc<dyn crate::inject::TextInjector>,
         _session: i64,
@@ -547,7 +609,10 @@ impl Watch {
 struct WatchContext {
     pid: u32,
     app: String,
+    bundle_id: Option<String>,
     located: Located,
+    /// The shape fixes this insertion could receive (docs/adr/0019). Text, in memory only.
+    variants: Vec<(history::AppAspect, bool, String)>,
     store: Arc<history::Store>,
     injector: Arc<dyn crate::inject::TextInjector>,
     session: i64,
@@ -621,6 +686,7 @@ mod live {
         // The insertion as the field held it, rebased after each recorded correction so a
         // second fix in the same dictation aligns against the first.
         let mut baseline = ctx.located.inserted.clone();
+        let mut variants = ctx.variants.clone();
         let mut reported: Vec<(String, String)> = Vec::new();
         let mut settle = Settle::default();
         let mut scheduled: VecDeque<Duration> = READ_SCHEDULE.into();
@@ -657,6 +723,43 @@ mod live {
                 continue;
             }
             let settled = settle.seen_again(middle);
+            // A shape fix first: the space or the line breaks, exactly (docs/adr/0019).
+            if let Some((aspect, value)) = shape_fix(&variants, middle) {
+                if !settled {
+                    confirm = Some(t0.elapsed() + SETTLE_AFTER);
+                    tracing::info!(
+                        "watch: read {}: shape change seen, waiting for it to settle",
+                        i
+                    );
+                    continue;
+                }
+                match ctx.bundle_id.as_deref() {
+                    Some(bundle) => match ctx.store.app_default_observe(
+                        bundle,
+                        aspect,
+                        if value { "true" } else { "false" },
+                        ctx.session,
+                        history::now_millis(),
+                        ctx.min_occurrences.max(MIN_OCCURRENCES),
+                    ) {
+                        Ok(seen) => tracing::info!(
+                            "watch: read {}: shape fix {} {} ({}), seen {} times in {} sessions, {}",
+                            i,
+                            aspect.as_str(),
+                            if value { "on" } else { "off" },
+                            seen.what,
+                            seen.count,
+                            seen.sessions,
+                            seen.state
+                        ),
+                        Err(e) => tracing::warn!("watch: store failed: {e}"),
+                    },
+                    None => tracing::info!("watch: read {}: shape fix seen, app has no bundle id", i),
+                }
+                baseline = middle.to_string();
+                variants = shape_variants(&baseline, None);
+                continue;
+            }
             let Some((wrong, right)) = extract_correction(&baseline, middle) else {
                 continue;
             };
@@ -918,6 +1021,44 @@ mod tests {
             !a_flag.load(Ordering::Relaxed),
             "the ended watch goes, not the oldest live one"
         );
+    }
+
+    /// docs/adr/0019: the exact texts a shape fix must match, and nothing looser.
+    #[test]
+    fn shape_variants_name_the_space_and_the_line_breaks() {
+        use history::AppAspect::{CollapseNewlines, TrailingSpace};
+        let v = shape_variants("meet me at standup ", None);
+        assert_eq!(v, vec![(TrailingSpace, false, "meet me at standup".into())]);
+        assert_eq!(
+            shape_fix(&v, "meet me at standup"),
+            Some((TrailingSpace, false))
+        );
+        assert_eq!(
+            shape_fix(&v, "meet me at standup  "),
+            None,
+            "two spaces is typing"
+        );
+        assert_eq!(
+            shape_fix(&v, "meet me at Kubernetes"),
+            None,
+            "a word is for alignment"
+        );
+
+        let v = shape_variants("meet me at standup", None);
+        assert_eq!(v, vec![(TrailingSpace, true, "meet me at standup ".into())]);
+        assert_eq!(
+            shape_fix(&v, "meet me at standup "),
+            Some((TrailingSpace, true))
+        );
+        assert_eq!(shape_fix(&v, "meet me at standup and"), None);
+
+        // Line breaks in the field: collapsing them is the fix.
+        let v = shape_variants("ls -la\ncd foo ", None);
+        assert!(v.contains(&(CollapseNewlines, true, "ls -la cd foo".into())));
+        // Vox collapsed them: restoring the original is the fix.
+        let v = shape_variants("ls -la cd foo", Some("ls -la\ncd foo"));
+        assert!(v.contains(&(CollapseNewlines, false, "ls -la\ncd foo".into())));
+        assert!(shape_variants("", None).is_empty());
     }
 
     #[test]
