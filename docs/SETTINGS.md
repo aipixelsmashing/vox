@@ -51,9 +51,9 @@ drives migrations; each migration is a pure function with a test.
   "output": {
     "method": "auto",              // auto | accessibility | paste | type
     "restoreClipboard": true,
-    "trailingSpace": true,
+    "trailingSpace": true,         // a default Vox learned for an app stands in for this there (adr/0019)
     "capitalizeFirst": false,
-    "collapseNewlinesInTerminals": true,
+    "collapseNewlinesInTerminals": true,  // likewise; and a non-terminal app can learn to collapse
     "onFocusChange": "clipboard",  // clipboard | insert-anyway
     "dictionary": [
       { "from": "kubernetes", "to": "Kubernetes" },

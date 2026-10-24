@@ -141,6 +141,21 @@ pub fn spawn(deps: Deps) -> anyhow::Result<Arc<Handle>> {
 /// Post-processing applied before injection: dictionary replacements, optional leading
 /// capital, newline collapsing for terminals, optional trailing space. Never any rewriting.
 pub fn postprocess(text: &str, out: &settings::Output, is_terminal: bool) -> String {
+    postprocess_for(text, out, is_terminal, &history::AppShape::default())
+}
+
+/// [`postprocess`] with the defaults learned for the target app (docs/adr/0019) standing
+/// in for the global settings where they exist.
+pub fn postprocess_for(
+    text: &str,
+    out: &settings::Output,
+    is_terminal: bool,
+    shape: &history::AppShape,
+) -> String {
+    let trailing_space = shape.trailing_space.unwrap_or(out.trailing_space);
+    let collapse = shape
+        .collapse_newlines
+        .unwrap_or(is_terminal && out.collapse_newlines_in_terminals);
     let mut s = text.trim().to_string();
     for r in &out.dictionary {
         s = replace_word_ci(&s, &r.from, &r.to);
@@ -151,10 +166,10 @@ pub fn postprocess(text: &str, out: &settings::Output, is_terminal: bool) -> Str
             s = first.to_uppercase().collect::<String>() + c.as_str();
         }
     }
-    if is_terminal && out.collapse_newlines_in_terminals {
+    if collapse {
         s = s.split('\n').map(str::trim).collect::<Vec<_>>().join(" ");
     }
-    if out.trailing_space && !s.is_empty() {
+    if trailing_space && !s.is_empty() {
         s.push(' ');
     }
     s
@@ -530,7 +545,29 @@ fn finish(
     }
 
     let is_terminal = target.as_ref().map(|t| t.is_terminal()).unwrap_or(false);
-    let text = postprocess(&transcript.text, &output, is_terminal);
+    // What this app has taught Vox about the shape it wants (docs/adr/0019).
+    let shape = target
+        .as_ref()
+        .and_then(|t| t.bundle_id.as_deref())
+        .and_then(|b| deps.history.app_shape(b).ok())
+        .unwrap_or_default();
+    let text = postprocess_for(&transcript.text, &output, is_terminal, &shape);
+    // The text with its line breaks kept, when they were collapsed: restoring them is a
+    // shape fix the watch can recognise.
+    let collapsed = shape
+        .collapse_newlines
+        .unwrap_or(is_terminal && output.collapse_newlines_in_terminals);
+    let uncollapsed = (collapsed && transcript.text.contains('\n')).then(|| {
+        postprocess_for(
+            &transcript.text,
+            &output,
+            is_terminal,
+            &history::AppShape {
+                collapse_newlines: Some(false),
+                ..shape
+            },
+        )
+    });
     tray::set_state(&deps.app, tray::IconState::Transcribing);
     emit_state(&deps.app, PipelineStateDto::Injecting);
 
@@ -593,7 +630,7 @@ fn finish(
     // A verified insertion gets a correction watch (docs/LEARNING.md). Off the critical
     // path; a refused or unverified insertion never reaches this arm.
     if let (inject::InjectionOutcome::Inserted { .. }, Some(t)) = (&outcome, target.as_ref()) {
-        crate::learning::watch_after_insertion(deps, t, &text);
+        crate::learning::watch_after_insertion(deps, t, &text, uncollapsed.as_deref());
     }
 
     let mut entry_id = 0;
@@ -852,6 +889,40 @@ mod tests {
         m.last = Some(Instant::now() - Duration::from_millis(60));
         m.feed(&[0.5; 100]);
         assert_eq!(m.take_if_due(), Some(1.0), "clamped to 1.0");
+    }
+
+    /// docs/adr/0019: a learned default replaces the global setting for that app only.
+    #[test]
+    fn postprocess_honours_a_learned_app_shape() {
+        use history::AppShape;
+        let o = out();
+        let no_space = AppShape {
+            trailing_space: Some(false),
+            collapse_newlines: None,
+        };
+        assert_eq!(postprocess_for("hello", &o, false, &no_space), "hello");
+        let keep_breaks = AppShape {
+            trailing_space: None,
+            collapse_newlines: Some(false),
+        };
+        assert_eq!(
+            postprocess_for("ls\ncd", &o, true, &keep_breaks),
+            "ls\ncd ",
+            "a terminal that learned to keep its line breaks"
+        );
+        let collapse = AppShape {
+            trailing_space: None,
+            collapse_newlines: Some(true),
+        };
+        assert_eq!(
+            postprocess_for("one\ntwo", &o, false, &collapse),
+            "one two ",
+            "a chat app that learned to collapse them"
+        );
+        assert_eq!(
+            postprocess_for("hello", &o, false, &AppShape::default()),
+            postprocess("hello", &o, false)
+        );
     }
 
     #[test]

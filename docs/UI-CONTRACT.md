@@ -40,6 +40,13 @@ Grouped by pane. Full signatures in `contract.ts`.
 | `vocab_forget_all` | — | `{ deleted }` — every stored correction, candidates included; the Privacy pane's delete button |
 | `vocab_export` | — | `{ path }` |
 
+### Per-app defaults
+| Command | In | Out |
+| --- | --- | --- |
+| `app_defaults_list` | — | `AppDefault[]` — learned from fixes (the store) and the paste-only memo (the injector), newest first ([adr/0019](adr/0019-per-app-defaults-that-learn.md)) |
+| `app_defaults_reset` | `{ bundleId, aspect }` | `void` — the default and its evidence; a method row is the injector's memory |
+| `app_defaults_reset_all` | — | `{ deleted }` |
+
 ### Settings, models, permissions
 | Command | In | Out |
 | --- | --- | --- |

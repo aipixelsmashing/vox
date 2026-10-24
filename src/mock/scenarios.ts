@@ -48,6 +48,8 @@ export const scenarios = {
   'hotkey-altgr':          { label: 'Hotkey — AltGr layout warning' },
   'hotkey-fn':             { label: 'Hotkey — Fn chosen, Globe key still assigned' },
   'dictionary-empty':      { label: 'Dictionary — empty' },
+  'app-defaults-empty':    { label: 'Per-app defaults — nothing learned yet' },
+  'app-defaults-populated': { label: 'Per-app defaults — applied, suspended, from outcomes, gathering' },
   'diagnostics-thin':      { label: 'Diagnostics — not enough data' },
   'diagnostics-rich':      { label: 'Diagnostics — six weeks of data' },
 } as const

@@ -602,6 +602,62 @@ pub fn vocab_forget_all(state: State<'_, AppState>) -> CmdResult<Deleted> {
     Ok(Deleted { deleted })
 }
 
+/// Every per-app default (docs/adr/0019): the ones learned from fixes, in the store, and
+/// the apps the injector remembers as paste-only, as rows of their own.
+#[tauri::command]
+pub fn app_defaults_list(state: State<'_, AppState>) -> CmdResult<Vec<history::AppDefault>> {
+    let mut rows = state.history.app_defaults_list().map_err(VoxError::io)?;
+    for r in &mut rows {
+        r.app = display_app_name(&r.bundle_id);
+    }
+    for bundle_id in state.injector.paste_only_apps() {
+        rows.push(history::AppDefault {
+            app: display_app_name(&bundle_id),
+            bundle_id,
+            aspect: history::AppAspect::Method,
+            value: "paste".into(),
+            count: 0,
+            sessions: 0,
+            first_seen: 0,
+            last_seen: 0,
+            reversals: 0,
+            state: "applied".into(),
+            source: "outcomes",
+        });
+    }
+    Ok(rows)
+}
+
+/// The Text pane's per-row reset: the evidence goes with it, so it cannot come back from
+/// the same fixes. A method row is the injector's memory.
+#[tauri::command]
+pub fn app_defaults_reset(
+    state: State<'_, AppState>,
+    bundle_id: String,
+    aspect: history::AppAspect,
+) -> CmdResult<()> {
+    if aspect == history::AppAspect::Method {
+        state.injector.forget_paste_only(&bundle_id);
+    }
+    state
+        .history
+        .app_defaults_reset(&bundle_id, aspect)
+        .map_err(VoxError::io)?;
+    tracing::info!("app defaults: reset {} for one app", aspect.as_str());
+    Ok(())
+}
+
+#[tauri::command]
+pub fn app_defaults_reset_all(state: State<'_, AppState>) -> CmdResult<Deleted> {
+    let deleted = state
+        .history
+        .app_defaults_reset_all()
+        .map_err(VoxError::io)?
+        + state.injector.forget_all_paste_only();
+    tracing::info!("app defaults: reset all, {deleted} went");
+    Ok(Deleted { deleted })
+}
+
 #[tauri::command]
 pub fn vocab_export(state: State<'_, AppState>) -> CmdResult<ExportedTo> {
     let dir = export_dir().map_err(VoxError::io)?;
@@ -750,10 +806,15 @@ pub fn export_everything(
         .export_to(&dir, history::ExportFormat::Json)
         .map_err(VoxError::io)?;
     let (_, words) = state.history.vocab_export_to(&dir).map_err(VoxError::io)?;
+    let (_, app_defaults) = state
+        .history
+        .app_defaults_export_to(&dir)
+        .map_err(VoxError::io)?;
     let transcripts = state.history.count().map_err(VoxError::io)? as usize;
     let mut counts = std::collections::BTreeMap::new();
     counts.insert("transcripts", transcripts);
     counts.insert("words", words);
+    counts.insert("appDefaults", app_defaults);
     Ok(ExportedEverything {
         path: dir.display().to_string(),
         counts,

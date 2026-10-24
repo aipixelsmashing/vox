@@ -81,6 +81,30 @@ export interface VocabTerm {
   hinted: boolean
 }
 
+/** What a per-app default is about (docs/adr/0019). */
+export type AppAspect = 'trailingSpace' | 'collapseNewlines' | 'method'
+
+/**
+ * A default Vox learned for one app: a bundle id, an aspect, a value, and the evidence.
+ * `value` is 'true' | 'false' for the two shape aspects and 'paste' for the method.
+ * `source`: 'fixes' came from the user fixing the same thing three times; 'outcomes' is
+ * the paste-only memo, from direct insertion never taking in that app. Never any text.
+ */
+export interface AppDefault {
+  bundleId: string
+  /** The name people know the app by. */
+  app: string
+  aspect: AppAspect
+  value: string
+  count: number
+  sessions: number
+  firstSeen: number
+  lastSeen: number
+  reversals: number
+  state: 'candidate' | 'applied' | 'suspended'
+  source: 'fixes' | 'outcomes'
+}
+
 export type PermissionStatus = 'granted' | 'denied' | 'needsRestart' | 'notApplicable'
 
 export interface PermissionReport {
@@ -198,6 +222,12 @@ export interface Commands {
   vocab_forget_all(): Promise<{ deleted: number }>
   vocab_export(): Promise<{ path: string }>
 
+  /** Every per-app default, applied, suspended and still gathering, newest first. */
+  app_defaults_list(): Promise<AppDefault[]>
+  /** Forgets one app's default for one aspect, evidence included. The Text pane's per-row ×. */
+  app_defaults_reset(a: { bundleId: string; aspect: AppAspect }): Promise<void>
+  app_defaults_reset_all(): Promise<{ deleted: number }>
+
   settings_get(): Promise<Settings>
   /** Returns the merged result, so the UI never has to guess what the core accepted. */
   settings_set(a: Partial<Settings>): Promise<Settings>
@@ -263,6 +293,9 @@ export const COMMAND_NAMES = [
   'vocab_forget_term',
   'vocab_forget_all',
   'vocab_export',
+  'app_defaults_list',
+  'app_defaults_reset',
+  'app_defaults_reset_all',
   'settings_get',
   'settings_set',
   'hotkey_capture_start',

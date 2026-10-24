@@ -5,6 +5,7 @@
  */
 
 import type {
+  AppDefault,
   AudioDevice, Diagnostics, HistoryEntry, ModelInfo, PermissionReport, Settings, VocabTerm,
 } from '../lib/contract'
 
@@ -47,6 +48,16 @@ export const historyEntries: HistoryEntry[] = [
     language: 'en', targetApp: 'Notes', outcome: 'inserted', outcomeNote: null,
     method: 'accessibility', longForm: false, contextTerms: 0,
   },
+]
+
+const d = 86_400_000
+/** Per-app defaults (docs/adr/0019): two learned from fixes, one suspended, one from outcomes, one still gathering. */
+export const appDefaults: AppDefault[] = [
+  { bundleId: 'com.apple.Safari', app: 'Safari', aspect: 'trailingSpace', value: 'false', count: 4, sessions: 3, firstSeen: Date.now() - 12 * d, lastSeen: Date.now() - d, reversals: 0, state: 'applied', source: 'fixes' },
+  { bundleId: 'com.tinyspeck.slackmacgap', app: 'Slack', aspect: 'collapseNewlines', value: 'true', count: 3, sessions: 2, firstSeen: Date.now() - 20 * d, lastSeen: Date.now() - 3 * d, reversals: 0, state: 'applied', source: 'fixes' },
+  { bundleId: 'com.apple.Notes', app: 'Notes', aspect: 'trailingSpace', value: 'false', count: 5, sessions: 3, firstSeen: Date.now() - 30 * d, lastSeen: Date.now() - 2 * d, reversals: 2, state: 'suspended', source: 'fixes' },
+  { bundleId: 'com.brave.Browser', app: 'Brave Browser', aspect: 'method', value: 'paste', count: 0, sessions: 0, firstSeen: 0, lastSeen: 0, reversals: 0, state: 'applied', source: 'outcomes' },
+  { bundleId: 'com.apple.mail', app: 'Mail', aspect: 'trailingSpace', value: 'false', count: 2, sessions: 1, firstSeen: Date.now() - 2 * d, lastSeen: Date.now() - d, reversals: 0, state: 'candidate', source: 'fixes' },
 ]
 
 export const vocabTerms: VocabTerm[] = [
